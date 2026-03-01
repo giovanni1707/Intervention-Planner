@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BPS Service Management — BAVARIAN PACKAGING SOLUTION</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+  <!-- ============================
+       LOGIN SCREEN
+  ============================= -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-badge">BPS</div>
+        <div class="login-brand">
+          <div class="login-company">BAVARIAN PACKAGING SOLUTION LTD</div>
+          <div class="login-subtitle">Official Representative — MULTIVAC Group</div>
+          <div class="login-region">Indian Ocean Region</div>
+        </div>
+      </div>
+      <div class="login-divider"></div>
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label class="form-label" for="loginEmail">Email Address</label>
+          <input type="email" id="loginEmail" class="form-input" placeholder="your@email.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <div id="loginError" class="error-msg hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
+          <span id="loginBtnText">Sign In</span>
+        </button>
+      </form>
+      <div class="login-demo">
+        <span>Demo:</span>
+        <code>admin@bavarian.mu</code> / <code>admin123</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       APP SHELL
+  ============================= -->
+  <div id="appShell" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar"></aside>
+    <div class="main-wrapper">
+      <main id="mainContent" class="main-content"></main>
+    </div>
+  </div>
+
+  <!-- ============================
+       MODAL OVERLAY
+  ============================= -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div id="modalContainer" class="modal-container">
+      <div class="modal-header">
+        <h3 id="modalTitle" class="modal-title"></h3>
+        <button class="modal-close" id="modalCloseBtn" aria-label="Close">&times;</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+      <div id="modalFooter" class="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- ============================
+       CONFIRM DIALOG
+  ============================= -->
+  <div id="confirmOverlay" class="modal-overlay hidden">
+    <div class="modal-container modal-sm">
+      <div class="modal-header">
+        <h3 id="confirmTitle" class="modal-title">Confirm Action</h3>
+      </div>
+      <div id="confirmBody" class="modal-body">
+        <p id="confirmMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="confirmCancelBtn">Cancel</button>
+        <button class="btn btn-danger" id="confirmOkBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       TOAST CONTAINER
+  ============================= -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- ============================
+       SCRIPTS — ORDER MATTERS
+  ============================= -->
+  <script src="https://cdn.jsdelivr.net/npm/dom-helpers-js@2.4.3/dist/dom-helpers.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="../src/04_reactive/01_dh-reactive.js"></script>
+
+  <script src="js/config.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/seed.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+
+  <script src="js/components/toast.js"></script>
+  <script src="js/components/modals.js"></script>
+  <script src="js/components/sidebar.js"></script>
+  <script src="js/components/charts.js"></script>
+
+  <script src="js/views/dashboard.js"></script>
+  <script src="js/views/clients.js"></script>
+  <script src="js/views/machines.js"></script>
+  <script src="js/views/interventions.js"></script>
+  <script src="js/views/planning.js"></script>
+  <script src="js/views/technicians.js"></script>
+  <script src="js/views/reports.js"></script>
+
+  <script src="js/router.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
