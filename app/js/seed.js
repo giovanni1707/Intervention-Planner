@@ -49,7 +49,7 @@ function seedDemoData() {
   const interventions = [
     {
       id: 'i1', clientId: 'c1', machineId: 'm1', type: 'breakdown', priority: 'urgent',
-      status: 'ongoing', technicianId: 'u2',
+      location: 'client', status: 'ongoing', technicianId: 'u2',
       description: 'Sealing head overheating — production halted. Immediate repair required.',
       scheduledDate: d(-1), createdAt: d(-3), updatedAt: d(-1),
       notes: [{ id: 'n1', text: 'Technician on site. Identified faulty heating element.', author: 'Jean-Marc Dupont', createdAt: d(-1) }],
@@ -63,7 +63,7 @@ function seedDemoData() {
     },
     {
       id: 'i2', clientId: 'c2', machineId: 'm3', type: 'preventive', priority: 'medium',
-      status: 'planned', technicianId: 'u3',
+      location: 'client', status: 'planned', technicianId: 'u3',
       description: 'Annual preventive maintenance — lubrication, belt inspection, calibration.',
       scheduledDate: d(3), createdAt: d(-5), updatedAt: d(-5),
       notes: [], parts: [], createdBy: 'Admin User',
@@ -75,7 +75,7 @@ function seedDemoData() {
     },
     {
       id: 'i3', clientId: 'c3', machineId: 'm5', type: 'breakdown', priority: 'high',
-      status: 'waiting_parts', technicianId: 'u2',
+      location: 'workshop', status: 'waiting_parts', technicianId: 'u2',
       description: 'Vacuum pump failure. Replacement pump ordered, awaiting delivery.',
       scheduledDate: d(-7), createdAt: d(-10), updatedAt: d(-2),
       notes: [
@@ -92,7 +92,7 @@ function seedDemoData() {
     },
     {
       id: 'i4', clientId: 'c4', machineId: 'm7', type: 'preventive', priority: 'low',
-      status: 'completed', technicianId: 'u3',
+      location: 'client', status: 'completed', technicianId: 'u3',
       description: '6-month preventive maintenance completed successfully.',
       scheduledDate: d(-14), createdAt: d(-20), updatedAt: d(-13),
       notes: [{ id: 'n4', text: 'All checks done. Machine in good condition. Next PM in 6 months.', author: 'Priya Naidoo', createdAt: d(-13) }],
@@ -111,7 +111,7 @@ function seedDemoData() {
     },
     {
       id: 'i5', clientId: 'c5', machineId: 'm9', type: 'breakdown', priority: 'high',
-      status: 'new', technicianId: null,
+      location: 'client', status: 'new', technicianId: null,
       description: 'Film sealing inconsistency — packaging defects reported. Needs urgent inspection.',
       scheduledDate: null, createdAt: d(-1), updatedAt: d(-1),
       notes: [], parts: [], createdBy: 'Admin User',
@@ -121,7 +121,7 @@ function seedDemoData() {
     },
     {
       id: 'i6', clientId: 'c1', machineId: 'm2', type: 'installation', priority: 'medium',
-      status: 'assigned', technicianId: 'u3',
+      location: 'client', status: 'assigned', technicianId: 'u3',
       description: 'New conveyor belt installation and commissioning on R535 line.',
       scheduledDate: d(5), createdAt: d(-2), updatedAt: d(-1),
       notes: [], parts: [], createdBy: 'Admin User',
@@ -132,7 +132,7 @@ function seedDemoData() {
     },
     {
       id: 'i7', clientId: 'c2', machineId: 'm4', type: 'support', priority: 'low',
-      status: 'pending', technicianId: 'u2',
+      location: 'client', status: 'pending', technicianId: 'u2',
       description: 'Operator training request — new staff onboarding on X-line 400 controls.',
       scheduledDate: d(7), createdAt: d(-3), updatedAt: d(-3),
       notes: [], parts: [], createdBy: 'Admin User',
@@ -144,7 +144,7 @@ function seedDemoData() {
     },
     {
       id: 'i8', clientId: 'c3', machineId: 'm6', type: 'preventive', priority: 'medium',
-      status: 'completed', technicianId: 'u3',
+      location: 'client', status: 'completed', technicianId: 'u3',
       description: '3-month inspection completed. Film feed mechanism adjusted.',
       scheduledDate: d(-30), createdAt: d(-35), updatedAt: d(-29),
       notes: [{ id: 'n5', text: 'Film feed tension adjusted. Sealing bar cleaned. All OK.', author: 'Priya Naidoo', createdAt: d(-29) }],
@@ -156,7 +156,7 @@ function seedDemoData() {
     },
     {
       id: 'i9', clientId: 'c4', machineId: 'm8', type: 'breakdown', priority: 'urgent',
-      status: 'new', technicianId: null,
+      location: 'client', status: 'new', technicianId: null,
       description: 'Machine not starting — electrical fault suspected. Production stopped.',
       scheduledDate: null, createdAt: d(0), updatedAt: d(0),
       notes: [], parts: [], createdBy: 'Admin User',
@@ -166,7 +166,7 @@ function seedDemoData() {
     },
     {
       id: 'i10', clientId: 'c5', machineId: 'm10', type: 'installation', priority: 'low',
-      status: 'planned', technicianId: 'u2',
+      location: 'client', status: 'planned', technicianId: 'u2',
       description: 'Initial setup and commissioning of newly purchased C300.',
       scheduledDate: d(10), createdAt: d(-7), updatedAt: d(-7),
       notes: [], parts: [], createdBy: 'Admin User',
@@ -177,7 +177,7 @@ function seedDemoData() {
     },
     {
       id: 'i11', clientId: 'c1', machineId: 'm1', type: 'preventive', priority: 'medium',
-      status: 'completed', technicianId: 'u2',
+      location: 'client', status: 'completed', technicianId: 'u2',
       description: 'Quarterly PM completed — sealing head cleaned, settings verified.',
       scheduledDate: d(-45), createdAt: d(-50), updatedAt: d(-44),
       notes: [{ id: 'n6', text: 'Quarterly PM complete. All parameters within spec.', author: 'Jean-Marc Dupont', createdAt: d(-44) }],
@@ -190,7 +190,7 @@ function seedDemoData() {
     },
     {
       id: 'i12', clientId: 'c2', machineId: 'm3', type: 'breakdown', priority: 'high',
-      status: 'cancelled', technicianId: 'u3',
+      location: 'workshop', status: 'cancelled', technicianId: 'u3',
       description: 'Belt slippage reported — inspection found no defect, false alarm.',
       scheduledDate: d(-20), createdAt: d(-22), updatedAt: d(-19),
       notes: [{ id: 'n7', text: 'Inspection complete — no fault found. Belt correctly tensioned. Closing ticket.', author: 'Priya Naidoo', createdAt: d(-19) }],
@@ -202,7 +202,7 @@ function seedDemoData() {
     },
     {
       id: 'i13', clientId: 'c3', machineId: 'm5', type: 'support', priority: 'low',
-      status: 'new', technicianId: null,
+      location: 'workshop', status: 'new', technicianId: null,
       description: 'Request for vacuum chamber manual and spare parts catalog.',
       scheduledDate: null, createdAt: d(-2), updatedAt: d(-2),
       notes: [], parts: [], createdBy: 'Admin User',
@@ -212,7 +212,7 @@ function seedDemoData() {
     },
     {
       id: 'i14', clientId: 'c4', machineId: 'm7', type: 'preventive', priority: 'medium',
-      status: 'assigned', technicianId: 'u2',
+      location: 'client', status: 'assigned', technicianId: 'u2',
       description: 'Annual full service — complete strip-down and inspection scheduled.',
       scheduledDate: d(14), createdAt: d(-1), updatedAt: d(-1),
       notes: [], parts: [], createdBy: 'Admin User',
@@ -223,7 +223,7 @@ function seedDemoData() {
     },
     {
       id: 'i15', clientId: 'c5', machineId: 'm9', type: 'support', priority: 'medium',
-      status: 'ongoing', technicianId: 'u3',
+      location: 'client', status: 'ongoing', technicianId: 'u3',
       description: 'Remote diagnostics session for film feed calibration optimization.',
       scheduledDate: d(0), createdAt: d(-1), updatedAt: d(0),
       notes: [{ id: 'n8', text: 'Remote session in progress. Feed tension being recalibrated.', author: 'Priya Naidoo', createdAt: d(0) }],

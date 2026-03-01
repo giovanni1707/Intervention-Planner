@@ -4,6 +4,9 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  // ── 0. APPLY SAVED SETTINGS (theme, font size, colors) ───
+  Settings.apply();
+
   // ── 1. SEED DEMO DATA (first run only) ───────────────────
   seedDemoData();
 

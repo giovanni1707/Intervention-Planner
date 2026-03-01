@@ -319,13 +319,23 @@ Views.Interventions = {
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label class="form-label">Intervention Location</label>
+          <select id="fIntLocation" class="form-select">
+            <option value="client" ${(intervention.location || 'client') === 'client' ? 'selected' : ''}>Client Premises</option>
+            <option value="workshop" ${intervention.location === 'workshop' ? 'selected' : ''}>Workshop</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label class="form-label">Status</label>
           <select id="fIntStatus" class="form-select">${statusOptions}</select>
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label class="form-label">Assigned Technician</label>
           <select id="fIntTech" class="form-select">${techOptions}</select>
         </div>
+        <div class="form-group"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -383,6 +393,7 @@ Views.Interventions = {
       priority:    document.getElementById('fIntPriority')?.value || 'medium',
       status:      document.getElementById('fIntStatus')?.value || 'new',
       technicianId: document.getElementById('fIntTech')?.value || null,
+      location:    document.getElementById('fIntLocation')?.value || 'client',
       scheduledDate,
       description: document.getElementById('fIntDesc')?.value.trim() || '',
       createdBy:   user?.name || 'Admin'
@@ -434,6 +445,7 @@ Views.Interventions = {
       priority:     document.getElementById('fIntPriority')?.value,
       status:       newStatus,
       technicianId: document.getElementById('fIntTech')?.value || null,
+      location:     document.getElementById('fIntLocation')?.value || 'client',
       scheduledDate,
       description:  document.getElementById('fIntDesc')?.value.trim() || ''
     }, auditEntry);
@@ -508,6 +520,7 @@ Views.Interventions = {
           <div class="detail-field"><div class="detail-field-label">Client</div><div class="detail-field-value">${Utils.escapeHtml(client?.name || '—')}</div></div>
           <div class="detail-field"><div class="detail-field-label">Machine</div><div class="detail-field-value">${Utils.escapeHtml(machine?.model || '—')} <span class="text-xs text-muted">(${Utils.escapeHtml(machine?.serialNumber || '')})</span></div></div>
           <div class="detail-field"><div class="detail-field-label">Type</div><div class="detail-field-value">${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</div></div>
+          <div class="detail-field"><div class="detail-field-label">Location</div><div class="detail-field-value">${i.location === 'workshop' ? 'Workshop' : 'Client Premises'}</div></div>
           <div class="detail-field"><div class="detail-field-label">Technician</div><div class="detail-field-value">${Utils.escapeHtml(tech?.name || 'Unassigned')}</div></div>
           <div class="detail-field"><div class="detail-field-label">Status</div><div class="detail-field-value">${Utils.getStatusBadge(i.status)}</div></div>
           <div class="detail-field"><div class="detail-field-label">Priority</div><div class="detail-field-value">${Utils.getPriorityBadge(i.priority)}</div></div>

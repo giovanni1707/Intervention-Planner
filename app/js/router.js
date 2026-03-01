@@ -9,11 +9,12 @@ const ROUTES = {
   interventions: () => Views.Interventions.mount(),
   planning:      () => Views.Planning.mount(),
   technicians:   () => Views.Technicians.mount(),
-  reports:       () => Views.Reports.mount()
+  reports:       () => Views.Reports.mount(),
+  settings:      () => Views.Settings.mount()
 };
 
 // Routes accessible by technicians only
-const TECH_ROUTES = ['interventions'];
+const TECH_ROUTES = ['interventions', 'settings'];
 
 const Router = {
   _current: null,

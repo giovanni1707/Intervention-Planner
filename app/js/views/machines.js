@@ -75,7 +75,7 @@ Views.Machines = {
               <th>Install Date</th>
               <th>Contract</th>
               <th>Contract Expiry</th>
-              <th style="width:80px"></th>
+              <th style="width:110px"></th>
             </tr>
           </thead>
           <tbody id="machineTableBody"></tbody>
@@ -104,8 +104,12 @@ Views.Machines = {
 
     tbody.innerHTML = machines.map(m => {
       const client = appState.clients.find(c => c.id === m.clientId);
-      const isExpired = m.contractExpiry && new Date(m.contractExpiry) < new Date();
+      const hasContract = m.contractType && m.contractType !== 'none';
+      const isExpired = hasContract && m.contractExpiry && new Date(m.contractExpiry) < new Date();
       const expiryClass = isExpired ? 'style="color:var(--red)"' : '';
+      const expiryCell = !hasContract
+        ? '—'
+        : (m.contractExpiry ? Utils.formatDate(m.contractExpiry) : '—') + (isExpired ? ' <span class="badge badge-cancelled" style="font-size:0.643rem">Expired</span>' : '');
       return `
         <tr>
           <td class="td-primary">${Utils.escapeHtml(m.model)}</td>
@@ -115,9 +119,12 @@ Views.Machines = {
           <td>${Utils.escapeHtml(m.location || '—')}</td>
           <td style="white-space:nowrap">${Utils.formatDate(m.installDate)}</td>
           <td>${Utils.getContractBadge(m.contractType || 'none')}</td>
-          <td ${expiryClass} style="white-space:nowrap">${m.contractExpiry ? Utils.formatDate(m.contractExpiry) : '—'}${isExpired ? ' <span class="badge badge-cancelled" style="font-size:0.643rem">Expired</span>' : ''}</td>
+          <td ${expiryClass} style="white-space:nowrap">${expiryCell}</td>
           <td>
             <div class="td-actions">
+              <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick="Views.Machines.openDetailModal('${m.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
               <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Machines._openEditModal('${m.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </button>
@@ -195,14 +202,26 @@ Views.Machines = {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Contract Type</label>
-          <select id="fMachineContract" class="form-select">${contractTypes}</select>
+          <select id="fMachineContract" class="form-select" onchange="Views.Machines._toggleExpiryField(this.value)">${contractTypes}</select>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="fMachineExpiryGroup" ${(machine.contractType || 'none') === 'none' ? 'style="display:none"' : ''}>
           <label class="form-label">Contract Expiry Date</label>
           <input type="date" id="fMachineExpiry" class="form-input" value="${machine.contractExpiry || ''}">
         </div>
       </div>
     `;
+  },
+
+  _toggleExpiryField(contractType) {
+    const group = document.getElementById('fMachineExpiryGroup');
+    if (!group) return;
+    if (contractType === 'none') {
+      group.style.display = 'none';
+      const input = document.getElementById('fMachineExpiry');
+      if (input) input.value = '';
+    } else {
+      group.style.display = '';
+    }
   },
 
   _openCreateModal() {
@@ -268,6 +287,124 @@ Views.Machines = {
     Modals.close();
     Toast.success('Machine updated successfully');
     this.mount();
+  },
+
+  openDetailModal(machineId) {
+    const machine = Storage.getMachineById(machineId);
+    if (!machine) return;
+
+    const client   = appState.clients.find(c => c.id === machine.clientId);
+    const history  = appState.interventions
+      .filter(i => i.machineId === machineId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const isExpired = machine.contractExpiry && new Date(machine.contractExpiry) < new Date();
+
+    const historyHTML = history.length === 0
+      ? '<p class="text-sm text-muted" style="padding:8px 0">No interventions recorded for this machine.</p>'
+      : `<table class="data-table" style="margin-top:0">
+          <thead>
+            <tr>
+              <th>Status</th><th>Priority</th><th>Type</th>
+              <th>Location</th><th>Technician</th><th>Scheduled</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${history.map(i => `
+              <tr>
+                <td>${Utils.getStatusBadge(i.status)}</td>
+                <td>${Utils.getPriorityBadge(i.priority)}</td>
+                <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
+                <td style="font-size:0.786rem">${i.location === 'workshop' ? 'Workshop' : 'Client Premises'}</td>
+                <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getTechnicianName(i.technicianId))}</td>
+                <td style="font-size:0.786rem;white-space:nowrap">${Utils.formatDate(i.scheduledDate)}</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm btn-icon" title="View"
+                    onclick="Modals.close(); setTimeout(() => Views.Interventions.openDetailModal('${i.id}'), 100)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+
+    const body = `
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- Machine info -->
+        <div>
+          <div class="detail-section-label">Machine Details</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-field-label">Model</div>
+              <div class="detail-field-value">${Utils.escapeHtml(machine.model)}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Serial Number</div>
+              <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine.serialNumber || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Type</div>
+              <div class="detail-field-value">${Utils.escapeHtml(machine.type || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Production Line / Location</div>
+              <div class="detail-field-value">${Utils.escapeHtml(machine.location || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Install Date</div>
+              <div class="detail-field-value">${Utils.formatDate(machine.installDate)}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Contract</div>
+              <div class="detail-field-value">
+                ${Utils.getContractBadge(machine.contractType || 'none')}
+                ${(machine.contractType && machine.contractType !== 'none' && machine.contractExpiry) ? `<span style="margin-left:6px;font-size:0.786rem;color:${isExpired ? 'var(--red)' : 'var(--gray-500)'}">
+                  expires ${Utils.formatDate(machine.contractExpiry)}${isExpired ? ' (expired)' : ''}
+                </span>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Client info -->
+        ${client ? `
+        <div>
+          <div class="detail-section-label">Client</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-field-label">Company</div>
+              <div class="detail-field-value">${Utils.escapeHtml(client.name)}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Contact</div>
+              <div class="detail-field-value">${Utils.escapeHtml(client.contactPerson || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Region</div>
+              <div class="detail-field-value">${Utils.escapeHtml(client.region || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Phone</div>
+              <div class="detail-field-value">${Utils.escapeHtml(client.phone || '—')}</div>
+            </div>
+          </div>
+        </div>` : ''}
+
+        <!-- Intervention history -->
+        <div>
+          <div class="detail-section-label">Intervention History (${history.length})</div>
+          ${historyHTML}
+        </div>
+
+      </div>
+    `;
+
+    Modals.open(`${machine.model} — ${machine.serialNumber || ''}`, body, `
+      <button class="btn btn-ghost" onclick="Modals.close()">Close</button>
+      ${Auth.isAdmin() ? `<button class="btn btn-primary" onclick="Modals.close(); setTimeout(() => Views.Machines._openEditModal('${machineId}'), 100)">Edit Machine</button>` : ''}
+    `);
   },
 
   async _deleteMachine(machineId) {

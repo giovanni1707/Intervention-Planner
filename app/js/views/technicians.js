@@ -101,7 +101,11 @@ Views.Technicians = {
             <div class="tech-email">${Utils.escapeHtml(tech.email)}</div>
             <div style="margin-top:4px">${Utils.getRoleBadge(tech.role)}</div>
           </div>
-          ${Auth.isAdmin() ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="Views.Technicians._openEditModal('${tech.id}')">
+          <button class="btn btn-ghost btn-sm btn-icon" title="View All Interventions"
+                  onclick="Views.Technicians.openInterventionsModal('${tech.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+          ${Auth.isAdmin() ? `<button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Technicians._openEditModal('${tech.id}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>` : ''}
         </div>
@@ -135,6 +139,60 @@ Views.Technicians = {
         <div class="tech-jobs-list">${jobsHTML}</div>
       </div>
     `;
+  },
+
+  openInterventionsModal(techId) {
+    const tech = Storage.getUserById(techId);
+    if (!tech) return;
+
+    const allIntv = appState.interventions
+      .filter(i => i.technicianId === techId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const rowsHTML = allIntv.length === 0
+      ? `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--gray-400)">No interventions assigned to this technician.</td></tr>`
+      : allIntv.map(i => `
+          <tr>
+            <td>${Utils.getStatusBadge(i.status)}</td>
+            <td>${Utils.getPriorityBadge(i.priority)}</td>
+            <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
+            <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getMachineModel(i.machineId))}</td>
+            <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
+            <td style="font-size:0.786rem">${i.location === 'workshop' ? 'Workshop' : 'Client Premises'}</td>
+            <td style="font-size:0.786rem;white-space:nowrap">${Utils.formatDate(i.scheduledDate)}</td>
+            <td>
+              <button class="btn btn-ghost btn-sm btn-icon" title="View Details"
+                onclick="Modals.close(); setTimeout(() => Views.Interventions.openDetailModal('${i.id}'), 100)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </td>
+          </tr>
+        `).join('');
+
+    const body = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Client</th>
+            <th>Machine</th>
+            <th>Type</th>
+            <th>Location</th>
+            <th>Scheduled</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rowsHTML}</tbody>
+      </table>
+    `;
+
+    Modals.open(
+      `${Utils.escapeHtml(tech.name)} — ${allIntv.length} Intervention${allIntv.length !== 1 ? 's' : ''}`,
+      body,
+      `<button class="btn btn-ghost" onclick="Modals.close()">Close</button>`,
+      { size: 'lg' }
+    );
   },
 
   _techFormHTML(user = {}) {

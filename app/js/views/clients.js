@@ -50,7 +50,7 @@ Views.Clients = {
               <th>Region</th>
               <th>Machines</th>
               <th>Added</th>
-              <th style="width:80px"></th>
+              <th style="width:110px"></th>
             </tr>
           </thead>
           <tbody id="clientTableBody"></tbody>
@@ -93,6 +93,9 @@ Views.Clients = {
           <td style="white-space:nowrap">${Utils.formatDate(c.createdAt)}</td>
           <td>
             <div class="td-actions">
+              <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick="Views.Clients.openDetailModal('${c.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
               <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Clients._openEditModal('${c.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </button>
@@ -207,6 +210,114 @@ Views.Clients = {
     Modals.close();
     Toast.success('Client updated successfully');
     this.mount();
+  },
+
+  openDetailModal(clientId) {
+    const client = Storage.getClientById(clientId);
+    if (!client) return;
+
+    const machines     = appState.machines.filter(m => m.clientId === clientId);
+    const allIntv      = appState.interventions.filter(i => i.clientId === clientId);
+    const openIntv     = allIntv.filter(i => CONFIG.OPEN_STATUSES.includes(i.status));
+    const lastService  = allIntv
+      .filter(i => i.status === 'completed' && i.scheduledDate)
+      .sort((a, b) => new Date(b.scheduledDate) - new Date(a.scheduledDate))[0];
+
+    const machinesHTML = machines.length === 0
+      ? '<p class="text-sm text-muted" style="padding:8px 0">No machines registered for this client.</p>'
+      : `<table class="data-table" style="margin-top:0">
+          <thead><tr><th>Model</th><th>Serial</th><th>Type</th><th>Contract</th></tr></thead>
+          <tbody>
+            ${machines.map(m => `
+              <tr>
+                <td class="td-primary">${Utils.escapeHtml(m.model)}</td>
+                <td style="font-family:monospace;font-size:0.8rem">${Utils.escapeHtml(m.serialNumber || '—')}</td>
+                <td>${Utils.escapeHtml(CONFIG.INTERVENTION_TYPES[m.type] || m.type || '—')}</td>
+                <td>${Utils.getContractBadge(m.contractType)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+
+    const body = `
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- Header info -->
+        <div class="detail-grid">
+          <div class="detail-field">
+            <div class="detail-field-label">Company</div>
+            <div class="detail-field-value">${Utils.escapeHtml(client.name)}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Industry</div>
+            <div class="detail-field-value">${Utils.escapeHtml(client.industry || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Region</div>
+            <div class="detail-field-value">${Utils.escapeHtml(client.region || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Client Since</div>
+            <div class="detail-field-value">${Utils.formatDate(client.createdAt)}</div>
+          </div>
+        </div>
+
+        <!-- Contact -->
+        <div>
+          <div class="detail-section-label">Contact Information</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-field-label">Contact Person</div>
+              <div class="detail-field-value">${Utils.escapeHtml(client.contactPerson || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Phone</div>
+              <div class="detail-field-value">${Utils.escapeHtml(client.phone || '—')}</div>
+            </div>
+            <div class="detail-field" style="grid-column:1/-1">
+              <div class="detail-field-label">Email</div>
+              <div class="detail-field-value">
+                ${client.email
+                  ? `<a href="mailto:${Utils.escapeHtml(client.email)}">${Utils.escapeHtml(client.email)}</a>`
+                  : '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div style="display:flex;gap:12px">
+          <div class="stat-box" style="flex:1;padding:12px 16px">
+            <div class="stat-box-value">${machines.length}</div>
+            <div class="stat-box-label">Machines</div>
+          </div>
+          <div class="stat-box" style="flex:1;padding:12px 16px">
+            <div class="stat-box-value">${allIntv.length}</div>
+            <div class="stat-box-label">Total Interventions</div>
+          </div>
+          <div class="stat-box" style="flex:1;padding:12px 16px">
+            <div class="stat-box-value">${openIntv.length}</div>
+            <div class="stat-box-label">Open</div>
+          </div>
+          <div class="stat-box" style="flex:1;padding:12px 16px">
+            <div class="stat-box-value" style="font-size:0.9rem">${lastService ? Utils.formatDate(lastService.scheduledDate) : '—'}</div>
+            <div class="stat-box-label">Last Service</div>
+          </div>
+        </div>
+
+        <!-- Machines -->
+        <div>
+          <div class="detail-section-label">Registered Machines (${machines.length})</div>
+          ${machinesHTML}
+        </div>
+
+      </div>
+    `;
+
+    Modals.open(`${client.name}`, body, `
+      <button class="btn btn-ghost" onclick="Modals.close()">Close</button>
+      ${Auth.isAdmin() ? `<button class="btn btn-primary" onclick="Modals.close(); setTimeout(() => Views.Clients._openEditModal('${clientId}'), 100)">Edit Client</button>` : ''}
+    `);
   },
 
   async _deleteClient(clientId) {
