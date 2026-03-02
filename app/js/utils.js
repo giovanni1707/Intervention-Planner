@@ -96,6 +96,17 @@ const Utils = {
     return `<span class="badge ${c.cls}">${c.label}</span>`;
   },
 
+  getMachineStatusBadge(status) {
+    const cfg = {
+      new:         { label: 'New',         cls: 'badge-new' },
+      active:      { label: 'Active',      cls: 'badge-ongoing' },
+      maintenance: { label: 'Maintenance', cls: 'badge-waiting' },
+      decommissioned: { label: 'Decommissioned', cls: 'badge-cancelled' }
+    };
+    const c = cfg[status] || { label: status || 'New', cls: 'badge-new' };
+    return `<span class="badge ${c.cls}">${c.label}</span>`;
+  },
+
   // ── INITIALS ──────────────────────────────────────────────
   getInitials(name) {
     if (!name) return '?';

@@ -95,7 +95,20 @@ const Storage = {
 
   createMachine(data) {
     const machines = this.getMachines();
-    const machine = { id: Utils.generateId(), createdAt: new Date().toISOString(), ...data };
+    const now = new Date().toISOString();
+    // Generate unique 6-digit job number not already in use
+    let jobNumber;
+    const existing = new Set(machines.map(m => m.jobNumber));
+    do { jobNumber = String(Math.floor(100000 + Math.random() * 900000)); }
+    while (existing.has(jobNumber));
+    const machine = {
+      id: Utils.generateId(),
+      jobNumber,
+      status: 'new',
+      registeredAt: now,
+      createdAt: now,
+      ...data
+    };
     machines.push(machine);
     this.set(CONFIG.STORAGE_KEYS.MACHINES, machines);
     return machine;

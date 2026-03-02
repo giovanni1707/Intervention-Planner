@@ -4,11 +4,43 @@
 
 Views.Clients = {
   _searchTerm: '',
+  _sortKey: 'name',
+  _sortDir: 'asc',
+
+  _sortIcon() {
+    return `<span class="sort-icon">
+      <svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 0L7 5H0z" fill="currentColor"/></svg>
+      <svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 5L0 0h7z" fill="currentColor"/></svg>
+    </span>`;
+  },
+
+  _thClass(key) {
+    if (this._sortKey !== key) return 'sortable';
+    return `sortable sort-${this._sortDir}`;
+  },
+
+  _setSort(key) {
+    if (this._sortKey === key) {
+      this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this._sortKey = key;
+      this._sortDir = 'asc';
+    }
+    this._renderTable(this._getFiltered());
+  },
+
+  _getFiltered() {
+    if (!this._searchTerm) return appState.clients;
+    const q = this._searchTerm.toLowerCase();
+    return appState.clients.filter(c =>
+      [c.name, c.contactPerson, c.email, c.phone, c.region].join(' ').toLowerCase().includes(q)
+    );
+  },
 
   mount() {
     const content = document.getElementById('mainContent');
     content.innerHTML = this._template();
-    this._renderTable(appState.clients);
+    this._renderTable(this._getFiltered());
     this._bindSearch();
   },
 
@@ -40,18 +72,8 @@ Views.Clients = {
       </div>
 
       <div class="table-wrapper has-toolbar">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Company</th>
-              <th>Contact Person</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Region</th>
-              <th>Machines</th>
-              <th>Added</th>
-              <th style="width:110px"></th>
-            </tr>
+        <table class="data-table" id="clientTable">
+          <thead id="clientThead">
           </thead>
           <tbody id="clientTableBody"></tbody>
         </table>
@@ -60,13 +82,42 @@ Views.Clients = {
   },
 
   _renderTable(clients) {
-    const tbody = document.getElementById('clientTableBody');
+    const tbody   = document.getElementById('clientTableBody');
+    const thead   = document.getElementById('clientThead');
     const countEl = document.getElementById('clientCount');
     if (!tbody) return;
 
     if (countEl) countEl.textContent = `${clients.length} result${clients.length !== 1 ? 's' : ''}`;
 
-    if (clients.length === 0) {
+    if (thead) {
+      const si = this._sortIcon();
+      thead.innerHTML = `<tr>
+        <th class="${this._thClass('name')}" onclick="Views.Clients._setSort('name')">Company${si}</th>
+        <th class="${this._thClass('contactPerson')}" onclick="Views.Clients._setSort('contactPerson')">Contact Person${si}</th>
+        <th>Phone</th>
+        <th>Email</th>
+        <th class="${this._thClass('region')}" onclick="Views.Clients._setSort('region')">Region${si}</th>
+        <th class="${this._thClass('_machineCount')}" onclick="Views.Clients._setSort('_machineCount')">Machines${si}</th>
+        <th class="${this._thClass('createdAt')}" onclick="Views.Clients._setSort('createdAt')">Added${si}</th>
+        <th style="width:110px"></th>
+      </tr>`;
+    }
+
+    // sort
+    const sorted = [...clients].sort((a, b) => {
+      let va, vb;
+      if (this._sortKey === '_machineCount') {
+        va = appState.machines.filter(m => m.clientId === a.id).length;
+        vb = appState.machines.filter(m => m.clientId === b.id).length;
+      } else {
+        va = (a[this._sortKey] || '').toString().toLowerCase();
+        vb = (b[this._sortKey] || '').toString().toLowerCase();
+      }
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return this._sortDir === 'desc' ? -cmp : cmp;
+    });
+
+    if (sorted.length === 0) {
       tbody.innerHTML = `
         <tr><td colspan="8">
           <div class="table-empty">
@@ -78,7 +129,7 @@ Views.Clients = {
       return;
     }
 
-    tbody.innerHTML = clients.map(c => {
+    tbody.innerHTML = sorted.map(c => {
       const machineCount = appState.machines.filter(m => m.clientId === c.id).length;
       return `
         <tr>
@@ -90,7 +141,7 @@ Views.Clients = {
           <td>
             <span class="badge badge-gray">${machineCount} machine${machineCount !== 1 ? 's' : ''}</span>
           </td>
-          <td style="white-space:nowrap">${Utils.formatDate(c.createdAt)}</td>
+          <td style="white-space:nowrap;font-size:0.786rem">${Utils.formatDateTime(c.createdAt)}</td>
           <td>
             <div class="td-actions">
               <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick="Views.Clients.openDetailModal('${c.id}')">
@@ -114,11 +165,7 @@ Views.Clients = {
     if (!input) return;
     input.addEventListener('input', () => {
       this._searchTerm = input.value;
-      const filtered = appState.clients.filter(c => {
-        const q = this._searchTerm.toLowerCase();
-        return [c.name, c.contactPerson, c.email, c.phone, c.region].join(' ').toLowerCase().includes(q);
-      });
-      this._renderTable(filtered);
+      this._renderTable(this._getFiltered());
     });
   },
 

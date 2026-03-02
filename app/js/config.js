@@ -45,6 +45,13 @@ const CONFIG = {
     gold:   'Gold'
   },
 
+  MACHINE_STATUSES: {
+    new:            'New',
+    active:         'Active',
+    maintenance:    'Under Maintenance',
+    decommissioned: 'Decommissioned'
+  },
+
   ROLES: {
     admin:      'Admin',
     technician: 'Technician'

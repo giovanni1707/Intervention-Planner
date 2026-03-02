@@ -5,6 +5,30 @@
 Views.Machines = {
   _searchTerm: '',
   _filterClient: 'all',
+  _sortKey: 'model',
+  _sortDir: 'asc',
+
+  _sortIcon() {
+    return `<span class="sort-icon">
+      <svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 0L7 5H0z" fill="currentColor"/></svg>
+      <svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 5L0 0h7z" fill="currentColor"/></svg>
+    </span>`;
+  },
+
+  _thClass(key) {
+    if (this._sortKey !== key) return 'sortable';
+    return `sortable sort-${this._sortDir}`;
+  },
+
+  _setSort(key) {
+    if (this._sortKey === key) {
+      this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this._sortKey = key;
+      this._sortDir = 'asc';
+    }
+    this._renderTable(this._getFiltered());
+  },
 
   mount() {
     const content = document.getElementById('mainContent');
@@ -36,7 +60,7 @@ Views.Machines = {
     return `
       <div class="page-header">
         <div>
-          <h1 class="page-title">Machines</h1>
+          <h1 class="page-title">Registered Machines</h1>
           <p class="page-subtitle">${appState.machines.length} machine${appState.machines.length !== 1 ? 's' : ''} registered</p>
         </div>
         <div class="page-actions">
@@ -65,19 +89,7 @@ Views.Machines = {
 
       <div class="table-wrapper has-toolbar">
         <table class="data-table">
-          <thead>
-            <tr>
-              <th>Model</th>
-              <th>Serial Number</th>
-              <th>Type</th>
-              <th>Client</th>
-              <th>Location</th>
-              <th>Install Date</th>
-              <th>Contract</th>
-              <th>Contract Expiry</th>
-              <th style="width:110px"></th>
-            </tr>
-          </thead>
+          <thead id="machineThead"></thead>
           <tbody id="machineTableBody"></tbody>
         </table>
       </div>
@@ -86,13 +98,46 @@ Views.Machines = {
 
   _renderTable(machines) {
     const tbody   = document.getElementById('machineTableBody');
+    const thead   = document.getElementById('machineThead');
     const countEl = document.getElementById('machineCount');
     if (!tbody) return;
     if (countEl) countEl.textContent = `${machines.length} result${machines.length !== 1 ? 's' : ''}`;
 
-    if (machines.length === 0) {
+    if (thead) {
+      const si = this._sortIcon();
+      thead.innerHTML = `<tr>
+        <th class="${this._thClass('jobNumber')}" onclick="Views.Machines._setSort('jobNumber')">Job #${si}</th>
+        <th class="${this._thClass('model')}" onclick="Views.Machines._setSort('model')">Model${si}</th>
+        <th class="${this._thClass('serialNumber')}" onclick="Views.Machines._setSort('serialNumber')">Serial Number${si}</th>
+        <th class="${this._thClass('type')}" onclick="Views.Machines._setSort('type')">Type${si}</th>
+        <th class="${this._thClass('_clientName')}" onclick="Views.Machines._setSort('_clientName')">Client${si}</th>
+        <th class="${this._thClass('location')}" onclick="Views.Machines._setSort('location')">Location${si}</th>
+        <th class="${this._thClass('registeredAt')}" onclick="Views.Machines._setSort('registeredAt')">Registered${si}</th>
+        <th class="${this._thClass('contractType')}" onclick="Views.Machines._setSort('contractType')">Contract${si}</th>
+        <th class="${this._thClass('contractExpiry')}" onclick="Views.Machines._setSort('contractExpiry')">Contract Expiry${si}</th>
+        <th style="width:110px"></th>
+      </tr>`;
+    }
+
+    // sort
+    const sorted = [...machines].sort((a, b) => {
+      let va, vb;
+      if (this._sortKey === '_clientName') {
+        const ca = appState.clients.find(c => c.id === a.clientId);
+        const cb = appState.clients.find(c => c.id === b.clientId);
+        va = (ca?.name || '').toLowerCase();
+        vb = (cb?.name || '').toLowerCase();
+      } else {
+        va = (a[this._sortKey] || '').toString().toLowerCase();
+        vb = (b[this._sortKey] || '').toString().toLowerCase();
+      }
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return this._sortDir === 'desc' ? -cmp : cmp;
+    });
+
+    if (sorted.length === 0) {
       tbody.innerHTML = `
-        <tr><td colspan="9">
+        <tr><td colspan="10">
           <div class="table-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
             <p class="table-empty-text">No machines found</p>
@@ -102,7 +147,7 @@ Views.Machines = {
       return;
     }
 
-    tbody.innerHTML = machines.map(m => {
+    tbody.innerHTML = sorted.map(m => {
       const client = appState.clients.find(c => c.id === m.clientId);
       const hasContract = m.contractType && m.contractType !== 'none';
       const isExpired = hasContract && m.contractExpiry && new Date(m.contractExpiry) < new Date();
@@ -112,12 +157,13 @@ Views.Machines = {
         : (m.contractExpiry ? Utils.formatDate(m.contractExpiry) : '—') + (isExpired ? ' <span class="badge badge-cancelled" style="font-size:0.643rem">Expired</span>' : '');
       return `
         <tr>
+          <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(m.jobNumber || '—')}</td>
           <td class="td-primary">${Utils.escapeHtml(m.model)}</td>
           <td style="font-family:monospace;font-size:0.786rem">${Utils.escapeHtml(m.serialNumber)}</td>
           <td>${Utils.escapeHtml(m.type || '—')}</td>
           <td>${Utils.escapeHtml(client?.name || '—')}</td>
           <td>${Utils.escapeHtml(m.location || '—')}</td>
-          <td style="white-space:nowrap">${Utils.formatDate(m.installDate)}</td>
+          <td style="white-space:nowrap;font-size:0.786rem">${Utils.formatDateTime(m.registeredAt || m.createdAt)}</td>
           <td>${Utils.getContractBadge(m.contractType || 'none')}</td>
           <td ${expiryClass} style="white-space:nowrap">${expiryCell}</td>
           <td>
@@ -157,6 +203,8 @@ Views.Machines = {
   },
 
   _machineFormHTML(machine = {}) {
+    const isEdit = !!machine.id;
+
     const clientOptions = appState.clients.map(c =>
       `<option value="${c.id}" ${machine.clientId === c.id ? 'selected' : ''}>${Utils.escapeHtml(c.name)}</option>`
     ).join('');
@@ -165,7 +213,19 @@ Views.Machines = {
       `<option value="${k}" ${(machine.contractType || 'none') === k ? 'selected' : ''}>${v}</option>`
     ).join('');
 
+    const machineStatusOptions = Object.entries(CONFIG.MACHINE_STATUSES).map(([k, v]) =>
+      `<option value="${k}" ${(machine.status || 'new') === k ? 'selected' : ''}>${v}</option>`
+    ).join('');
+
     return `
+      ${isEdit ? `
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Job Number</label>
+          <input type="text" class="form-input" value="${Utils.escapeHtml(machine.jobNumber || '—')}" disabled style="opacity:0.7;cursor:not-allowed">
+        </div>
+        <div class="form-group"></div>
+      </div>` : ''}
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Machine Model <span class="required">*</span></label>
@@ -194,10 +254,7 @@ Views.Machines = {
           <label class="form-label">Location / Line</label>
           <input type="text" id="fMachineLocation" class="form-input" value="${Utils.escapeHtml(machine.location || '')}" placeholder="e.g. Production Line A">
         </div>
-        <div class="form-group">
-          <label class="form-label">Install Date</label>
-          <input type="date" id="fMachineInstall" class="form-input" value="${machine.installDate || ''}">
-        </div>
+        <div class="form-group"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -242,10 +299,9 @@ Views.Machines = {
 
     Storage.createMachine({
       model, serialNumber: serial, clientId,
-      type:         document.getElementById('fMachineType')?.value.trim() || '',
-      location:     document.getElementById('fMachineLocation')?.value.trim() || '',
-      installDate:  document.getElementById('fMachineInstall')?.value || null,
-      contractType: document.getElementById('fMachineContract')?.value || 'none',
+      type:           document.getElementById('fMachineType')?.value.trim() || '',
+      location:       document.getElementById('fMachineLocation')?.value.trim() || '',
+      contractType:   document.getElementById('fMachineContract')?.value || 'none',
       contractExpiry: document.getElementById('fMachineExpiry')?.value || null
     });
 
@@ -278,7 +334,6 @@ Views.Machines = {
       model, serialNumber: serial, clientId,
       type:           document.getElementById('fMachineType')?.value.trim() || '',
       location:       document.getElementById('fMachineLocation')?.value.trim() || '',
-      installDate:    document.getElementById('fMachineInstall')?.value || null,
       contractType:   document.getElementById('fMachineContract')?.value || 'none',
       contractExpiry: document.getElementById('fMachineExpiry')?.value || null
     });
@@ -337,6 +392,14 @@ Views.Machines = {
           <div class="detail-section-label">Machine Details</div>
           <div class="detail-grid">
             <div class="detail-field">
+              <div class="detail-field-label">Job Number</div>
+              <div class="detail-field-value" style="font-family:monospace;font-size:1rem;letter-spacing:0.05em">${Utils.escapeHtml(machine.jobNumber || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Status</div>
+              <div class="detail-field-value">${Utils.getMachineStatusBadge(machine.status || 'new')}</div>
+            </div>
+            <div class="detail-field">
               <div class="detail-field-label">Model</div>
               <div class="detail-field-value">${Utils.escapeHtml(machine.model)}</div>
             </div>
@@ -351,6 +414,10 @@ Views.Machines = {
             <div class="detail-field">
               <div class="detail-field-label">Production Line / Location</div>
               <div class="detail-field-value">${Utils.escapeHtml(machine.location || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Registered At</div>
+              <div class="detail-field-value">${Utils.formatDateTime(machine.registeredAt || machine.createdAt)}</div>
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Install Date</div>

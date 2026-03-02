@@ -1929,3 +1929,42 @@ input[type="color"].color-picker {
   color: var(--gray-600);
   font-weight: 500;
 }
+
+
+/* ── SORTABLE TABLE HEADERS ─────────────────────────────────── */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th.sortable:hover {
+  background: var(--gray-100);
+  color: var(--blue);
+}
+th.sortable .sort-icon {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-left: 5px;
+  vertical-align: middle;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+th.sortable:hover .sort-icon,
+th.sort-asc .sort-icon,
+th.sort-desc .sort-icon {
+  opacity: 1;
+}
+th.sort-asc,
+th.sort-desc {
+  color: var(--blue);
+  background: var(--blue-light);
+}
+th.sort-asc .sort-icon svg:first-child,
+th.sort-desc .sort-icon svg:last-child {
+  opacity: 1;
+}
+th.sort-asc .sort-icon svg:last-child,
+th.sort-desc .sort-icon svg:first-child {
+  opacity: 0.2;
+}

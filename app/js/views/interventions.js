@@ -4,6 +4,32 @@
 
 Views.Interventions = {
   _effectCleanup: null,
+  _sortKey: 'createdAt',
+  _sortDir: 'desc',
+
+  _sortIcon() {
+    return `<span class="sort-icon">
+      <svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 0L7 5H0z" fill="currentColor"/></svg>
+      <svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 5L0 0h7z" fill="currentColor"/></svg>
+    </span>`;
+  },
+
+  _thClass(key) {
+    if (this._sortKey !== key) return 'sortable';
+    return `sortable sort-${this._sortDir}`;
+  },
+
+  _setSort(key) {
+    if (this._sortKey === key) {
+      this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this._sortKey = key;
+      this._sortDir = 'asc';
+    }
+    // Re-run the effect by touching interventions (just re-render directly)
+    const filtered = Utils.filterInterventions(appState.interventions, appState.filters);
+    this._renderTable(filtered);
+  },
 
   mount() {
     const content = document.getElementById('mainContent');
@@ -171,7 +197,25 @@ Views.Interventions = {
       return;
     }
 
-    const sorted = Utils.sortBy(interventions, 'createdAt', 'desc');
+    const sorted = [...interventions].sort((a, b) => {
+      let va, vb;
+      if (this._sortKey === '_clientName') {
+        va = Utils.getClientName(a.clientId).toLowerCase();
+        vb = Utils.getClientName(b.clientId).toLowerCase();
+      } else if (this._sortKey === '_machineModel') {
+        va = Utils.getMachineModel(a.machineId).toLowerCase();
+        vb = Utils.getMachineModel(b.machineId).toLowerCase();
+      } else if (this._sortKey === '_techName') {
+        va = Utils.getTechnicianName(a.technicianId).toLowerCase();
+        vb = Utils.getTechnicianName(b.technicianId).toLowerCase();
+      } else {
+        va = (a[this._sortKey] || '').toString().toLowerCase();
+        vb = (b[this._sortKey] || '').toString().toLowerCase();
+      }
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return this._sortDir === 'desc' ? -cmp : cmp;
+    });
+
     const rows = sorted.map(i => {
       const isOverdue = CONFIG.OPEN_STATUSES.includes(i.status) && i.scheduledDate && Utils.isPast(i.scheduledDate);
       return `
@@ -202,14 +246,22 @@ Views.Interventions = {
       `;
     }).join('');
 
+    const si = this._sortIcon();
     container.innerHTML = `
       <div class="table-wrapper has-toolbar">
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th><th>Client</th><th>Machine</th><th>Type</th>
-              <th>Priority</th><th>Status</th><th>Technician</th>
-              <th>Scheduled</th><th>Created</th><th style="width:100px"></th>
+              <th>ID</th>
+              <th class="${this._thClass('_clientName')}" onclick="Views.Interventions._setSort('_clientName')">Client${si}</th>
+              <th class="${this._thClass('_machineModel')}" onclick="Views.Interventions._setSort('_machineModel')">Machine${si}</th>
+              <th class="${this._thClass('type')}" onclick="Views.Interventions._setSort('type')">Type${si}</th>
+              <th class="${this._thClass('priority')}" onclick="Views.Interventions._setSort('priority')">Priority${si}</th>
+              <th class="${this._thClass('status')}" onclick="Views.Interventions._setSort('status')">Status${si}</th>
+              <th class="${this._thClass('_techName')}" onclick="Views.Interventions._setSort('_techName')">Technician${si}</th>
+              <th class="${this._thClass('scheduledDate')}" onclick="Views.Interventions._setSort('scheduledDate')">Scheduled${si}</th>
+              <th class="${this._thClass('createdAt')}" onclick="Views.Interventions._setSort('createdAt')">Created${si}</th>
+              <th style="width:100px"></th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
