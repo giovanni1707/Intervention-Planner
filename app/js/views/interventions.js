@@ -121,12 +121,6 @@ Views.Interventions = {
             </span>
             <input type="text" id="intSearch" class="search-input" placeholder="Search…" value="${Utils.escapeHtml(appState.filters.search)}">
           </div>
-          <div class="search-bar" style="max-width:140px">
-            <span class="search-bar-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="13" y2="13"/></svg>
-            </span>
-            <input type="text" id="intJobNumber" class="search-input" placeholder="Job #…" maxlength="6" value="${Utils.escapeHtml(appState.filters.jobNumber)}" style="font-family:monospace;letter-spacing:0.05em">
-          </div>
           <select id="intStatus" class="toolbar-select">${statusOptions}</select>
           <select id="intPriority" class="toolbar-select">${priorityOptions}</select>
           <select id="intType" class="toolbar-select">${typeOptions}</select>
@@ -153,7 +147,6 @@ Views.Interventions = {
     };
 
     bind('intSearch', 'search');
-    bind('intJobNumber', 'jobNumber');
     bind('intStatus', 'status');
     bind('intPriority', 'priority');
     bind('intType', 'type');
