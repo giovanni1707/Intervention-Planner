@@ -113,11 +113,22 @@ Views.Machines = {
         <th class="${this._thClass('_clientName')}" onclick="Views.Machines._setSort('_clientName')">Client${si}</th>
         <th class="${this._thClass('location')}" onclick="Views.Machines._setSort('location')">Location${si}</th>
         <th class="${this._thClass('registeredAt')}" onclick="Views.Machines._setSort('registeredAt')">Registered${si}</th>
+        <th class="${this._thClass('_intStatus')}" onclick="Views.Machines._setSort('_intStatus')">Status${si}</th>
         <th class="${this._thClass('contractType')}" onclick="Views.Machines._setSort('contractType')">Contract${si}</th>
         <th class="${this._thClass('contractExpiry')}" onclick="Views.Machines._setSort('contractExpiry')">Contract Expiry${si}</th>
         <th style="width:110px"></th>
       </tr>`;
     }
+
+    // helper: get the active intervention status for a machine (newest open, else newest overall)
+    const getMachineIntStatus = (machineId) => {
+      const intv = appState.interventions.filter(i => i.machineId === machineId);
+      if (!intv.length) return 'new';
+      const open = intv.filter(i => CONFIG.OPEN_STATUSES.includes(i.status));
+      if (open.length) return open.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0].status;
+      // all closed — show the latest completed/cancelled
+      return intv.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0].status;
+    };
 
     // sort
     const sorted = [...machines].sort((a, b) => {
@@ -127,6 +138,9 @@ Views.Machines = {
         const cb = appState.clients.find(c => c.id === b.clientId);
         va = (ca?.name || '').toLowerCase();
         vb = (cb?.name || '').toLowerCase();
+      } else if (this._sortKey === '_intStatus') {
+        va = getMachineIntStatus(a.id);
+        vb = getMachineIntStatus(b.id);
       } else {
         va = (a[this._sortKey] || '').toString().toLowerCase();
         vb = (b[this._sortKey] || '').toString().toLowerCase();
@@ -137,7 +151,7 @@ Views.Machines = {
 
     if (sorted.length === 0) {
       tbody.innerHTML = `
-        <tr><td colspan="10">
+        <tr><td colspan="11">
           <div class="table-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
             <p class="table-empty-text">No machines found</p>
@@ -155,6 +169,7 @@ Views.Machines = {
       const expiryCell = !hasContract
         ? '—'
         : (m.contractExpiry ? Utils.formatDate(m.contractExpiry) : '—') + (isExpired ? ' <span class="badge badge-cancelled" style="font-size:0.643rem">Expired</span>' : '');
+      const intStatus = getMachineIntStatus(m.id);
       return `
         <tr>
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(m.jobNumber || '—')}</td>
@@ -164,6 +179,7 @@ Views.Machines = {
           <td>${Utils.escapeHtml(client?.name || '—')}</td>
           <td>${Utils.escapeHtml(m.location || '—')}</td>
           <td style="white-space:nowrap;font-size:0.786rem">${Utils.formatDateTime(m.registeredAt || m.createdAt)}</td>
+          <td>${Utils.getStatusBadge(intStatus)}</td>
           <td>${Utils.getContractBadge(m.contractType || 'none')}</td>
           <td ${expiryClass} style="white-space:nowrap">${expiryCell}</td>
           <td>

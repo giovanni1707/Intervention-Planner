@@ -342,7 +342,21 @@ Views.Interventions = {
         `<option value="${u.id}" ${intervention.technicianId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`)
     ].join('');
 
+    const isEdit = !!intervention.id;
+
     return `
+      ${!isEdit ? `
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group">
+          <label class="form-label">Job Number <span class="text-xs text-muted" style="font-weight:400">(type to auto-fill machine & client)</span></label>
+          <input type="text" id="fIntJobNumber" class="form-input" placeholder="e.g. 481203" maxlength="6" style="font-family:monospace;letter-spacing:0.08em">
+        </div>
+        <div class="form-group" style="flex:0 0 auto;padding-bottom:0">
+          <div id="fIntJobFeedback" style="font-size:0.786rem;padding:6px 10px;border-radius:6px;min-height:32px"></div>
+        </div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--gray-200);margin:4px 0 8px">
+      ` : ''}
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Client <span class="required">*</span></label>
@@ -417,6 +431,52 @@ Views.Interventions = {
       machineSel.innerHTML = '<option value="">— Select machine —</option>' +
         machines.map(m => `<option value="${m.id}">${Utils.escapeHtml(m.model)} (${m.serialNumber})</option>`).join('');
     });
+
+    // Job number auto-fill (create form only)
+    const jobInput  = document.getElementById('fIntJobNumber');
+    const feedback  = document.getElementById('fIntJobFeedback');
+    if (!jobInput || !feedback) return;
+
+    jobInput.addEventListener('input', () => {
+      const val = jobInput.value.trim();
+      if (val.length < 6) {
+        feedback.textContent = '';
+        feedback.style.background = '';
+        feedback.style.color = '';
+        return;
+      }
+      const machine = appState.machines.find(m => m.jobNumber === val);
+      if (!machine) {
+        feedback.textContent = '✗ Job number not found';
+        feedback.style.background = 'var(--red-light)';
+        feedback.style.color = 'var(--red)';
+        return;
+      }
+      const client = appState.clients.find(c => c.id === machine.clientId);
+
+      // Set client dropdown
+      clientSel.value = machine.clientId || '';
+
+      // Rebuild machine dropdown for this client, then select the machine
+      const clientMachines = appState.machines.filter(m => m.clientId === machine.clientId);
+      machineSel.innerHTML = '<option value="">— Select machine —</option>' +
+        clientMachines.map(m => `<option value="${m.id}">${Utils.escapeHtml(m.model)} (${m.serialNumber})</option>`).join('');
+      machineSel.value = machine.id;
+
+      // Warn if machine already has an open intervention
+      const openIntv = appState.interventions.find(i =>
+        i.machineId === machine.id && CONFIG.OPEN_STATUSES.includes(i.status)
+      );
+      if (openIntv) {
+        feedback.innerHTML = `⚠ <strong>${Utils.escapeHtml(machine.model)}</strong> already has an open intervention (${CONFIG.STATUSES[openIntv.status]?.label || openIntv.status}) — cannot create a duplicate.`;
+        feedback.style.background = 'var(--yellow-light)';
+        feedback.style.color = 'var(--yellow)';
+      } else {
+        feedback.innerHTML = `✓ <strong>${Utils.escapeHtml(machine.model)}</strong> &nbsp;·&nbsp; ${Utils.escapeHtml(client?.name || '—')} &nbsp;·&nbsp; S/N: ${Utils.escapeHtml(machine.serialNumber || '—')}`;
+        feedback.style.background = 'var(--green-light)';
+        feedback.style.color = 'var(--green)';
+      }
+    });
   },
 
   _openCreateModal() {
@@ -434,6 +494,16 @@ Views.Interventions = {
     if (!clientId)  { Toast.error('Please select a client'); return; }
     if (!machineId) { Toast.error('Please select a machine'); return; }
     if (!type)      { Toast.error('Please select a type'); return; }
+
+    // Prevent duplicate: block if this machine already has an open intervention
+    const existing = appState.interventions.find(i =>
+      i.machineId === machineId && CONFIG.OPEN_STATUSES.includes(i.status)
+    );
+    if (existing) {
+      const machine = appState.machines.find(m => m.id === machineId);
+      Toast.error(`Machine "${machine?.model || machineId}" already has an open intervention (status: ${CONFIG.STATUSES[existing.status]?.label || existing.status}). Close it before creating a new one.`);
+      return;
+    }
 
     const dateVal = document.getElementById('fIntDate')?.value;
     const timeVal = document.getElementById('fIntTime')?.value || '08:00';
