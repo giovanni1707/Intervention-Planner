@@ -121,6 +121,12 @@ Views.Interventions = {
             </span>
             <input type="text" id="intSearch" class="search-input" placeholder="Search…" value="${Utils.escapeHtml(appState.filters.search)}">
           </div>
+          <div class="search-bar" style="max-width:140px">
+            <span class="search-bar-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="13" y2="13"/></svg>
+            </span>
+            <input type="text" id="intJobNumber" class="search-input" placeholder="Job #…" maxlength="6" value="${Utils.escapeHtml(appState.filters.jobNumber)}" style="font-family:monospace;letter-spacing:0.05em">
+          </div>
           <select id="intStatus" class="toolbar-select">${statusOptions}</select>
           <select id="intPriority" class="toolbar-select">${priorityOptions}</select>
           <select id="intType" class="toolbar-select">${typeOptions}</select>
@@ -147,6 +153,7 @@ Views.Interventions = {
     };
 
     bind('intSearch', 'search');
+    bind('intJobNumber', 'jobNumber');
     bind('intStatus', 'status');
     bind('intPriority', 'priority');
     bind('intType', 'type');
@@ -199,7 +206,12 @@ Views.Interventions = {
 
     const sorted = [...interventions].sort((a, b) => {
       let va, vb;
-      if (this._sortKey === '_clientName') {
+      if (this._sortKey === '_jobNumber') {
+        const ma = appState.machines.find(m => m.id === a.machineId);
+        const mb = appState.machines.find(m => m.id === b.machineId);
+        va = ma?.jobNumber || '';
+        vb = mb?.jobNumber || '';
+      } else if (this._sortKey === '_clientName') {
         va = Utils.getClientName(a.clientId).toLowerCase();
         vb = Utils.getClientName(b.clientId).toLowerCase();
       } else if (this._sortKey === '_machineModel') {
@@ -217,10 +229,11 @@ Views.Interventions = {
     });
 
     const rows = sorted.map(i => {
+      const machine = appState.machines.find(m => m.id === i.machineId);
       const isOverdue = CONFIG.OPEN_STATUSES.includes(i.status) && i.scheduledDate && Utils.isPast(i.scheduledDate);
       return `
         <tr ${isOverdue ? 'style="background:var(--red-light)"' : ''}>
-          <td style="font-family:monospace;font-size:0.75rem;color:var(--gray-400)">#${i.id.slice(-6)}</td>
+          <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
           <td class="td-primary">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
           <td>${Utils.escapeHtml(Utils.getMachineModel(i.machineId))}</td>
           <td>${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
@@ -252,7 +265,7 @@ Views.Interventions = {
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th>
+              <th class="${this._thClass('_jobNumber')}" onclick="Views.Interventions._setSort('_jobNumber')">Job #${si}</th>
               <th class="${this._thClass('_clientName')}" onclick="Views.Interventions._setSort('_clientName')">Client${si}</th>
               <th class="${this._thClass('_machineModel')}" onclick="Views.Interventions._setSort('_machineModel')">Machine${si}</th>
               <th class="${this._thClass('type')}" onclick="Views.Interventions._setSort('type')">Type${si}</th>

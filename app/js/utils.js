@@ -153,6 +153,11 @@ const Utils = {
         if (!scheduled || scheduled > to) return false;
       }
 
+      if (filters.jobNumber) {
+        const machine = appState.machines.find(m => m.id === i.machineId);
+        if (!machine || !machine.jobNumber.startsWith(filters.jobNumber)) return false;
+      }
+
       if (filters.search) {
         const q = filters.search.toLowerCase();
         const client = appState.clients.find(c => c.id === i.clientId);
@@ -161,6 +166,7 @@ const Utils = {
         const searchText = [
           i.id, i.description,
           client?.name, machine?.model, machine?.serialNumber,
+          machine?.jobNumber,
           tech?.name, i.type, i.status, i.priority
         ].join(' ').toLowerCase();
         if (!searchText.includes(q)) return false;

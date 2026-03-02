@@ -23,7 +23,8 @@ const appState = ReactiveUtils.state({
     clientId: 'all',
     dateFrom: '',
     dateTo: '',
-    search: ''
+    search: '',
+    jobNumber: ''
   },
 
   // UI preferences
@@ -67,6 +68,7 @@ function resetFilters() {
     clientId: 'all',
     dateFrom: '',
     dateTo: '',
-    search: ''
+    search: '',
+    jobNumber: ''
   };
 }
