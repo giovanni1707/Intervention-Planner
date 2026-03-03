@@ -233,3 +233,68 @@ const Utils = {
     return Math.round((part / total) * 100);
   }
 };
+
+/* ============================================================
+   Pagination — shared helper used by all table views
+   ============================================================ */
+const Pagination = {
+  // Returns the pageSize from Settings (falls back to 20)
+  getPageSize() {
+    try {
+      const s = JSON.parse(localStorage.getItem('bps_settings'));
+      return (s && s.pageSize) ? Number(s.pageSize) : 20;
+    } catch { return 20; }
+  },
+
+  // Slice array for the requested page (1-based)
+  paginate(array, page, pageSize) {
+    const start = (page - 1) * pageSize;
+    return array.slice(start, start + pageSize);
+  },
+
+  // Build the HTML bar — calls `callbackFn(page)` string for onclick
+  render(total, page, pageSize, callbackFn) {
+    const totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) return '';
+
+    const start = (page - 1) * pageSize + 1;
+    const end   = Math.min(page * pageSize, total);
+
+    // Build page number buttons with ellipsis
+    const pages = this._pageNumbers(page, totalPages);
+    const btns = pages.map(p => {
+      if (p === '…') return `<span class="pg-ellipsis">…</span>`;
+      return `<button class="pg-btn ${p === page ? 'active' : ''}"
+                onclick="${callbackFn(p)}">${p}</button>`;
+    }).join('');
+
+    return `
+      <div class="pagination-bar">
+        <span class="pagination-info">Showing ${start}–${end} of ${total}</span>
+        <div class="pagination-controls">
+          <button class="pg-btn" onclick="${callbackFn(page - 1)}" ${page <= 1 ? 'disabled' : ''}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          ${btns}
+          <button class="pg-btn" onclick="${callbackFn(page + 1)}" ${page >= totalPages ? 'disabled' : ''}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
+  // Smart page number array: always show first, last, current ±1, with ellipsis
+  _pageNumbers(current, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const set = new Set([1, total, current, current - 1, current + 1]
+      .filter(p => p >= 1 && p <= total));
+    const sorted = [...set].sort((a, b) => a - b);
+    const result = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push('…');
+      result.push(sorted[i]);
+    }
+    return result;
+  }
+};

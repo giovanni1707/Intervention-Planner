@@ -144,17 +144,26 @@ const Storage = {
   createIntervention(data) {
     const interventions = this.getInterventions();
     const now = new Date().toISOString();
+    const initialStatus = data.status || 'new';
     const intervention = {
       id: Utils.generateId(),
       createdAt: now,
       updatedAt: now,
+      statusUpdatedAt: now,
+      technicianId: null,
       notes: [],
       parts: [],
+      statusHistory: [{
+        status: initialStatus,
+        changedBy: data.createdBy || 'System',
+        timestamp: now,
+        note: 'Intervention created'
+      }],
       auditTrail: [{
         action: 'Created',
         user: data.createdBy || 'System',
         timestamp: now,
-        details: `Status set to ${data.status || 'new'}`
+        details: `Status set to ${initialStatus}`
       }],
       ...data
     };
@@ -169,6 +178,17 @@ const Storage = {
     if (idx === -1) return null;
     const now = new Date().toISOString();
     const updated = { ...interventions[idx], ...data, updatedAt: now };
+    // Record status change in history
+    if (data.status && data.status !== interventions[idx].status) {
+      updated.statusUpdatedAt = now;
+      const historyEntry = {
+        status: data.status,
+        changedBy: auditEntry?.user || 'System',
+        timestamp: now,
+        note: auditEntry?.details || ''
+      };
+      updated.statusHistory = [...(interventions[idx].statusHistory || []), historyEntry];
+    }
     if (auditEntry) {
       updated.auditTrail = [...(updated.auditTrail || []), {
         ...auditEntry,

@@ -5,7 +5,6 @@
 const ROUTES = {
   dashboard:     () => Views.Dashboard.mount(),
   clients:       () => Views.Clients.mount(),
-  machines:      () => Views.Machines.mount(),
   interventions: () => Views.Interventions.mount(),
   planning:      () => Views.Planning.mount(),
   technicians:   () => Views.Technicians.mount(),

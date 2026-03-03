@@ -6,6 +6,7 @@ Views.Clients = {
   _searchTerm: '',
   _sortKey: 'name',
   _sortDir: 'asc',
+  _page: 1,
 
   _sortIcon() {
     return `<span class="sort-icon">
@@ -26,15 +27,22 @@ Views.Clients = {
       this._sortKey = key;
       this._sortDir = 'asc';
     }
+    this._page = 1;
+    this._renderTable(this._getFiltered());
+  },
+
+  _goToPage(p) {
+    this._page = p;
     this._renderTable(this._getFiltered());
   },
 
   _getFiltered() {
     if (!this._searchTerm) return appState.clients;
     const q = this._searchTerm.toLowerCase();
-    return appState.clients.filter(c =>
-      [c.name, c.contactPerson, c.email, c.phone, c.region].join(' ').toLowerCase().includes(q)
-    );
+    return appState.clients.filter(c => {
+      const phones = Array.isArray(c.phones) ? c.phones.join(' ') : (c.phone || '');
+      return [c.name, c.contactPerson, c.email, phones, c.region].join(' ').toLowerCase().includes(q);
+    });
   },
 
   mount() {
@@ -71,12 +79,13 @@ Views.Clients = {
         <span id="clientCount" class="text-sm text-muted"></span>
       </div>
 
-      <div class="table-wrapper has-toolbar">
+      <div class="table-wrapper has-toolbar" id="clientTableWrapper">
         <table class="data-table" id="clientTable">
           <thead id="clientThead">
           </thead>
           <tbody id="clientTableBody"></tbody>
         </table>
+        <div id="clientPagination"></div>
       </div>
     `;
   },
@@ -85,6 +94,7 @@ Views.Clients = {
     const tbody   = document.getElementById('clientTableBody');
     const thead   = document.getElementById('clientThead');
     const countEl = document.getElementById('clientCount');
+    const pgEl    = document.getElementById('clientPagination');
     if (!tbody) return;
 
     if (countEl) countEl.textContent = `${clients.length} result${clients.length !== 1 ? 's' : ''}`;
@@ -126,16 +136,23 @@ Views.Clients = {
           </div>
         </td></tr>
       `;
+      if (pgEl) pgEl.innerHTML = '';
       return;
     }
 
-    tbody.innerHTML = sorted.map(c => {
+    // pagination
+    const pageSize = Pagination.getPageSize();
+    const totalPages = Math.ceil(sorted.length / pageSize);
+    if (this._page > totalPages) this._page = totalPages;
+    const pageItems = Pagination.paginate(sorted, this._page, pageSize);
+
+    tbody.innerHTML = pageItems.map(c => {
       const machineCount = appState.machines.filter(m => m.clientId === c.id).length;
       return `
         <tr>
           <td class="td-primary">${Utils.escapeHtml(c.name)}</td>
           <td>${Utils.escapeHtml(c.contactPerson || '—')}</td>
-          <td style="white-space:nowrap">${Utils.escapeHtml(c.phone || '—')}</td>
+          <td style="white-space:nowrap">${Utils.escapeHtml((Array.isArray(c.phones) ? c.phones.filter(Boolean)[0] : c.phone) || '—')}</td>
           <td><a href="mailto:${Utils.escapeHtml(c.email || '')}">${Utils.escapeHtml(c.email || '—')}</a></td>
           <td>${Utils.escapeHtml(c.region || '—')}</td>
           <td>
@@ -158,6 +175,11 @@ Views.Clients = {
         </tr>
       `;
     }).join('');
+
+    if (pgEl) pgEl.innerHTML = Pagination.render(
+      sorted.length, this._page, pageSize,
+      p => `Views.Clients._goToPage(${p})`
+    );
   },
 
   _bindSearch() {
@@ -165,6 +187,7 @@ Views.Clients = {
     if (!input) return;
     input.addEventListener('input', () => {
       this._searchTerm = input.value;
+      this._page = 1;
       this._renderTable(this._getFiltered());
     });
   },
@@ -193,8 +216,27 @@ Views.Clients = {
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Phone</label>
-          <input type="tel" id="fClientPhone" class="form-input" value="${Utils.escapeHtml(client.phone || '')}" placeholder="+230 000 0000">
+          <label class="form-label">Phone Number(s)</label>
+          <div id="fClientPhones" class="phone-list">
+            ${(() => {
+              const phones = Array.isArray(client.phones) && client.phones.length
+                ? client.phones
+                : [client.phone || ''];
+              return phones.map((p, i) => `
+                <div class="phone-entry">
+                  <input type="tel" class="form-input phone-input" value="${Utils.escapeHtml(p)}" placeholder="+230 000 0000">
+                  ${i === 0
+                    ? `<button type="button" class="btn btn-ghost btn-sm btn-icon phone-add-btn" title="Add phone" onclick="Views.Clients._addPhoneField()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                       </button>`
+                    : `<button type="button" class="btn btn-ghost btn-sm btn-icon phone-remove-btn" title="Remove" onclick="Views.Clients._removePhoneField(this)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                       </button>`
+                  }
+                </div>
+              `).join('');
+            })()}
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Email</label>
@@ -202,6 +244,31 @@ Views.Clients = {
         </div>
       </div>
     `;
+  },
+
+  _addPhoneField() {
+    const list = document.getElementById('fClientPhones');
+    if (!list) return;
+    const entry = document.createElement('div');
+    entry.className = 'phone-entry';
+    entry.innerHTML = `
+      <input type="tel" class="form-input phone-input" placeholder="+230 000 0000">
+      <button type="button" class="btn btn-ghost btn-sm btn-icon phone-remove-btn" title="Remove" onclick="Views.Clients._removePhoneField(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+    list.appendChild(entry);
+    entry.querySelector('input').focus();
+  },
+
+  _removePhoneField(btn) {
+    btn.closest('.phone-entry').remove();
+  },
+
+  _getPhones() {
+    return Array.from(document.querySelectorAll('#fClientPhones .phone-input'))
+      .map(el => el.value.trim())
+      .filter(Boolean);
   },
 
   _openCreateModal() {
@@ -220,7 +287,7 @@ Views.Clients = {
       industry:      document.getElementById('fClientIndustry')?.value.trim() || '',
       contactPerson: document.getElementById('fClientContact')?.value.trim() || '',
       region:        document.getElementById('fClientRegion')?.value.trim() || '',
-      phone:         document.getElementById('fClientPhone')?.value.trim() || '',
+      phones:        this._getPhones(),
       email:         document.getElementById('fClientEmail')?.value.trim() || ''
     });
 
@@ -249,7 +316,7 @@ Views.Clients = {
       industry:      document.getElementById('fClientIndustry')?.value.trim() || '',
       contactPerson: document.getElementById('fClientContact')?.value.trim() || '',
       region:        document.getElementById('fClientRegion')?.value.trim() || '',
-      phone:         document.getElementById('fClientPhone')?.value.trim() || '',
+      phones:        this._getPhones(),
       email:         document.getElementById('fClientEmail')?.value.trim() || ''
     });
 
@@ -319,7 +386,16 @@ Views.Clients = {
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Phone</div>
-              <div class="detail-field-value">${Utils.escapeHtml(client.phone || '—')}</div>
+              <div class="detail-field-value">
+                ${(() => {
+                  const phones = Array.isArray(client.phones) && client.phones.filter(Boolean).length
+                    ? client.phones.filter(Boolean)
+                    : (client.phone ? [client.phone] : []);
+                  return phones.length
+                    ? phones.map(p => `<div>${Utils.escapeHtml(p)}</div>`).join('')
+                    : '—';
+                })()}
+              </div>
             </div>
             <div class="detail-field" style="grid-column:1/-1">
               <div class="detail-field-label">Email</div>

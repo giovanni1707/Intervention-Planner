@@ -11,8 +11,11 @@ const Settings = {
     fontSize: 'medium',
     darkMode: false,
     accentColor: '#0066FF',
-    sidebarTheme: 'navy'
+    sidebarTheme: 'navy',
+    pageSize: 20
   },
+
+  _pageSizeOptions: [10, 20, 50, 100],
 
   _sidebarThemes: {
     navy:  { label: 'Dark Navy',  color: '#0D1F3C' },
@@ -191,6 +194,22 @@ const Settings = {
           </div>
         </div>
 
+        <!-- Card 5: Table Pagination -->
+        <div class="setting-card">
+          <div class="setting-card-title">Table Pagination</div>
+          <div class="setting-card-desc">Number of rows displayed per page in all tables</div>
+          <div class="size-btn-group">
+            ${this._pageSizeOptions.map(n => `
+              <button class="size-btn ${s.pageSize === n ? 'active' : ''}"
+                      data-pagesize="${n}"
+                      onclick="Settings._setPageSize(${n})">
+                <div style="font-size:18px;font-weight:700;line-height:1">${n}</div>
+                <div style="font-size:11px;margin-top:4px;opacity:0.7">rows</div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
       </div>
 
       <!-- Reset -->
@@ -245,6 +264,14 @@ const Settings = {
     // Update card active states
     document.querySelectorAll('.sidebar-theme-card').forEach(card => {
       card.classList.toggle('active', card.dataset.theme === themeKey);
+    });
+  },
+
+  _setPageSize(n) {
+    this.save({ pageSize: n });
+
+    document.querySelectorAll('.size-btn[data-pagesize]').forEach(btn => {
+      btn.classList.toggle('active', Number(btn.dataset.pagesize) === n);
     });
   },
 

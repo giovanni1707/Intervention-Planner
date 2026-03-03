@@ -3,6 +3,15 @@
    ============================================================ */
 
 const Sidebar = {
+  _collapsed: localStorage.getItem('bps_sidebar_collapsed') === 'true',
+
+  _toggleCollapse() {
+    this._collapsed = !this._collapsed;
+    localStorage.setItem('bps_sidebar_collapsed', this._collapsed);
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.classList.toggle('collapsed', this._collapsed);
+  },
+
   _navItems: [
     {
       route: 'dashboard', label: 'Dashboard', adminOnly: false,
@@ -11,10 +20,6 @@ const Sidebar = {
     {
       route: 'clients', label: 'Clients', adminOnly: true,
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>`
-    },
-    {
-      route: 'machines', label: 'Machines', adminOnly: true,
-      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 6V4"/><path d="M18 6V4"/><path d="M6 18v2"/><path d="M18 18v2"/><circle cx="12" cy="12" r="3"/></svg>`
     },
     {
       route: 'interventions', label: 'Interventions', adminOnly: false,
@@ -47,11 +52,13 @@ const Sidebar = {
     const visibleItems = this._navItems.filter(item => !item.adminOnly || isAdmin);
 
     const navHTML = visibleItems.map(item => `
-      <div class="sidebar-nav-item" data-route="${item.route}">
+      <div class="sidebar-nav-item" data-route="${item.route}" title="${item.label}">
         ${item.icon}
         <span>${item.label}</span>
       </div>
     `).join('');
+
+    sidebar.classList.toggle('collapsed', this._collapsed);
 
     sidebar.innerHTML = `
       <div class="sidebar-brand">
@@ -62,6 +69,11 @@ const Sidebar = {
             <div class="sidebar-logo-sub">MULTIVAC — Indian Ocean</div>
           </div>
         </div>
+        <button class="sidebar-toggle" id="sidebarToggleBtn" title="Toggle Sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
       </div>
 
       <nav class="sidebar-nav">
@@ -109,6 +121,12 @@ const Sidebar = {
         if (route) Router.go(route);
       });
     });
+
+    // Toggle collapse
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => this._toggleCollapse());
+    }
 
     // Logout
     const logoutBtn = document.getElementById('logoutBtn');

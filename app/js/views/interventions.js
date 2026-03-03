@@ -6,6 +6,7 @@ Views.Interventions = {
   _effectCleanup: null,
   _sortKey: 'createdAt',
   _sortDir: 'desc',
+  _page: 1,
 
   _sortIcon() {
     return `<span class="sort-icon">
@@ -26,7 +27,13 @@ Views.Interventions = {
       this._sortKey = key;
       this._sortDir = 'asc';
     }
-    // Re-run the effect by touching interventions (just re-render directly)
+    this._page = 1;
+    const filtered = Utils.filterInterventions(appState.interventions, appState.filters);
+    this._renderTable(filtered);
+  },
+
+  _goToPage(p) {
+    this._page = p;
     const filtered = Utils.filterInterventions(appState.interventions, appState.filters);
     this._renderTable(filtered);
   },
@@ -143,6 +150,7 @@ Views.Interventions = {
       if (!el) return;
       el.addEventListener(el.tagName === 'INPUT' && el.type === 'text' ? 'input' : 'change', () => {
         appState.filters[key] = el.value;
+        this._page = 1;
       });
     };
 
@@ -204,6 +212,21 @@ Views.Interventions = {
         const mb = appState.machines.find(m => m.id === b.machineId);
         va = ma?.jobNumber || '';
         vb = mb?.jobNumber || '';
+      } else if (this._sortKey === '_serialNumber') {
+        const ma = appState.machines.find(m => m.id === a.machineId);
+        const mb = appState.machines.find(m => m.id === b.machineId);
+        va = (ma?.serialNumber || '').toLowerCase();
+        vb = (mb?.serialNumber || '').toLowerCase();
+      } else if (this._sortKey === '_machineType') {
+        const ma = appState.machines.find(m => m.id === a.machineId);
+        const mb = appState.machines.find(m => m.id === b.machineId);
+        va = (ma?.type || '').toLowerCase();
+        vb = (mb?.type || '').toLowerCase();
+      } else if (this._sortKey === '_machineName') {
+        const ma = appState.machines.find(m => m.id === a.machineId);
+        const mb = appState.machines.find(m => m.id === b.machineId);
+        va = (ma?.name || '').toLowerCase();
+        vb = (mb?.name || '').toLowerCase();
       } else if (this._sortKey === '_clientName') {
         va = Utils.getClientName(a.clientId).toLowerCase();
         vb = Utils.getClientName(b.clientId).toLowerCase();
@@ -221,20 +244,30 @@ Views.Interventions = {
       return this._sortDir === 'desc' ? -cmp : cmp;
     });
 
-    const rows = sorted.map(i => {
+    // pagination
+    const pageSize   = Pagination.getPageSize();
+    const totalPages = Math.ceil(sorted.length / pageSize);
+    if (this._page > totalPages) this._page = Math.max(1, totalPages);
+    const pageItems = Pagination.paginate(sorted, this._page, pageSize);
+
+    const pageRows = pageItems.map(i => {
       const machine = appState.machines.find(m => m.id === i.machineId);
       const isOverdue = CONFIG.OPEN_STATUSES.includes(i.status) && i.scheduledDate && Utils.isPast(i.scheduledDate);
+      const techName = i.technicianId ? Utils.getTechnicianName(i.technicianId) : 'Unassigned';
       return `
         <tr ${isOverdue ? 'style="background:var(--red-light)"' : ''}>
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
+          <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.serialNumber || '—')}</td>
           <td class="td-primary">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
+          <td style="font-size:0.786rem">${Utils.escapeHtml(machine?.type || '—')}</td>
+          <td style="font-size:0.786rem">${Utils.escapeHtml(machine?.name || '—')}</td>
           <td>${Utils.escapeHtml(Utils.getMachineModel(i.machineId))}</td>
           <td>${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
           <td>${Utils.getPriorityBadge(i.priority)}</td>
           <td>${Utils.getStatusBadge(i.status)}</td>
-          <td>${Utils.escapeHtml(Utils.getTechnicianName(i.technicianId))}</td>
-          <td style="white-space:nowrap">${Utils.formatDate(i.scheduledDate)}</td>
-          <td style="white-space:nowrap;color:var(--gray-400);font-size:0.786rem">${Utils.formatRelative(i.createdAt)}</td>
+          <td style="font-size:0.786rem;color:${i.technicianId ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(techName)}</td>
+          <td style="white-space:nowrap;font-size:0.786rem;color:${i.statusUpdatedAt ? 'inherit' : 'var(--gray-400)'}">${i.statusUpdatedAt ? Utils.formatDateTime(i.statusUpdatedAt) : '—'}</td>
+          <td style="white-space:nowrap;font-size:0.786rem">${Utils.formatDateTime(i.createdAt)}</td>
           <td>
             <div class="td-actions">
               <button class="btn btn-ghost btn-sm btn-icon" title="View Detail" onclick="Views.Interventions.openDetailModal('${i.id}')">
@@ -259,19 +292,23 @@ Views.Interventions = {
           <thead>
             <tr>
               <th class="${this._thClass('_jobNumber')}" onclick="Views.Interventions._setSort('_jobNumber')">Job #${si}</th>
+              <th class="${this._thClass('_serialNumber')}" onclick="Views.Interventions._setSort('_serialNumber')">Serial #${si}</th>
               <th class="${this._thClass('_clientName')}" onclick="Views.Interventions._setSort('_clientName')">Client${si}</th>
-              <th class="${this._thClass('_machineModel')}" onclick="Views.Interventions._setSort('_machineModel')">Machine${si}</th>
+              <th class="${this._thClass('_machineType')}" onclick="Views.Interventions._setSort('_machineType')">Machine${si}</th>
+              <th class="${this._thClass('_machineName')}" onclick="Views.Interventions._setSort('_machineName')">Name${si}</th>
+              <th class="${this._thClass('_machineModel')}" onclick="Views.Interventions._setSort('_machineModel')">Model${si}</th>
               <th class="${this._thClass('type')}" onclick="Views.Interventions._setSort('type')">Type${si}</th>
               <th class="${this._thClass('priority')}" onclick="Views.Interventions._setSort('priority')">Priority${si}</th>
               <th class="${this._thClass('status')}" onclick="Views.Interventions._setSort('status')">Status${si}</th>
               <th class="${this._thClass('_techName')}" onclick="Views.Interventions._setSort('_techName')">Technician${si}</th>
-              <th class="${this._thClass('scheduledDate')}" onclick="Views.Interventions._setSort('scheduledDate')">Scheduled${si}</th>
+              <th class="${this._thClass('statusUpdatedAt')}" onclick="Views.Interventions._setSort('statusUpdatedAt')">Status Updated${si}</th>
               <th class="${this._thClass('createdAt')}" onclick="Views.Interventions._setSort('createdAt')">Created${si}</th>
               <th style="width:100px"></th>
             </tr>
           </thead>
-          <tbody>${rows}</tbody>
+          <tbody>${pageRows}</tbody>
         </table>
+        ${Pagination.render(sorted.length, this._page, pageSize, p => `Views.Interventions._goToPage(${p})`)}
       </div>
     `;
   },
@@ -319,15 +356,16 @@ Views.Interventions = {
 
   // ── FORM HELPERS ──────────────────────────────────────────
   _interventionFormHTML(intervention = {}) {
+    const isEdit = !!intervention.id;
+
     const clientOptions = appState.clients.map(c =>
       `<option value="${c.id}" ${intervention.clientId === c.id ? 'selected' : ''}>${Utils.escapeHtml(c.name)}</option>`
     ).join('');
 
-    // Machine options depend on selected client — build for current value, JS will update
     const selectedClientId = intervention.clientId || '';
     const machineOptions = appState.machines
       .filter(m => !selectedClientId || m.clientId === selectedClientId)
-      .map(m => `<option value="${m.id}" ${intervention.machineId === m.id ? 'selected' : ''}>${Utils.escapeHtml(m.model)} (${m.serialNumber})</option>`)
+      .map(m => `<option value="${m.id}" ${intervention.machineId === m.id ? 'selected' : ''}>${Utils.escapeHtml(m.model)} — Job #${m.jobNumber} (${m.serialNumber})</option>`)
       .join('');
 
     const typeOptions = Object.entries(CONFIG.INTERVENTION_TYPES).map(([k, v]) =>
@@ -348,21 +386,8 @@ Views.Interventions = {
         `<option value="${u.id}" ${intervention.technicianId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`)
     ].join('');
 
-    const isEdit = !!intervention.id;
-
-    return `
-      ${!isEdit ? `
-      <div class="form-row" style="align-items:flex-end">
-        <div class="form-group">
-          <label class="form-label">Job Number <span class="text-xs text-muted" style="font-weight:400">(type to auto-fill machine & client)</span></label>
-          <input type="text" id="fIntJobNumber" class="form-input" placeholder="e.g. 481203" maxlength="6" style="font-family:monospace;letter-spacing:0.08em">
-        </div>
-        <div class="form-group" style="flex:0 0 auto;padding-bottom:0">
-          <div id="fIntJobFeedback" style="font-size:0.786rem;padding:6px 10px;border-radius:6px;min-height:32px"></div>
-        </div>
-      </div>
-      <hr style="border:none;border-top:1px solid var(--gray-200);margin:4px 0 8px">
-      ` : ''}
+    // Machine section — register new on create, dropdowns on edit
+    const machineSection = isEdit ? `
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Client <span class="required">*</span></label>
@@ -379,6 +404,64 @@ Views.Interventions = {
           </select>
         </div>
       </div>
+    ` : `
+      <div style="background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:0.786rem;color:var(--blue)">
+        A new machine will be registered automatically with a unique Job # and status <strong>New</strong>.
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Machine Name <span class="required">*</span></label>
+          <input type="text" id="fNewMachineName" class="form-input" placeholder="e.g. MULTIVAC">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Model <span class="required">*</span></label>
+          <input type="text" id="fNewMachineModel" class="form-input" placeholder="e.g. R230">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Serial Number <span class="required">*</span></label>
+          <input type="text" id="fNewMachineSerial" class="form-input" placeholder="MV-XXXX-YYYY-NNN">
+        </div>
+        <div class="form-group"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Machine Type</label>
+          <input type="text" id="fNewMachineType" class="form-input" placeholder="e.g. Tray Sealer">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Client <span class="required">*</span></label>
+          <select id="fNewMachineClient" class="form-select">
+            <option value="">— Select client —</option>
+            ${clientOptions}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Location / Line</label>
+          <input type="text" id="fNewMachineLocation" class="form-input" placeholder="e.g. Production Line A">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contract Type</label>
+          <select id="fNewMachineContract" class="form-select" onchange="Views.Interventions._toggleNewMachineExpiry(this.value)">
+            ${Object.entries(CONFIG.CONTRACT_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-row" id="fNewMachineExpiryGroup" style="display:none">
+        <div class="form-group">
+          <label class="form-label">Contract Expiry Date</label>
+          <input type="date" id="fNewMachineExpiry" class="form-input">
+        </div>
+        <div class="form-group"></div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--gray-200);margin:8px 0 12px">
+    `;
+
+    return `
+      ${machineSection}
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Type <span class="required">*</span></label>
@@ -426,7 +509,18 @@ Views.Interventions = {
     `;
   },
 
+  _toggleNewMachineExpiry(contractType) {
+    const group = document.getElementById('fNewMachineExpiryGroup');
+    if (!group) return;
+    group.style.display = contractType === 'none' ? 'none' : '';
+    if (contractType === 'none') {
+      const input = document.getElementById('fNewMachineExpiry');
+      if (input) input.value = '';
+    }
+  },
+
   _bindClientMachineDropdown() {
+    // Client → Machine cascade for the edit form
     const clientSel  = document.getElementById('fIntClient');
     const machineSel = document.getElementById('fIntMachine');
     if (!clientSel || !machineSel) return;
@@ -435,53 +529,7 @@ Views.Interventions = {
       const clientId = clientSel.value;
       const machines = clientId ? appState.machines.filter(m => m.clientId === clientId) : appState.machines;
       machineSel.innerHTML = '<option value="">— Select machine —</option>' +
-        machines.map(m => `<option value="${m.id}">${Utils.escapeHtml(m.model)} (${m.serialNumber})</option>`).join('');
-    });
-
-    // Job number auto-fill (create form only)
-    const jobInput  = document.getElementById('fIntJobNumber');
-    const feedback  = document.getElementById('fIntJobFeedback');
-    if (!jobInput || !feedback) return;
-
-    jobInput.addEventListener('input', () => {
-      const val = jobInput.value.trim();
-      if (val.length < 6) {
-        feedback.textContent = '';
-        feedback.style.background = '';
-        feedback.style.color = '';
-        return;
-      }
-      const machine = appState.machines.find(m => m.jobNumber === val);
-      if (!machine) {
-        feedback.textContent = '✗ Job number not found';
-        feedback.style.background = 'var(--red-light)';
-        feedback.style.color = 'var(--red)';
-        return;
-      }
-      const client = appState.clients.find(c => c.id === machine.clientId);
-
-      // Set client dropdown
-      clientSel.value = machine.clientId || '';
-
-      // Rebuild machine dropdown for this client, then select the machine
-      const clientMachines = appState.machines.filter(m => m.clientId === machine.clientId);
-      machineSel.innerHTML = '<option value="">— Select machine —</option>' +
-        clientMachines.map(m => `<option value="${m.id}">${Utils.escapeHtml(m.model)} (${m.serialNumber})</option>`).join('');
-      machineSel.value = machine.id;
-
-      // Warn if machine already has an open intervention
-      const openIntv = appState.interventions.find(i =>
-        i.machineId === machine.id && CONFIG.OPEN_STATUSES.includes(i.status)
-      );
-      if (openIntv) {
-        feedback.innerHTML = `⚠ <strong>${Utils.escapeHtml(machine.model)}</strong> already has an open intervention (${CONFIG.STATUSES[openIntv.status]?.label || openIntv.status}) — cannot create a duplicate.`;
-        feedback.style.background = 'var(--yellow-light)';
-        feedback.style.color = 'var(--yellow)';
-      } else {
-        feedback.innerHTML = `✓ <strong>${Utils.escapeHtml(machine.model)}</strong> &nbsp;·&nbsp; ${Utils.escapeHtml(client?.name || '—')} &nbsp;·&nbsp; S/N: ${Utils.escapeHtml(machine.serialNumber || '—')}`;
-        feedback.style.background = 'var(--green-light)';
-        feedback.style.color = 'var(--green)';
-      }
+        machines.map(m => `<option value="${m.id}">${Utils.escapeHtml(m.model)} — Job #${m.jobNumber} (${m.serialNumber})</option>`).join('');
     });
   },
 
@@ -489,42 +537,48 @@ Views.Interventions = {
     Modals.open('New Intervention', this._interventionFormHTML(), `
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitCreate()">Create Intervention</button>
-    `, { size: 'lg', onOpen: () => this._bindClientMachineDropdown() });
+    `, { size: 'lg' });
   },
 
   _submitCreate() {
-    const clientId  = document.getElementById('fIntClient')?.value;
-    const machineId = document.getElementById('fIntMachine')?.value;
-    const type      = document.getElementById('fIntType')?.value;
+    const type = document.getElementById('fIntType')?.value;
+    if (!type) { Toast.error('Please select an intervention type'); return; }
 
-    if (!clientId)  { Toast.error('Please select a client'); return; }
-    if (!machineId) { Toast.error('Please select a machine'); return; }
-    if (!type)      { Toast.error('Please select a type'); return; }
+    const user = appState.currentUser;
 
-    // Prevent duplicate: block if this machine already has an open intervention
-    const existing = appState.interventions.find(i =>
-      i.machineId === machineId && CONFIG.OPEN_STATUSES.includes(i.status)
-    );
-    if (existing) {
-      const machine = appState.machines.find(m => m.id === machineId);
-      Toast.error(`Machine "${machine?.model || machineId}" already has an open intervention (status: ${CONFIG.STATUSES[existing.status]?.label || existing.status}). Close it before creating a new one.`);
-      return;
-    }
+    const machineName = document.getElementById('fNewMachineName')?.value.trim();
+    const model    = document.getElementById('fNewMachineModel')?.value.trim();
+    const serial   = document.getElementById('fNewMachineSerial')?.value.trim();
+    const clientId = document.getElementById('fNewMachineClient')?.value;
+
+    if (!machineName) { Toast.error('Machine name is required'); return; }
+    if (!model)    { Toast.error('Machine model is required'); return; }
+    if (!serial)   { Toast.error('Serial number is required'); return; }
+    if (!clientId) { Toast.error('Please select a client for the machine'); return; }
+
+    const newMachine = Storage.createMachine({
+      name: machineName, model, serialNumber: serial, clientId,
+      type:           document.getElementById('fNewMachineType')?.value.trim() || '',
+      location:       document.getElementById('fNewMachineLocation')?.value.trim() || '',
+      contractType:   document.getElementById('fNewMachineContract')?.value || 'none',
+      contractExpiry: document.getElementById('fNewMachineExpiry')?.value || null
+    });
+    const machineId = newMachine.id;
+    refreshMachines();
 
     const dateVal = document.getElementById('fIntDate')?.value;
     const timeVal = document.getElementById('fIntTime')?.value || '08:00';
     const scheduledDate = dateVal ? new Date(`${dateVal}T${timeVal}`).toISOString() : null;
 
-    const user = appState.currentUser;
     Storage.createIntervention({
       clientId, machineId, type,
-      priority:    document.getElementById('fIntPriority')?.value || 'medium',
-      status:      document.getElementById('fIntStatus')?.value || 'new',
+      priority:     document.getElementById('fIntPriority')?.value || 'medium',
+      status:       document.getElementById('fIntStatus')?.value || 'new',
       technicianId: document.getElementById('fIntTech')?.value || null,
-      location:    document.getElementById('fIntLocation')?.value || 'client',
+      location:     document.getElementById('fIntLocation')?.value || 'client',
       scheduledDate,
-      description: document.getElementById('fIntDesc')?.value.trim() || '',
-      createdBy:   user?.name || 'Admin'
+      description:  document.getElementById('fIntDesc')?.value.trim() || '',
+      createdBy:    user?.name || 'Admin'
     });
 
     refreshInterventions();
@@ -603,95 +657,168 @@ Views.Interventions = {
     const isAdmin = user && user.role === 'admin';
     const isTech  = user && user.id === i.technicianId;
 
-    const notesHTML = (i.notes || []).length === 0
-      ? '<p class="text-sm text-muted">No notes added yet.</p>'
-      : `<div class="notes-list">${(i.notes || []).map(n => `
-          <div class="note-item">
-            <p class="note-text">${Utils.escapeHtml(n.text)}</p>
-            <p class="note-meta">${Utils.escapeHtml(n.author)} · ${Utils.formatDateTime(n.createdAt)}</p>
-          </div>
-        `).join('')}</div>`;
-
-    const partsHTML = (i.parts || []).length === 0
-      ? '<p class="text-sm text-muted">No parts recorded.</p>'
-      : `<table class="parts-table">
-          <thead><tr><th>Reference</th><th>Description</th><th>Qty</th><th>Added</th></tr></thead>
-          <tbody>${(i.parts || []).map(p => `
-            <tr>
-              <td style="font-family:monospace">${Utils.escapeHtml(p.reference)}</td>
-              <td>${Utils.escapeHtml(p.description)}</td>
-              <td>${p.quantity}</td>
-              <td>${Utils.formatDate(p.addedAt)}</td>
-            </tr>
-          `).join('')}</tbody>
-        </table>`;
-
-    const auditHTML = (i.auditTrail || []).length === 0
-      ? '<p class="text-sm text-muted">No audit entries.</p>'
-      : `<div class="audit-trail">${[...(i.auditTrail || [])].reverse().map(a => `
-          <div class="audit-item">
-            <div class="audit-line"><div class="audit-dot"></div><div class="audit-connector"></div></div>
-            <div class="audit-content">
-              <div class="audit-action">${Utils.escapeHtml(a.action)}</div>
-              <div class="audit-meta">${Utils.escapeHtml(a.user)} · ${Utils.formatDateTime(a.timestamp)}${a.details ? ` — ${Utils.escapeHtml(a.details)}` : ''}</div>
-            </div>
-          </div>
-        `).join('')}</div>`;
-
     const canAddNote = isAdmin || isTech;
     const canAddPart = isAdmin || isTech;
+
+    // ── Build status tab data ──────────────────────────────────
+    // Sort oldest → newest, assign notes/parts per status window
+    const statusChain = [...(i.statusHistory || [])].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const allNotes    = [...(i.notes  || [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const allParts    = [...(i.parts  || [])].sort((a, b) => new Date(a.addedAt)   - new Date(b.addedAt));
+
+    const statusTabs = statusChain.map((s, idx) => {
+      const windowStart = new Date(s.timestamp);
+      const windowEnd   = statusChain[idx + 1] ? new Date(statusChain[idx + 1].timestamp) : new Date(9999999999999);
+      return {
+        s,
+        isLatest: idx === statusChain.length - 1,
+        tabId: `stab-${i.id}-${idx}`,
+        panelId: `spanel-${i.id}-${idx}`,
+        cardNotes: allNotes.filter(n => { const t = new Date(n.createdAt); return t >= windowStart && t < windowEnd; }),
+        cardParts: allParts.filter(p => { const t = new Date(p.addedAt);   return t >= windowStart && t < windowEnd; })
+      };
+    });
+
+    // Tab bar — oldest left, newest right (current is rightmost & pre-selected)
+    const tabBarHTML = statusTabs.length === 0
+      ? ''
+      : `<div class="stab-bar" role="tablist">${statusTabs.map(({ s, isLatest, tabId, panelId }) => `
+          <button class="stab-btn${isLatest ? ' stab-btn-active' : ''}"
+            id="${tabId}" role="tab"
+            aria-selected="${isLatest}"
+            aria-controls="${panelId}"
+            onclick="Views.Interventions._switchStatusTab(this,'${i.id}')">
+            ${Utils.getStatusBadge(s.status)}
+            ${isLatest ? '<span class="stab-current-dot" title="Current"></span>' : ''}
+          </button>
+        `).join('')}</div>`;
+
+    // Panel for each tab
+    const tabPanelsHTML = statusTabs.length === 0
+      ? '<p class="text-sm text-muted">No status history available.</p>'
+      : statusTabs.map(({ s, isLatest, tabId, panelId, cardNotes, cardParts }) => {
+
+          const notesBlock = cardNotes.length === 0
+            ? '<p class="stab-empty">No notes during this status.</p>'
+            : cardNotes.map(n => `
+                <div class="stab-note-item">
+                  <p class="stab-note-text">${Utils.escapeHtml(n.text)}</p>
+                  <p class="stab-note-meta">${Utils.escapeHtml(n.author)} · ${Utils.formatDateTime(n.createdAt)}</p>
+                </div>`).join('');
+
+          const partsBlock = cardParts.length === 0
+            ? '<p class="stab-empty">No parts used during this status.</p>'
+            : `<table class="parts-table">
+                <thead><tr><th>Reference</th><th>Description</th><th>Qty</th><th>Added</th></tr></thead>
+                <tbody>${cardParts.map(p => `
+                  <tr>
+                    <td style="font-family:monospace">${Utils.escapeHtml(p.reference)}</td>
+                    <td>${Utils.escapeHtml(p.description)}</td>
+                    <td>${p.quantity}</td>
+                    <td>${Utils.formatDate(p.addedAt)}</td>
+                  </tr>`).join('')}
+                </tbody>
+              </table>`;
+
+          return `
+            <div class="stab-panel${isLatest ? ' stab-panel-active' : ''}"
+              id="${panelId}" role="tabpanel" aria-labelledby="${tabId}">
+
+              <div class="stab-panel-header">
+                <div class="stab-panel-meta">
+                  ${Utils.getStatusBadge(s.status)}
+                  ${isLatest ? '<span class="al-current-tag">Current</span>' : ''}
+                  <span class="stab-panel-by">by ${Utils.escapeHtml(s.changedBy)}</span>
+                  <span class="stab-panel-time">${Utils.formatDateTime(s.timestamp)}</span>
+                </div>
+              </div>
+
+              ${s.note ? `
+                <div class="stab-block">
+                  <div class="stab-block-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                    Status Note
+                  </div>
+                  <p class="stab-block-text">${Utils.escapeHtml(s.note)}</p>
+                </div>` : ''}
+
+              ${i.description ? `
+                <div class="stab-block">
+                  <div class="stab-block-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    Description
+                  </div>
+                  <p class="stab-block-text">${Utils.escapeHtml(i.description)}</p>
+                </div>` : ''}
+
+              <div class="stab-block">
+                <div class="stab-block-label">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  Notes
+                  ${isLatest && canAddNote ? `<button class="btn btn-ghost btn-sm stab-add-btn" onclick="Views.Interventions._openAddNoteModal('${i.id}')">+ Add</button>` : ''}
+                </div>
+                ${notesBlock}
+              </div>
+
+              <div class="stab-block">
+                <div class="stab-block-label">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  Parts Used
+                  ${isLatest && canAddPart ? `<button class="btn btn-ghost btn-sm stab-add-btn" onclick="Views.Interventions._openAddPartModal('${i.id}')">+ Add</button>` : ''}
+                </div>
+                ${partsBlock}
+              </div>
+
+            </div>`;
+        }).join('');
 
     const body = `
       <div class="detail-section">
         <div class="detail-section-label">Intervention Details</div>
         <div class="detail-grid">
+          <div class="detail-field"><div class="detail-field-label">Job Number</div><div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.jobNumber || '—')}</div></div>
+          <div class="detail-field"><div class="detail-field-label">Serial Number</div><div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.serialNumber || '—')}</div></div>
           <div class="detail-field"><div class="detail-field-label">Client</div><div class="detail-field-value">${Utils.escapeHtml(client?.name || '—')}</div></div>
-          <div class="detail-field"><div class="detail-field-label">Machine</div><div class="detail-field-value">${Utils.escapeHtml(machine?.model || '—')} <span class="text-xs text-muted">(${Utils.escapeHtml(machine?.serialNumber || '')})</span></div></div>
+          <div class="detail-field"><div class="detail-field-label">Machine</div><div class="detail-field-value">${Utils.escapeHtml(machine?.model || '—')}</div></div>
           <div class="detail-field"><div class="detail-field-label">Type</div><div class="detail-field-value">${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</div></div>
           <div class="detail-field"><div class="detail-field-label">Location</div><div class="detail-field-value">${i.location === 'workshop' ? 'Workshop' : 'Client Premises'}</div></div>
-          <div class="detail-field"><div class="detail-field-label">Technician</div><div class="detail-field-value">${Utils.escapeHtml(tech?.name || 'Unassigned')}</div></div>
+          <div class="detail-field"><div class="detail-field-label">Technician</div><div class="detail-field-value" style="${!i.technicianId ? 'color:var(--gray-400)' : ''}">${Utils.escapeHtml(tech?.name || 'Unassigned')}</div></div>
           <div class="detail-field"><div class="detail-field-label">Status</div><div class="detail-field-value">${Utils.getStatusBadge(i.status)}</div></div>
           <div class="detail-field"><div class="detail-field-label">Priority</div><div class="detail-field-value">${Utils.getPriorityBadge(i.priority)}</div></div>
           <div class="detail-field"><div class="detail-field-label">Scheduled</div><div class="detail-field-value">${Utils.formatDateTime(i.scheduledDate)}</div></div>
           <div class="detail-field"><div class="detail-field-label">Created</div><div class="detail-field-value">${Utils.formatDateTime(i.createdAt)}</div></div>
+          <div class="detail-field"><div class="detail-field-label">Status Last Updated</div><div class="detail-field-value">${i.statusUpdatedAt ? Utils.formatDateTime(i.statusUpdatedAt) : '—'}</div></div>
         </div>
       </div>
 
-      ${i.description ? `
-        <div class="detail-section">
-          <div class="detail-section-label">Description</div>
-          <p class="text-sm" style="white-space:pre-wrap;color:var(--gray-700)">${Utils.escapeHtml(i.description)}</p>
-        </div>
-      ` : ''}
-
       <div class="detail-section">
-        <div class="detail-section-label" style="display:flex;align-items:center;justify-content:space-between">
-          Notes
-          ${canAddNote ? `<button class="btn btn-ghost btn-sm" onclick="Views.Interventions._openAddNoteModal('${i.id}')">+ Add Note</button>` : ''}
-        </div>
-        ${notesHTML}
-      </div>
-
-      <div class="detail-section">
-        <div class="detail-section-label" style="display:flex;align-items:center;justify-content:space-between">
-          Parts Used
-          ${canAddPart ? `<button class="btn btn-ghost btn-sm" onclick="Views.Interventions._openAddPartModal('${i.id}')">+ Add Part</button>` : ''}
-        </div>
-        ${partsHTML}
-      </div>
-
-      <div class="detail-section">
-        <div class="detail-section-label">Audit Trail</div>
-        ${auditHTML}
+        <div class="detail-section-label">Status History</div>
+        ${tabBarHTML}
+        <div class="stab-panels">${tabPanelsHTML}</div>
       </div>
     `;
 
-    const footer = `
-      <button class="btn btn-ghost" onclick="Modals.close()">Close</button>
-      <button class="btn btn-secondary" onclick="Modals.close(); Views.Interventions._openEditModal('${i.id}')">Edit</button>
-    `;
+    const footer = ``;
 
     Modals.open(`Intervention #${i.id.slice(-6)}`, body, footer, { size: 'lg' });
+  },
+
+  _switchStatusTab(btn, interventionId) {
+    const bar = btn.closest('.stab-bar');
+    if (!bar) return;
+    // Deactivate all tabs in this bar
+    bar.querySelectorAll('.stab-btn').forEach(b => {
+      b.classList.remove('stab-btn-active');
+      b.setAttribute('aria-selected', 'false');
+    });
+    // Activate clicked tab
+    btn.classList.add('stab-btn-active');
+    btn.setAttribute('aria-selected', 'true');
+    // Hide all panels, show the target panel
+    const panelContainer = bar.nextElementSibling;
+    panelContainer.querySelectorAll('.stab-panel').forEach(p => p.classList.remove('stab-panel-active'));
+    const targetPanel = document.getElementById(btn.getAttribute('aria-controls'));
+    if (targetPanel) targetPanel.classList.add('stab-panel-active');
   },
 
   _openAddNoteModal(interventionId) {

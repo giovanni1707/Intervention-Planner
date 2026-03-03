@@ -46,7 +46,7 @@ Views.Machines = {
       const q = this._searchTerm.toLowerCase();
       machines = machines.filter(m => {
         const client = appState.clients.find(c => c.id === m.clientId);
-        return [m.model, m.serialNumber, m.type, m.location, client?.name].join(' ').toLowerCase().includes(q);
+        return [m.name, m.model, m.serialNumber, m.type, m.location, client?.name].join(' ').toLowerCase().includes(q);
       });
     }
     return machines;
@@ -107,6 +107,7 @@ Views.Machines = {
       const si = this._sortIcon();
       thead.innerHTML = `<tr>
         <th class="${this._thClass('jobNumber')}" onclick="Views.Machines._setSort('jobNumber')">Job #${si}</th>
+        <th class="${this._thClass('name')}" onclick="Views.Machines._setSort('name')">Name${si}</th>
         <th class="${this._thClass('model')}" onclick="Views.Machines._setSort('model')">Model${si}</th>
         <th class="${this._thClass('serialNumber')}" onclick="Views.Machines._setSort('serialNumber')">Serial Number${si}</th>
         <th class="${this._thClass('type')}" onclick="Views.Machines._setSort('type')">Type${si}</th>
@@ -151,7 +152,7 @@ Views.Machines = {
 
     if (sorted.length === 0) {
       tbody.innerHTML = `
-        <tr><td colspan="11">
+        <tr><td colspan="12">
           <div class="table-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
             <p class="table-empty-text">No machines found</p>
@@ -173,7 +174,8 @@ Views.Machines = {
       return `
         <tr>
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(m.jobNumber || '—')}</td>
-          <td class="td-primary">${Utils.escapeHtml(m.model)}</td>
+          <td class="td-primary">${Utils.escapeHtml(m.name || '—')}</td>
+          <td>${Utils.escapeHtml(m.model)}</td>
           <td style="font-family:monospace;font-size:0.786rem">${Utils.escapeHtml(m.serialNumber)}</td>
           <td>${Utils.escapeHtml(m.type || '—')}</td>
           <td>${Utils.escapeHtml(client?.name || '—')}</td>
@@ -244,13 +246,20 @@ Views.Machines = {
       </div>` : ''}
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Machine Model <span class="required">*</span></label>
-          <input type="text" id="fMachineModel" class="form-input" value="${Utils.escapeHtml(machine.model || '')}" required placeholder="e.g. MULTIVAC R230">
+          <label class="form-label">Machine Name <span class="required">*</span></label>
+          <input type="text" id="fMachineName" class="form-input" value="${Utils.escapeHtml(machine.name || '')}" required placeholder="e.g. MULTIVAC">
         </div>
+        <div class="form-group">
+          <label class="form-label">Model <span class="required">*</span></label>
+          <input type="text" id="fMachineModel" class="form-input" value="${Utils.escapeHtml(machine.model || '')}" required placeholder="e.g. R230">
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label class="form-label">Serial Number <span class="required">*</span></label>
           <input type="text" id="fMachineSerial" class="form-input" value="${Utils.escapeHtml(machine.serialNumber || '')}" required placeholder="MV-XXXX-YYYY-NNN">
         </div>
+        <div class="form-group"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -305,16 +314,18 @@ Views.Machines = {
   },
 
   _submitCreate() {
+    const name     = document.getElementById('fMachineName')?.value.trim();
     const model    = document.getElementById('fMachineModel')?.value.trim();
     const serial   = document.getElementById('fMachineSerial')?.value.trim();
     const clientId = document.getElementById('fMachineClient')?.value;
 
+    if (!name)     { Toast.error('Machine name is required'); return; }
     if (!model)    { Toast.error('Machine model is required'); return; }
     if (!serial)   { Toast.error('Serial number is required'); return; }
     if (!clientId) { Toast.error('Please select a client'); return; }
 
     Storage.createMachine({
-      model, serialNumber: serial, clientId,
+      name, model, serialNumber: serial, clientId,
       type:           document.getElementById('fMachineType')?.value.trim() || '',
       location:       document.getElementById('fMachineLocation')?.value.trim() || '',
       contractType:   document.getElementById('fMachineContract')?.value || 'none',
@@ -338,16 +349,18 @@ Views.Machines = {
   },
 
   _submitEdit(machineId) {
+    const name     = document.getElementById('fMachineName')?.value.trim();
     const model    = document.getElementById('fMachineModel')?.value.trim();
     const serial   = document.getElementById('fMachineSerial')?.value.trim();
     const clientId = document.getElementById('fMachineClient')?.value;
 
+    if (!name)     { Toast.error('Machine name is required'); return; }
     if (!model)    { Toast.error('Machine model is required'); return; }
     if (!serial)   { Toast.error('Serial number is required'); return; }
     if (!clientId) { Toast.error('Please select a client'); return; }
 
     Storage.updateMachine(machineId, {
-      model, serialNumber: serial, clientId,
+      name, model, serialNumber: serial, clientId,
       type:           document.getElementById('fMachineType')?.value.trim() || '',
       location:       document.getElementById('fMachineLocation')?.value.trim() || '',
       contractType:   document.getElementById('fMachineContract')?.value || 'none',
@@ -414,6 +427,10 @@ Views.Machines = {
             <div class="detail-field">
               <div class="detail-field-label">Status</div>
               <div class="detail-field-value">${Utils.getMachineStatusBadge(machine.status || 'new')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Name</div>
+              <div class="detail-field-value">${Utils.escapeHtml(machine.name || '—')}</div>
             </div>
             <div class="detail-field">
               <div class="detail-field-label">Model</div>
