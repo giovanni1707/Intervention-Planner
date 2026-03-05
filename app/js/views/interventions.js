@@ -729,6 +729,17 @@ Views.Interventions = {
 
     const newStatus = document.getElementById('fIntStatus')?.value || original.status;
 
+    // Enforce max 5 updates per non-final status
+    const FINAL_STATUSES = ['completed', 'cancelled', 'new'];
+    if (!FINAL_STATUSES.includes(newStatus)) {
+      const existingCount = (original.scheduledHistory || []).filter(s => s.status === newStatus).length;
+      if (existingCount >= 5) {
+        const statusLabel = CONFIG.STATUSES[newStatus]?.label || newStatus;
+        Toast.error(`"${statusLabel}" has reached the maximum of 5 updates. Change the status to proceed.`);
+        return;
+      }
+    }
+
     // When status is anything other than 'new', technician + date + time are mandatory
     if (newStatus !== 'new') {
       const techVal = document.getElementById('fIntTech')?.value;
@@ -938,16 +949,8 @@ Views.Interventions = {
                   <span class="stab-panel-by">by ${Utils.escapeHtml(s.changedBy)}</span>
                   <span class="stab-panel-time">${Utils.formatDateTime(s.timestamp)}</span>
                 </div>
+                ${s.note ? `<div class="stab-panel-note">${Utils.escapeHtml(s.note)}</div>` : ''}
               </div>
-
-              ${s.note ? `
-                <div class="stab-block">
-                  <div class="stab-block-label">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-                    Status Note
-                  </div>
-                  <p class="stab-block-text">${Utils.escapeHtml(s.note)}</p>
-                </div>` : ''}
 
               ${renderSchedBlock(windowStart, windowEnd)}
 

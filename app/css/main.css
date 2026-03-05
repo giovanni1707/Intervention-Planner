@@ -1764,6 +1764,17 @@ input, select, textarea {
   flex-wrap: wrap;
 }
 
+.stab-panel-note {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--gray-700);
+  background: var(--gray-50);
+  border-left: 3px solid var(--gray-300);
+  padding: 6px 10px;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.5;
+}
+
 .stab-panel-by {
   font-size: 0.8rem;
   color: var(--gray-500);

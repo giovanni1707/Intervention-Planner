@@ -187,11 +187,12 @@ const Storage = {
     const existing = interventions[idx];
     const updated = { ...existing, ...data, updatedAt: now };
 
-    // Record status change in history
-    if (data.status && data.status !== existing.status) {
-      updated.statusUpdatedAt = now;
+    // Record status change in history, or a same-status update when a note was provided
+    const statusChanged = data.status && data.status !== existing.status;
+    if (statusChanged || auditEntry?.statusNote) {
+      if (statusChanged) updated.statusUpdatedAt = now;
       const historyEntry = {
-        status: data.status,
+        status: data.status || existing.status,
         changedBy: auditEntry?.user || 'System',
         timestamp: now,
         note: auditEntry?.statusNote || ''
@@ -205,7 +206,6 @@ const Storage = {
     const newTechId     = data.technicianId !== undefined ? data.technicianId : existing.technicianId;
     const dateChanged   = data.scheduledDate !== undefined && data.scheduledDate !== existing.scheduledDate;
     const techChanged   = data.technicianId !== undefined && data.technicianId !== existing.technicianId;
-    const statusChanged = data.status && data.status !== existing.status;
     const isTracked     = !FINAL_STATUSES.includes(newStatus);
     const hasSchedule   = data.scheduledDate || existing.scheduledDate;
 
