@@ -153,6 +153,13 @@ const Storage = {
       technicianId: null,
       notes: [],
       parts: [],
+      scheduledHistory: data.scheduledDate ? [{
+        scheduledDate: data.scheduledDate,
+        status: initialStatus,
+        technicianId: data.technicianId || null,
+        changedBy: data.createdBy || 'System',
+        timestamp: now
+      }] : [],
       statusHistory: [{
         status: initialStatus,
         changedBy: data.createdBy || 'System',
@@ -177,9 +184,11 @@ const Storage = {
     const idx = interventions.findIndex(i => i.id === id);
     if (idx === -1) return null;
     const now = new Date().toISOString();
-    const updated = { ...interventions[idx], ...data, updatedAt: now };
+    const existing = interventions[idx];
+    const updated = { ...existing, ...data, updatedAt: now };
+
     // Record status change in history
-    if (data.status && data.status !== interventions[idx].status) {
+    if (data.status && data.status !== existing.status) {
       updated.statusUpdatedAt = now;
       const historyEntry = {
         status: data.status,
@@ -187,8 +196,27 @@ const Storage = {
         timestamp: now,
         note: auditEntry?.details || ''
       };
-      updated.statusHistory = [...(interventions[idx].statusHistory || []), historyEntry];
+      updated.statusHistory = [...(existing.statusHistory || []), historyEntry];
     }
+
+    // Record scheduled date change in scheduledHistory
+    const newStatus     = data.status || existing.status;
+    const newTechId     = data.technicianId !== undefined ? data.technicianId : existing.technicianId;
+    const dateChanged   = data.scheduledDate !== undefined && data.scheduledDate !== existing.scheduledDate;
+    const techChanged   = data.technicianId !== undefined && data.technicianId !== existing.technicianId;
+    const isTentativeTechChange = (newStatus === 'tentative' || newStatus === 'assigned') && techChanged && !dateChanged && (data.scheduledDate || existing.scheduledDate);
+
+    if ((dateChanged && (data.scheduledDate)) || isTentativeTechChange) {
+      const schedEntry = {
+        scheduledDate: data.scheduledDate || existing.scheduledDate,
+        status: newStatus,
+        technicianId: newTechId,
+        changedBy: auditEntry?.user || 'System',
+        timestamp: now
+      };
+      updated.scheduledHistory = [...(existing.scheduledHistory || []), schedEntry];
+    }
+
     if (auditEntry) {
       updated.auditTrail = [...(updated.auditTrail || []), {
         ...auditEntry,
@@ -230,6 +258,7 @@ const Storage = {
       reference: part.reference,
       description: part.description,
       quantity: part.quantity || 1,
+      unit: part.unit || 'pcs',
       addedAt: new Date().toISOString()
     };
     interventions[idx].parts = [...(interventions[idx].parts || []), newPart];

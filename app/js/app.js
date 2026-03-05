@@ -53,6 +53,9 @@ function showApp() {
   // Render sidebar
   Sidebar.render();
 
+  // Start scheduling alerts monitor
+  Scheduler.start();
+
   // Start router (triggers first view render)
   const user = appState.currentUser;
   if (user && user.role === 'technician') {

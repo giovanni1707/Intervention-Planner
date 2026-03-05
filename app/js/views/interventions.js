@@ -265,7 +265,16 @@ Views.Interventions = {
           <td>${Utils.escapeHtml(Utils.getMachineModel(i.machineId))}</td>
           <td>${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
           <td>${Utils.getPriorityBadge(i.priority)}</td>
-          <td>${Utils.getStatusBadge(i.status)}</td>
+          <td>${(() => {
+            if (i.status === 'tentative' || i.status === 'assigned') {
+              const n = (i.scheduledHistory || []).filter(s => s.status === i.status).length || 1;
+              if (n > 1) {
+                const cfg = CONFIG.STATUSES[i.status];
+                return `<span class="badge ${cfg.color}">${cfg.label} ${n}</span>`;
+              }
+            }
+            return Utils.getStatusBadge(i.status);
+          })()}</td>
           <td style="font-size:0.786rem;color:${i.technicianId ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(techName)}</td>
           <td style="white-space:nowrap;font-size:0.786rem;color:${i.statusUpdatedAt ? 'inherit' : 'var(--gray-400)'}">${i.statusUpdatedAt ? Utils.formatDateTime(i.statusUpdatedAt) : '—'}</td>
           <td style="white-space:nowrap;font-size:0.786rem">${Utils.formatDateTime(i.createdAt)}</td>
@@ -377,9 +386,15 @@ Views.Interventions = {
       `<option value="${k}" ${(intervention.priority || 'medium') === k ? 'selected' : ''}>${v.label}</option>`
     ).join('');
 
-    const statusOptions = Object.entries(CONFIG.STATUSES).map(([k, v]) =>
-      `<option value="${k}" ${(intervention.status || 'new') === k ? 'selected' : ''}>${v.label}</option>`
-    ).join('');
+    // When current status is 'new', only allow transitioning to assigned/tentative/cancelled.
+    // For all other statuses, allow everything except 'new'.
+    const isCurrentlyNew = !intervention.status || intervention.status === 'new';
+    const allowedFromNew = ['assigned', 'tentative', 'cancelled'];
+    const statusOptions = Object.entries(CONFIG.STATUSES)
+      .filter(([k]) => isCurrentlyNew ? allowedFromNew.includes(k) : k !== 'new')
+      .map(([k, v]) =>
+        `<option value="${k}" ${(intervention.status && !isCurrentlyNew && intervention.status === k) ? 'selected' : ''}>${v.label}</option>`
+      ).join('');
 
     const techOptions = [
       '<option value="">Unassigned</option>',
@@ -507,23 +522,23 @@ Views.Interventions = {
       ${isEdit ? `
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Assigned Technician</label>
+          <label class="form-label">Assigned Technician <span class="required" id="fIntTechRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
           <select id="fIntTech" class="form-select">${techOptions}</select>
         </div>
         <div class="form-group"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Scheduled Date</label>
+          <label class="form-label">Scheduled Date <span class="required" id="fIntDateRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
           <input type="date" id="fIntDate" class="form-input" value="${intervention.scheduledDate ? intervention.scheduledDate.slice(0, 10) : ''}">
         </div>
         <div class="form-group">
-          <label class="form-label">Scheduled Time</label>
+          <label class="form-label">Scheduled Time <span class="required" id="fIntTimeRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
           <input type="time" id="fIntTime" class="form-input" value="${intervention.scheduledDate ? new Date(intervention.scheduledDate).toTimeString().slice(0,5) : '08:00'}">
         </div>
       </div>` : ''}
       <div class="form-group">
-        <label class="form-label">Description</label>
+        <label class="form-label">Description <span class="required">*</span></label>
         <textarea id="fIntDesc" class="form-textarea" rows="3" placeholder="Describe the issue or work to be done…">${Utils.escapeHtml(intervention.description || '')}</textarea>
       </div>
     `;
@@ -551,6 +566,21 @@ Views.Interventions = {
       machineSel.innerHTML = '<option value="">— Select machine —</option>' +
         machines.map(m => `<option value="${m.id}">${Utils.escapeHtml(m.model)} — Job #${m.jobNumber} (${m.serialNumber})</option>`).join('');
     });
+  },
+
+  _bindEditStatusChange() {
+    const statusSel = document.getElementById('fIntStatus');
+    if (!statusSel) return;
+    const toggle = () => {
+      const isNew = !statusSel.value || statusSel.value === 'new';
+      const display = isNew ? 'none' : '';
+      ['fIntTechRequired', 'fIntDateRequired', 'fIntTimeRequired'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = display;
+      });
+    };
+    statusSel.addEventListener('change', toggle);
+    toggle(); // run on open
   },
 
   _openCreateModal() {
@@ -612,9 +642,12 @@ Views.Interventions = {
     const serial   = document.getElementById('fNewMachineSerial')?.value.trim();
     const clientId = document.getElementById('fNewMachineClient')?.value;
 
-    if (!model)    { Toast.error('Machine model is required'); return; }
-    if (!serial)   { Toast.error('Serial number is required'); return; }
-    if (!clientId) { Toast.error('Please select a client for the machine'); return; }
+    const description = document.getElementById('fIntDesc')?.value.trim();
+
+    if (!model)       { Toast.error('Machine model is required'); return; }
+    if (!serial)      { Toast.error('Serial number is required'); return; }
+    if (!clientId)    { Toast.error('Please select a client for the machine'); return; }
+    if (!description) { Toast.error('Description is required'); return; }
 
     const newMachine = Storage.createMachine({
       name: machineName, model, serialNumber: serial, clientId,
@@ -633,7 +666,7 @@ Views.Interventions = {
       technicianId: null,
       location:     document.getElementById('fIntLocation')?.value || 'client',
       scheduledDate: null,
-      description:  document.getElementById('fIntDesc')?.value.trim() || '',
+      description,
       createdBy:    user?.name || 'Admin'
     });
 
@@ -647,25 +680,75 @@ Views.Interventions = {
     const intervention = Storage.getInterventionById(interventionId);
     if (!intervention) return;
 
+    if (intervention.status === 'completed') {
+      Toast.error('This intervention is completed. No further changes are allowed.');
+      return;
+    }
+    if (intervention.status === 'cancelled') {
+      Toast.error('This intervention is cancelled. No further changes are allowed.');
+      return;
+    }
+
     Modals.open(`Edit Intervention`, this._interventionFormHTML(intervention), `
+      <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._openAddNoteModal('${interventionId}','edit')" style="margin-right:4px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Add Note
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._openAddPartModal('${interventionId}','edit')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        Add Part
+      </button>
+      <div style="flex:1"></div>
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitEdit('${interventionId}')">Save Changes</button>
-    `, { size: 'lg', onOpen: () => this._bindClientMachineDropdown() });
+    `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); } });
   },
 
   _submitEdit(interventionId) {
     const original   = Storage.getInterventionById(interventionId);
+
+    if (original.status === 'completed') {
+      Toast.error('This intervention is completed. No further changes are allowed.');
+      return;
+    }
+    if (original.status === 'cancelled') {
+      Toast.error('This intervention is cancelled. No further changes are allowed.');
+      return;
+    }
+
     const clientId  = document.getElementById('fIntClient')?.value;
     const machineId = document.getElementById('fIntMachine')?.value;
 
     if (!clientId)  { Toast.error('Please select a client'); return; }
     if (!machineId) { Toast.error('Please select a machine'); return; }
 
+    const newStatus = document.getElementById('fIntStatus')?.value || original.status;
+
+    // When status is anything other than 'new', technician + date + time are mandatory
+    if (newStatus !== 'new') {
+      const techVal = document.getElementById('fIntTech')?.value;
+      if (!techVal) {
+        Toast.error('A technician must be assigned before saving with this status.');
+        return;
+      }
+      const dateCheck = document.getElementById('fIntDate')?.value;
+      if (!dateCheck) {
+        Toast.error('Scheduled Date is required when a status is set.');
+        return;
+      }
+      const timeCheck = document.getElementById('fIntTime')?.value;
+      if (!timeCheck) {
+        Toast.error('Scheduled Time is required when a status is set.');
+        return;
+      }
+    }
+
+    const description = document.getElementById('fIntDesc')?.value.trim();
+    if (!description) { Toast.error('Description is required'); return; }
+
     const dateVal = document.getElementById('fIntDate')?.value;
     const timeVal = document.getElementById('fIntTime')?.value || '08:00';
     const scheduledDate = dateVal ? new Date(`${dateVal}T${timeVal}`).toISOString() : null;
-
-    const newStatus = document.getElementById('fIntStatus')?.value || original.status;
     const user = appState.currentUser;
 
     const auditEntry = newStatus !== original.status ? {
@@ -686,7 +769,7 @@ Views.Interventions = {
       technicianId: document.getElementById('fIntTech')?.value || null,
       location:     document.getElementById('fIntLocation')?.value || 'client',
       scheduledDate,
-      description:  document.getElementById('fIntDesc')?.value.trim() || ''
+      description
     }, auditEntry);
 
     refreshInterventions();
@@ -707,15 +790,70 @@ Views.Interventions = {
     const i = Storage.getInterventionById(interventionId);
     if (!i) return;
 
-    const client  = appState.clients.find(c => c.id === i.clientId);
-    const machine = appState.machines.find(m => m.id === i.machineId);
-    const tech    = appState.users.find(u => u.id === i.technicianId);
-    const user    = appState.currentUser;
-    const isAdmin = user && user.role === 'admin';
-    const isTech  = user && user.id === i.technicianId;
+    const client    = appState.clients.find(c => c.id === i.clientId);
+    const machine   = appState.machines.find(m => m.id === i.machineId);
+    const tech      = appState.users.find(u => u.id === i.technicianId);
+    const user      = appState.currentUser;
+    const isAdmin   = user && user.role === 'admin';
+    const isTech    = user && user.id === i.technicianId;
+    const creatorUser = appState.users.find(u => u.name === i.createdBy);
+    const creatorRole = creatorUser ? (CONFIG.ROLES[creatorUser.role] || creatorUser.role) : null;
 
-    const canAddNote = isAdmin || isTech;
-    const canAddPart = isAdmin || isTech;
+    const canAddNote = false;
+    const canAddPart = false;
+
+    // ── Build scheduled history — indexed globally for sequence numbers ──
+    const schedHistoryAll = [...(i.scheduledHistory || [])].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const seqCounters = {};
+    const schedHistoryIndexed = schedHistoryAll.map((s, globalIdx) => {
+      const tracked = s.status === 'tentative' || s.status === 'assigned';
+      let seq = null;
+      if (tracked) {
+        seqCounters[s.status] = (seqCounters[s.status] || 0) + 1;
+        seq = seqCounters[s.status];
+      }
+      return { ...s, seq, globalIdx };
+    });
+
+    // Helper: render schedule entries for a given status window
+    const renderSchedBlock = (windowStart, windowEnd) => {
+      const entries = schedHistoryIndexed.filter(s => {
+        const t = new Date(s.timestamp);
+        return t >= windowStart && t < windowEnd;
+      });
+      if (entries.length === 0) return '';
+      const lastGlobalIdx = schedHistoryIndexed.length - 1;
+      return `
+        <div class="stab-block">
+          <div class="stab-block-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Schedule History
+          </div>
+          <div class="sched-history-timeline sched-history-inline">
+            ${entries.map(s => {
+              const isLatestEntry = s.globalIdx === lastGlobalIdx;
+              const techId = s.technicianId !== undefined ? s.technicianId : (isLatestEntry ? i.technicianId : null);
+              const schedTech = appState.users.find(u => u.id === techId);
+              const schedTechName = schedTech ? schedTech.name : null;
+              const statusLabel = s.seq !== null
+                ? `${CONFIG.STATUSES[s.status]?.label || s.status} ${s.seq}`
+                : (CONFIG.STATUSES[s.status]?.label || s.status);
+              const cfg = CONFIG.STATUSES[s.status];
+              return `
+                <div class="sched-history-item${isLatestEntry ? ' sched-history-item-current' : ''}">
+                  <div class="sched-history-dot"></div>
+                  <div class="sched-history-content">
+                    <div class="sched-history-date">${Utils.formatDateTime(s.scheduledDate)}</div>
+                    <div class="sched-history-row"><span class="badge ${cfg ? cfg.color : 'badge-gray'}">${statusLabel}</span>${isLatestEntry ? ' <span class="al-current-tag">Current</span>' : ''}</div>
+                    <div class="sched-history-row sched-history-row-meta">Set by <strong>${Utils.escapeHtml(s.changedBy)}</strong></div>
+                    ${schedTechName ? `<div class="sched-history-row sched-history-row-meta">Assigned to <strong>${Utils.escapeHtml(schedTechName)}</strong></div>` : ''}
+                    <div class="sched-history-row sched-history-row-time">${Utils.formatDateTime(s.timestamp)}</div>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    };
 
     // ── Build status tab data ──────────────────────────────────
     // Sort oldest → newest, assign notes/parts per status window
@@ -731,6 +869,8 @@ Views.Interventions = {
         isLatest: idx === statusChain.length - 1,
         tabId: `stab-${i.id}-${idx}`,
         panelId: `spanel-${i.id}-${idx}`,
+        windowStart,
+        windowEnd,
         cardNotes: allNotes.filter(n => { const t = new Date(n.createdAt); return t >= windowStart && t < windowEnd; }),
         cardParts: allParts.filter(p => { const t = new Date(p.addedAt);   return t >= windowStart && t < windowEnd; })
       };
@@ -753,7 +893,7 @@ Views.Interventions = {
     // Panel for each tab
     const tabPanelsHTML = statusTabs.length === 0
       ? '<p class="text-sm text-muted">No status history available.</p>'
-      : statusTabs.map(({ s, isLatest, tabId, panelId, cardNotes, cardParts }) => {
+      : statusTabs.map(({ s, isLatest, tabId, panelId, windowStart, windowEnd, cardNotes, cardParts }) => {
 
           const notesBlock = cardNotes.length === 0
             ? '<p class="stab-empty">No notes during this status.</p>'
@@ -766,12 +906,13 @@ Views.Interventions = {
           const partsBlock = cardParts.length === 0
             ? '<p class="stab-empty">No parts used during this status.</p>'
             : `<table class="parts-table">
-                <thead><tr><th>Reference</th><th>Description</th><th>Qty</th><th>Added</th></tr></thead>
+                <thead><tr><th>Reference</th><th>Description</th><th>Qty</th><th>Unit</th><th>Added</th></tr></thead>
                 <tbody>${cardParts.map(p => `
                   <tr>
                     <td style="font-family:monospace">${Utils.escapeHtml(p.reference)}</td>
                     <td>${Utils.escapeHtml(p.description)}</td>
-                    <td>${p.quantity}</td>
+                    <td style="text-align:center">${p.quantity}</td>
+                    <td><span class="part-unit-tag">${Utils.escapeHtml(p.unit || 'pcs')}</span></td>
                     <td>${Utils.formatDate(p.addedAt)}</td>
                   </tr>`).join('')}
                 </tbody>
@@ -798,6 +939,8 @@ Views.Interventions = {
                   </div>
                   <p class="stab-block-text">${Utils.escapeHtml(s.note)}</p>
                 </div>` : ''}
+
+              ${renderSchedBlock(windowStart, windowEnd)}
 
               ${i.description ? `
                 <div class="stab-block">
@@ -844,6 +987,7 @@ Views.Interventions = {
           <div class="detail-field"><div class="detail-field-label">Priority</div><div class="detail-field-value">${Utils.getPriorityBadge(i.priority)}</div></div>
           <div class="detail-field"><div class="detail-field-label">Scheduled</div><div class="detail-field-value">${Utils.formatDateTime(i.scheduledDate)}</div></div>
           <div class="detail-field"><div class="detail-field-label">Created</div><div class="detail-field-value">${Utils.formatDateTime(i.createdAt)}</div></div>
+          <div class="detail-field"><div class="detail-field-label">Created By</div><div class="detail-field-value">${i.createdBy ? `${Utils.escapeHtml(i.createdBy)}${creatorRole ? `<span class="creator-role-tag">${Utils.escapeHtml(creatorRole)}</span>` : ''}` : '<span style="color:var(--gray-400)">—</span>'}</div></div>
           <div class="detail-field"><div class="detail-field-label">Status Last Updated</div><div class="detail-field-value">${i.statusUpdatedAt ? Utils.formatDateTime(i.statusUpdatedAt) : '—'}</div></div>
         </div>
       </div>
@@ -878,7 +1022,7 @@ Views.Interventions = {
     if (targetPanel) targetPanel.classList.add('stab-panel-active');
   },
 
-  _openAddNoteModal(interventionId) {
+  _openAddNoteModal(interventionId, context = 'detail') {
     Modals.open('Add Note', `
       <div class="form-group">
         <label class="form-label">Note <span class="required">*</span></label>
@@ -886,11 +1030,11 @@ Views.Interventions = {
       </div>
     `, `
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
-      <button class="btn btn-primary" onclick="Views.Interventions._submitNote('${interventionId}')">Add Note</button>
+      <button class="btn btn-primary" onclick="Views.Interventions._submitNote('${interventionId}','${context}')">Add Note</button>
     `);
   },
 
-  _submitNote(interventionId) {
+  _submitNote(interventionId, context = 'detail') {
     const text = document.getElementById('fNoteText')?.value.trim();
     if (!text) { Toast.error('Note text is required'); return; }
 
@@ -909,51 +1053,146 @@ Views.Interventions = {
     refreshInterventions();
     Modals.close();
     Toast.success('Note added');
-    setTimeout(() => this.openDetailModal(interventionId), 100);
+    setTimeout(() => context === 'edit' ? this._openEditModal(interventionId) : this.openDetailModal(interventionId), 100);
   },
 
-  _openAddPartModal(interventionId) {
-    Modals.open('Add Part Used', `
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Part Reference <span class="required">*</span></label>
-          <input type="text" id="fPartRef" class="form-input" placeholder="e.g. HE-R230-001">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Quantity</label>
-          <input type="number" id="fPartQty" class="form-input" value="1" min="1">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Description</label>
-        <input type="text" id="fPartDesc" class="form-input" placeholder="e.g. Heating Element 230V">
-      </div>
-    `, `
+  _pendingParts: [],
+
+  _openAddPartModal(interventionId, context = 'detail') {
+    this._pendingParts = [];
+    Modals.open('Add Parts Used', this._addPartModalBody(), `
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
-      <button class="btn btn-primary" onclick="Views.Interventions._submitPart('${interventionId}')">Add Part</button>
+      <button class="btn btn-primary" onclick="Views.Interventions._commitParts('${interventionId}','${context}')" id="btnCommitParts" disabled>
+        Save Parts
+      </button>
     `);
+    // Focus the first field
+    setTimeout(() => document.getElementById('fPartRef')?.focus(), 50);
   },
 
-  _submitPart(interventionId) {
-    const ref = document.getElementById('fPartRef')?.value.trim();
-    if (!ref) { Toast.error('Part reference is required'); return; }
+  _addPartModalBody() {
+    const queueHTML = this._pendingParts.length === 0
+      ? `<p class="add-part-empty">No parts added yet. Fill in the fields above and click <strong>+ Add to list</strong>.</p>`
+      : `<table class="parts-table add-part-queue-table">
+          <thead>
+            <tr><th>Reference</th><th>Description</th><th>Qty</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${this._pendingParts.map((p, idx) => `
+              <tr>
+                <td style="font-family:monospace">${Utils.escapeHtml(p.reference)}</td>
+                <td>${Utils.escapeHtml(p.description)}</td>
+                <td style="text-align:center;white-space:nowrap">${p.quantity} <span class="part-unit-tag">${Utils.escapeHtml(p.unit)}</span></td>
+                <td style="text-align:right">
+                  <button class="btn btn-ghost btn-sm btn-icon" title="Remove" onclick="Views.Interventions._removePendingPart(${idx})">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
 
+    return `
+      <div class="add-part-form">
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">Part Reference <span class="required">*</span></label>
+            <input type="text" id="fPartRef" class="form-input" placeholder="e.g. HE-R230-001"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();Views.Interventions._queuePart();}">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Quantity</label>
+            <input type="number" id="fPartQty" class="form-input" value="1" min="0.01" step="0.01"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();Views.Interventions._queuePart();}">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Unit</label>
+            <select id="fPartUnit" class="form-select">
+              <option value="pcs">pcs</option>
+              <option value="m">m</option>
+              <option value="L">L</option>
+              <option value="kg">kg</option>
+              <option value="box">box</option>
+              <option value="roll">roll</option>
+              <option value="pair">pair</option>
+              <option value="set">set</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Description</label>
+            <input type="text" id="fPartDesc" class="form-input" placeholder="e.g. Heating Element 230V"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();Views.Interventions._queuePart();}">
+          </div>
+          <div class="form-group" style="flex:0;align-self:flex-end">
+            <button class="btn btn-secondary" onclick="Views.Interventions._queuePart()" style="white-space:nowrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add to list
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="add-part-queue">
+        <div class="add-part-queue-label">
+          Parts to save
+          ${this._pendingParts.length > 0 ? `<span class="add-part-count">${this._pendingParts.length}</span>` : ''}
+        </div>
+        ${queueHTML}
+      </div>`;
+  },
+
+  _queuePart() {
+    const ref  = document.getElementById('fPartRef')?.value.trim();
+    const desc = document.getElementById('fPartDesc')?.value.trim() || '';
+    const qty  = parseFloat(document.getElementById('fPartQty')?.value) || 1;
+    const unit = document.getElementById('fPartUnit')?.value || 'pcs';
+    if (!ref) { Toast.error('Part reference is required'); document.getElementById('fPartRef')?.focus(); return; }
+
+    this._pendingParts.push({ reference: ref, description: desc, quantity: qty, unit });
+
+    // Refresh modal body in-place
+    const bodyEl = document.getElementById('modalBody');
+    if (bodyEl) bodyEl.innerHTML = this._addPartModalBody();
+
+    // Enable Save button now that list has items
+    const saveBtn = document.getElementById('btnCommitParts');
+    if (saveBtn) saveBtn.disabled = false;
+
+    // Clear & re-focus the reference field (keep unit selection)
+    document.getElementById('fPartRef').value  = '';
+    document.getElementById('fPartDesc').value = '';
+    document.getElementById('fPartQty').value  = '1';
+    document.getElementById('fPartRef').focus();
+  },
+
+  _removePendingPart(idx) {
+    this._pendingParts.splice(idx, 1);
+    const bodyEl = document.getElementById('modalBody');
+    if (bodyEl) bodyEl.innerHTML = this._addPartModalBody();
+    const saveBtn = document.getElementById('btnCommitParts');
+    if (saveBtn) saveBtn.disabled = this._pendingParts.length === 0;
+  },
+
+  _commitParts(interventionId, context = 'detail') {
+    if (this._pendingParts.length === 0) return;
     const user = appState.currentUser;
-    Storage.addInterventionPart(interventionId, {
-      reference:   ref,
-      description: document.getElementById('fPartDesc')?.value.trim() || '',
-      quantity:    parseInt(document.getElementById('fPartQty')?.value) || 1
+
+    this._pendingParts.forEach(p => {
+      Storage.addInterventionPart(interventionId, p);
     });
 
     Storage.updateIntervention(interventionId, {}, {
-      action: 'Part Added',
+      action: 'Parts Added',
       user: user?.name || 'Admin',
-      details: `${ref} × ${document.getElementById('fPartQty')?.value || 1}`
+      details: `${this._pendingParts.length} part(s) added`
     });
 
+    const count = this._pendingParts.length;
+    this._pendingParts = [];
     refreshInterventions();
     Modals.close();
-    Toast.success('Part added');
-    setTimeout(() => this.openDetailModal(interventionId), 100);
+    Toast.success(`${count} part${count > 1 ? 's' : ''} saved successfully`);
+    setTimeout(() => context === 'edit' ? this._openEditModal(interventionId) : this.openDetailModal(interventionId), 100);
   }
 };

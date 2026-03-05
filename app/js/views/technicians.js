@@ -92,22 +92,45 @@ Views.Technicians = {
         `).join('') +
         (activeJobs.length > 5 ? `<p class="text-xs text-muted" style="margin-top:6px">+${activeJobs.length - 5} more…</p>` : '');
 
+    const totalJobs = appState.interventions.filter(i => i.technicianId === tech.id).length;
+
     return `
       <div class="tech-card">
+
         <div class="tech-card-header">
           <div class="tech-avatar">${Utils.getInitials(tech.name)}</div>
           <div class="tech-info">
             <div class="tech-name">${Utils.escapeHtml(tech.name)}</div>
             <div class="tech-email">${Utils.escapeHtml(tech.email)}</div>
-            <div style="margin-top:4px">${Utils.getRoleBadge(tech.role)}</div>
+            <div class="tech-role-row">${Utils.getRoleBadge(tech.role)}</div>
           </div>
-          <button class="btn btn-ghost btn-sm btn-icon" title="View All Interventions"
-                  onclick="Views.Technicians.openInterventionsModal('${tech.id}')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          </button>
-          ${Auth.isAdmin() ? `<button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Technicians._openEditModal('${tech.id}')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>` : ''}
+          <div class="tech-card-actions">
+            <button class="btn btn-ghost btn-sm btn-icon" title="View All Interventions"
+                    onclick="Views.Technicians.openInterventionsModal('${tech.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+            ${Auth.isAdmin() ? `
+            <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Technicians._openEditModal('${tech.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>` : ''}
+          </div>
+        </div>
+
+        <div class="tech-card-stats">
+          <div class="tech-stat">
+            <div class="tech-stat-value">${activeJobs.length}</div>
+            <div class="tech-stat-label">Active</div>
+          </div>
+          <div class="tech-stat-divider"></div>
+          <div class="tech-stat">
+            <div class="tech-stat-value">${completedJobs.length}</div>
+            <div class="tech-stat-label">Completed</div>
+          </div>
+          <div class="tech-stat-divider"></div>
+          <div class="tech-stat">
+            <div class="tech-stat-value">${totalJobs}</div>
+            <div class="tech-stat-label">Total</div>
+          </div>
         </div>
 
         <div class="workload-bar-container ${workloadClass}">
@@ -120,23 +143,9 @@ Views.Technicians = {
           </div>
         </div>
 
-        <div style="display:flex;gap:16px;margin-bottom:12px">
-          <div class="stat-box" style="flex:1;padding:8px 12px">
-            <div class="stat-box-value" style="font-size:1.3rem">${activeJobs.length}</div>
-            <div class="stat-box-label">Active</div>
-          </div>
-          <div class="stat-box" style="flex:1;padding:8px 12px">
-            <div class="stat-box-value" style="font-size:1.3rem">${completedJobs.length}</div>
-            <div class="stat-box-label">Completed</div>
-          </div>
-          <div class="stat-box" style="flex:1;padding:8px 12px">
-            <div class="stat-box-value" style="font-size:1.3rem">${appState.interventions.filter(i => i.technicianId === tech.id).length}</div>
-            <div class="stat-box-label">Total</div>
-          </div>
-        </div>
-
-        <div class="detail-section-label">Active Assignments</div>
+        <div class="tech-assignments-header">Active Assignments</div>
         <div class="tech-jobs-list">${jobsHTML}</div>
+
       </div>
     `;
   },

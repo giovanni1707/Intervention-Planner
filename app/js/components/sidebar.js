@@ -132,6 +132,7 @@ const Sidebar = {
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
+        Scheduler.stop();
         Auth.logout();
         showLogin();
       });

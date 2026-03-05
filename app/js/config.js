@@ -15,6 +15,7 @@ const CONFIG = {
 
   STATUSES: {
     new:           { label: 'New',               color: 'badge-new' },
+    tentative:     { label: 'Tentative',         color: 'badge-tentative' },
     planned:       { label: 'Planned',           color: 'badge-planned' },
     assigned:      { label: 'Assigned',          color: 'badge-assigned' },
     ongoing:       { label: 'On Going',          color: 'badge-ongoing' },
@@ -58,7 +59,7 @@ const CONFIG = {
   },
 
   // Statuses considered "open" (not finished)
-  OPEN_STATUSES: ['new', 'planned', 'assigned', 'ongoing', 'pending', 'waiting_parts'],
+  OPEN_STATUSES: ['new', 'tentative', 'planned', 'assigned', 'ongoing', 'pending', 'waiting_parts'],
 
   // Workload threshold per technician
   MAX_WORKLOAD: 8
