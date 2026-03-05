@@ -194,19 +194,25 @@ const Storage = {
         status: data.status,
         changedBy: auditEntry?.user || 'System',
         timestamp: now,
-        note: auditEntry?.details || ''
+        note: auditEntry?.statusNote || ''
       };
       updated.statusHistory = [...(existing.statusHistory || []), historyEntry];
     }
 
-    // Record scheduled date change in scheduledHistory
+    // Record schedule-relevant changes in scheduledHistory for all non-final statuses
+    const FINAL_STATUSES = ['completed', 'cancelled'];
     const newStatus     = data.status || existing.status;
     const newTechId     = data.technicianId !== undefined ? data.technicianId : existing.technicianId;
     const dateChanged   = data.scheduledDate !== undefined && data.scheduledDate !== existing.scheduledDate;
     const techChanged   = data.technicianId !== undefined && data.technicianId !== existing.technicianId;
-    const isTentativeTechChange = (newStatus === 'tentative' || newStatus === 'assigned') && techChanged && !dateChanged && (data.scheduledDate || existing.scheduledDate);
+    const statusChanged = data.status && data.status !== existing.status;
+    const isTracked     = !FINAL_STATUSES.includes(newStatus);
+    const hasSchedule   = data.scheduledDate || existing.scheduledDate;
 
-    if ((dateChanged && (data.scheduledDate)) || isTentativeTechChange) {
+    // Record when: date changes, tech changes on a tracked status, or status itself changes (with a schedule date)
+    const shouldRecord  = isTracked && hasSchedule && (dateChanged || (techChanged && !dateChanged) || statusChanged);
+
+    if (shouldRecord && (data.scheduledDate || existing.scheduledDate)) {
       const schedEntry = {
         scheduledDate: data.scheduledDate || existing.scheduledDate,
         status: newStatus,

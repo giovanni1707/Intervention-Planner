@@ -266,8 +266,9 @@ Views.Interventions = {
           <td>${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
           <td>${Utils.getPriorityBadge(i.priority)}</td>
           <td>${(() => {
-            if (i.status === 'tentative' || i.status === 'assigned') {
-              const n = (i.scheduledHistory || []).filter(s => s.status === i.status).length || 1;
+            const FINAL = ['completed', 'cancelled'];
+            if (!FINAL.includes(i.status)) {
+              const n = (i.scheduledHistory || []).filter(s => s.status === i.status).length;
               if (n > 1) {
                 const cfg = CONFIG.STATUSES[i.status];
                 return `<span class="badge ${cfg.color}">${cfg.label} ${n}</span>`;
@@ -520,6 +521,10 @@ Views.Interventions = {
         </div>` : '<div class="form-group"></div>'}
       </div>
       ${isEdit ? `
+      <div class="form-group">
+        <label class="form-label">Status Note <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional — explain this status change)</span></label>
+        <textarea id="fIntStatusNote" class="form-textarea" rows="2" placeholder="e.g. Rescheduled due to technician unavailability…"></textarea>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Assigned Technician <span class="required" id="fIntTechRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
@@ -749,16 +754,19 @@ Views.Interventions = {
     const dateVal = document.getElementById('fIntDate')?.value;
     const timeVal = document.getElementById('fIntTime')?.value || '08:00';
     const scheduledDate = dateVal ? new Date(`${dateVal}T${timeVal}`).toISOString() : null;
+    const statusNote = document.getElementById('fIntStatusNote')?.value.trim() || '';
     const user = appState.currentUser;
 
     const auditEntry = newStatus !== original.status ? {
       action: 'Status Changed',
       user: user?.name || 'Admin',
-      details: `${original.status} → ${newStatus}`
+      details: `${original.status} → ${newStatus}`,
+      statusNote
     } : {
       action: 'Updated',
       user: user?.name || 'Admin',
-      details: 'Intervention details updated'
+      details: 'Intervention details updated',
+      statusNote
     };
 
     Storage.updateIntervention(interventionId, {
@@ -804,9 +812,10 @@ Views.Interventions = {
 
     // ── Build scheduled history — indexed globally for sequence numbers ──
     const schedHistoryAll = [...(i.scheduledHistory || [])].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const FINAL_STATUSES = ['completed', 'cancelled'];
     const seqCounters = {};
     const schedHistoryIndexed = schedHistoryAll.map((s, globalIdx) => {
-      const tracked = s.status === 'tentative' || s.status === 'assigned';
+      const tracked = !FINAL_STATUSES.includes(s.status);
       let seq = null;
       if (tracked) {
         seqCounters[s.status] = (seqCounters[s.status] || 0) + 1;
