@@ -276,13 +276,6 @@ Views.Machines = {
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Location / Line</label>
-          <input type="text" id="fMachineLocation" class="form-input" value="${Utils.escapeHtml(machine.location || '')}" placeholder="e.g. Production Line A">
-        </div>
-        <div class="form-group"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
           <label class="form-label">Contract Type</label>
           <select id="fMachineContract" class="form-select" onchange="Views.Machines._toggleExpiryField(this.value)">${contractTypes}</select>
         </div>

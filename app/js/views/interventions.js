@@ -389,10 +389,17 @@ Views.Interventions = {
 
     // When current status is 'new', only allow transitioning to assigned/tentative/cancelled.
     // For all other statuses, allow everything except 'new'.
+    // Technicians cannot set tentative, assigned, or cancelled.
     const isCurrentlyNew = !intervention.status || intervention.status === 'new';
     const allowedFromNew = ['assigned', 'tentative', 'cancelled'];
+    const isAdmin = appState.currentUser?.role === 'admin';
+    const ADMIN_ONLY_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const statusOptions = Object.entries(CONFIG.STATUSES)
-      .filter(([k]) => isCurrentlyNew ? allowedFromNew.includes(k) : k !== 'new')
+      .filter(([k]) => {
+        if (isCurrentlyNew ? !allowedFromNew.includes(k) : k === 'new') return false;
+        if (!isAdmin && ADMIN_ONLY_STATUSES.includes(k)) return false;
+        return true;
+      })
       .map(([k, v]) =>
         `<option value="${k}" ${(intervention.status && !isCurrentlyNew && intervention.status === k) ? 'selected' : ''}>${v.label}</option>`
       ).join('');
@@ -474,15 +481,12 @@ Views.Interventions = {
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Location / Line</label>
-          <input type="text" id="fNewMachineLocation" class="form-input" value="${Utils.escapeHtml(dLocation)}" placeholder="e.g. Production Line A">
-        </div>
-        <div class="form-group">
           <label class="form-label">Contract Type</label>
           <select id="fNewMachineContract" class="form-select" onchange="Views.Interventions._toggleNewMachineExpiry(this.value)">
             ${contractOptions}
           </select>
         </div>
+        <div class="form-group"></div>
       </div>
       <div class="form-row" id="fNewMachineExpiryGroup" style="display:${expiryDisplay}">
         <div class="form-group">
@@ -525,13 +529,14 @@ Views.Interventions = {
         <label class="form-label">Status Note <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional — explain this status change)</span></label>
         <textarea id="fIntStatusNote" class="form-textarea" rows="2" placeholder="e.g. Rescheduled due to technician unavailability…"></textarea>
       </div>
+      ${isAdmin ? `
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Assigned Technician <span class="required" id="fIntTechRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
           <select id="fIntTech" class="form-select">${techOptions}</select>
         </div>
         <div class="form-group"></div>
-      </div>
+      </div>` : ''}
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Scheduled Date <span class="required" id="fIntDateRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
@@ -542,10 +547,11 @@ Views.Interventions = {
           <input type="time" id="fIntTime" class="form-input" value="${intervention.scheduledDate ? new Date(intervention.scheduledDate).toTimeString().slice(0,5) : '08:00'}">
         </div>
       </div>` : ''}
+      ${!isEdit ? `
       <div class="form-group">
         <label class="form-label">Description <span class="required">*</span></label>
-        <textarea id="fIntDesc" class="form-textarea" rows="3" placeholder="Describe the issue or work to be done…">${Utils.escapeHtml(intervention.description || '')}</textarea>
-      </div>
+        <textarea id="fIntDesc" class="form-textarea" rows="3" placeholder="Describe the issue or work to be done…"></textarea>
+      </div>` : ''}
     `;
   },
 
@@ -728,6 +734,15 @@ Views.Interventions = {
     if (!machineId) { Toast.error('Please select a machine'); return; }
 
     const newStatus = document.getElementById('fIntStatus')?.value || original.status;
+    const currentUser = appState.currentUser;
+    const userIsAdmin = currentUser?.role === 'admin';
+
+    // Block technicians from setting admin-only statuses
+    const ADMIN_ONLY_STATUSES = ['tentative', 'assigned', 'cancelled'];
+    if (!userIsAdmin && ADMIN_ONLY_STATUSES.includes(newStatus)) {
+      Toast.error('You do not have permission to set this status.');
+      return;
+    }
 
     // Enforce max 5 updates per non-final status
     const FINAL_STATUSES = ['completed', 'cancelled', 'new'];
@@ -740,8 +755,8 @@ Views.Interventions = {
       }
     }
 
-    // When status is anything other than 'new', technician + date + time are mandatory
-    if (newStatus !== 'new') {
+    // When status is anything other than 'new', admin must assign a technician + date + time
+    if (newStatus !== 'new' && userIsAdmin) {
       const techVal = document.getElementById('fIntTech')?.value;
       if (!techVal) {
         Toast.error('A technician must be assigned before saving with this status.');
@@ -758,9 +773,6 @@ Views.Interventions = {
         return;
       }
     }
-
-    const description = document.getElementById('fIntDesc')?.value.trim();
-    if (!description) { Toast.error('Description is required'); return; }
 
     const dateVal = document.getElementById('fIntDate')?.value;
     const timeVal = document.getElementById('fIntTime')?.value || '08:00';
@@ -785,10 +797,9 @@ Views.Interventions = {
       type:         document.getElementById('fIntType')?.value,
       priority:     document.getElementById('fIntPriority')?.value,
       status:       newStatus,
-      technicianId: document.getElementById('fIntTech')?.value || null,
+      technicianId: userIsAdmin ? (document.getElementById('fIntTech')?.value || null) : original.technicianId,
       location:     document.getElementById('fIntLocation')?.value || 'client',
-      scheduledDate,
-      description
+      scheduledDate
     }, auditEntry);
 
     refreshInterventions();
@@ -954,15 +965,6 @@ Views.Interventions = {
 
               ${renderSchedBlock(windowStart, windowEnd)}
 
-              ${i.description ? `
-                <div class="stab-block">
-                  <div class="stab-block-label">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    Description
-                  </div>
-                  <p class="stab-block-text">${Utils.escapeHtml(i.description)}</p>
-                </div>` : ''}
-
               <div class="stab-block">
                 <div class="stab-block-label">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -1002,6 +1004,11 @@ Views.Interventions = {
           <div class="detail-field"><div class="detail-field-label">Created By</div><div class="detail-field-value">${i.createdBy ? `${Utils.escapeHtml(i.createdBy)}${creatorRole ? `<span class="creator-role-tag">${Utils.escapeHtml(creatorRole)}</span>` : ''}` : '<span style="color:var(--gray-400)">—</span>'}</div></div>
           <div class="detail-field"><div class="detail-field-label">Status Last Updated</div><div class="detail-field-value">${i.statusUpdatedAt ? Utils.formatDateTime(i.statusUpdatedAt) : '—'}</div></div>
         </div>
+        ${i.description ? `
+        <div class="detail-field detail-field-full" style="margin-top:10px">
+          <div class="detail-field-label">Issue Description</div>
+          <div class="detail-field-value" style="white-space:pre-wrap;line-height:1.6">${Utils.escapeHtml(i.description)}</div>
+        </div>` : ''}
       </div>
 
       <div class="detail-section">

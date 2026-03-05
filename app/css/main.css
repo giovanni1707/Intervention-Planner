@@ -2095,6 +2095,7 @@ input, select, textarea {
 }
 
 .detail-field { font-size: 0.857rem; }
+.detail-field-full { grid-column: 1 / -1; font-size: 0.857rem; }
 .detail-field-label { font-size: 0.786rem; color: var(--gray-500); margin-bottom: 2px; }
 .detail-field-value { font-weight: 500; color: var(--gray-900); }
 
