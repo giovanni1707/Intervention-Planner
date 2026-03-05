@@ -7,6 +7,7 @@ Views.Interventions = {
   _sortKey: 'createdAt',
   _sortDir: 'desc',
   _page: 1,
+  _createDraft: null,
 
   _sortIcon() {
     return `<span class="sort-icon">
@@ -115,7 +116,7 @@ Views.Interventions = {
           </div>
           ${isAdmin ? `<button class="btn btn-primary" onclick="Views.Interventions._openCreateModal()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Intervention
+            Add Machine
           </button>` : ''}
         </div>
       </div>
@@ -404,61 +405,78 @@ Views.Interventions = {
           </select>
         </div>
       </div>
-    ` : `
+    ` : (() => {
+      const d = intervention; // draft values (may be empty {})
+      const dName     = d.machineName    ?? 'MULTIVAC';
+      const dModel    = d.model          ?? '';
+      const dSerial   = d.serial         ?? '';
+      const dMType    = d.machineType    ?? '';
+      const dClient   = d.clientId       ?? '';
+      const dLocation = d.machineLocation ?? '';
+      const dContract = d.contractType   ?? 'none';
+      const dExpiry   = d.contractExpiry ?? '';
+      const expiryDisplay = dContract === 'none' ? 'none' : '';
+      const draftClientOptions = appState.clients.map(c =>
+        `<option value="${c.id}" ${dClient === c.id ? 'selected' : ''}>${Utils.escapeHtml(c.name)}</option>`
+      ).join('');
+      const contractOptions = Object.entries(CONFIG.CONTRACT_TYPES).map(([k,v]) =>
+        `<option value="${k}" ${dContract === k ? 'selected' : ''}>${v}</option>`
+      ).join('');
+      return `
       <div style="background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:0.786rem;color:var(--blue)">
         A new machine will be registered automatically with a unique Job # and status <strong>New</strong>.
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Machine Name <span class="required">*</span></label>
-          <input type="text" id="fNewMachineName" class="form-input" placeholder="e.g. MULTIVAC">
+          <label class="form-label">Machine Name</label>
+          <input type="text" id="fNewMachineName" class="form-input" value="${Utils.escapeHtml(dName)}" placeholder="MULTIVAC">
         </div>
         <div class="form-group">
           <label class="form-label">Model <span class="required">*</span></label>
-          <input type="text" id="fNewMachineModel" class="form-input" placeholder="e.g. R230">
+          <input type="text" id="fNewMachineModel" class="form-input" value="${Utils.escapeHtml(dModel)}" placeholder="e.g. R230">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Serial Number <span class="required">*</span></label>
-          <input type="text" id="fNewMachineSerial" class="form-input" placeholder="MV-XXXX-YYYY-NNN">
+          <input type="text" id="fNewMachineSerial" class="form-input" value="${Utils.escapeHtml(dSerial)}" placeholder="MV-XXXX-YYYY-NNN">
         </div>
         <div class="form-group"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Machine Type</label>
-          <input type="text" id="fNewMachineType" class="form-input" placeholder="e.g. Tray Sealer">
+          <input type="text" id="fNewMachineType" class="form-input" value="${Utils.escapeHtml(dMType)}" placeholder="e.g. Tray Sealer">
         </div>
         <div class="form-group">
           <label class="form-label">Client <span class="required">*</span></label>
           <select id="fNewMachineClient" class="form-select">
             <option value="">— Select client —</option>
-            ${clientOptions}
+            ${draftClientOptions}
           </select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Location / Line</label>
-          <input type="text" id="fNewMachineLocation" class="form-input" placeholder="e.g. Production Line A">
+          <input type="text" id="fNewMachineLocation" class="form-input" value="${Utils.escapeHtml(dLocation)}" placeholder="e.g. Production Line A">
         </div>
         <div class="form-group">
           <label class="form-label">Contract Type</label>
           <select id="fNewMachineContract" class="form-select" onchange="Views.Interventions._toggleNewMachineExpiry(this.value)">
-            ${Object.entries(CONFIG.CONTRACT_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+            ${contractOptions}
           </select>
         </div>
       </div>
-      <div class="form-row" id="fNewMachineExpiryGroup" style="display:none">
+      <div class="form-row" id="fNewMachineExpiryGroup" style="display:${expiryDisplay}">
         <div class="form-group">
           <label class="form-label">Contract Expiry Date</label>
-          <input type="date" id="fNewMachineExpiry" class="form-input">
+          <input type="date" id="fNewMachineExpiry" class="form-input" value="${Utils.escapeHtml(dExpiry)}">
         </div>
         <div class="form-group"></div>
       </div>
       <hr style="border:none;border-top:1px solid var(--gray-200);margin:8px 0 12px">
-    `;
+    `;})();
 
     return `
       ${machineSection}
@@ -480,11 +498,13 @@ Views.Interventions = {
             <option value="workshop" ${intervention.location === 'workshop' ? 'selected' : ''}>Workshop</option>
           </select>
         </div>
+        ${isEdit ? `
         <div class="form-group">
           <label class="form-label">Status</label>
           <select id="fIntStatus" class="form-select">${statusOptions}</select>
-        </div>
+        </div>` : '<div class="form-group"></div>'}
       </div>
+      ${isEdit ? `
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Assigned Technician</label>
@@ -501,7 +521,7 @@ Views.Interventions = {
           <label class="form-label">Scheduled Time</label>
           <input type="time" id="fIntTime" class="form-input" value="${intervention.scheduledDate ? new Date(intervention.scheduledDate).toTimeString().slice(0,5) : '08:00'}">
         </div>
-      </div>
+      </div>` : ''}
       <div class="form-group">
         <label class="form-label">Description</label>
         <textarea id="fIntDesc" class="form-textarea" rows="3" placeholder="Describe the issue or work to be done…">${Utils.escapeHtml(intervention.description || '')}</textarea>
@@ -534,10 +554,51 @@ Views.Interventions = {
   },
 
   _openCreateModal() {
-    Modals.open('New Intervention', this._interventionFormHTML(), `
+    const draft = this._createDraft || {};
+    Modals.open('Add Machine', this._interventionFormHTML(draft), `
+      <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._clearCreateDraft()" title="Clear all fields">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.75"/></svg>
+        Clear Form
+      </button>
+      <div style="flex:1"></div>
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
-      <button class="btn btn-primary" onclick="Views.Interventions._submitCreate()">Create Intervention</button>
-    `, { size: 'lg' });
+      <button class="btn btn-primary" onclick="Views.Interventions._submitCreate()">Add Machine</button>
+    `, { size: 'lg', onClose: () => Views.Interventions._saveCreateDraft() });
+  },
+
+  _saveCreateDraft() {
+    // Read all create-form fields and persist them in memory
+    const get = id => document.getElementById(id)?.value ?? null;
+    this._createDraft = {
+      machineName:     get('fNewMachineName'),
+      model:           get('fNewMachineModel'),
+      serial:          get('fNewMachineSerial'),
+      machineType:     get('fNewMachineType'),
+      clientId:        get('fNewMachineClient'),
+      machineLocation: get('fNewMachineLocation'),
+      contractType:    get('fNewMachineContract'),
+      contractExpiry:  get('fNewMachineExpiry'),
+      type:            get('fIntType'),
+      priority:        get('fIntPriority'),
+      location:        get('fIntLocation'),
+      description:     get('fIntDesc'),
+    };
+    // Discard if every meaningful field is empty / default
+    const meaningful = ['model','serial','machineType','machineLocation','contractExpiry','description'];
+    const hasData = meaningful.some(k => this._createDraft[k]);
+    const nonDefaultClient = this._createDraft.clientId;
+    const nonDefaultName   = this._createDraft.machineName && this._createDraft.machineName !== 'MULTIVAC';
+    if (!hasData && !nonDefaultClient && !nonDefaultName) this._createDraft = null;
+  },
+
+  _clearCreateDraft() {
+    this._createDraft = null;
+    // Re-render the modal body with a blank form
+    const bodyEl = document.getElementById('modalBody');
+    if (bodyEl) bodyEl.innerHTML = this._interventionFormHTML({});
+    // Re-apply expiry toggle state
+    const contract = document.getElementById('fNewMachineContract');
+    if (contract) this._toggleNewMachineExpiry(contract.value);
   },
 
   _submitCreate() {
@@ -546,12 +607,11 @@ Views.Interventions = {
 
     const user = appState.currentUser;
 
-    const machineName = document.getElementById('fNewMachineName')?.value.trim();
+    const machineName = document.getElementById('fNewMachineName')?.value.trim() || 'MULTIVAC';
     const model    = document.getElementById('fNewMachineModel')?.value.trim();
     const serial   = document.getElementById('fNewMachineSerial')?.value.trim();
     const clientId = document.getElementById('fNewMachineClient')?.value;
 
-    if (!machineName) { Toast.error('Machine name is required'); return; }
     if (!model)    { Toast.error('Machine model is required'); return; }
     if (!serial)   { Toast.error('Serial number is required'); return; }
     if (!clientId) { Toast.error('Please select a client for the machine'); return; }
@@ -566,24 +626,21 @@ Views.Interventions = {
     const machineId = newMachine.id;
     refreshMachines();
 
-    const dateVal = document.getElementById('fIntDate')?.value;
-    const timeVal = document.getElementById('fIntTime')?.value || '08:00';
-    const scheduledDate = dateVal ? new Date(`${dateVal}T${timeVal}`).toISOString() : null;
-
     Storage.createIntervention({
       clientId, machineId, type,
       priority:     document.getElementById('fIntPriority')?.value || 'medium',
-      status:       document.getElementById('fIntStatus')?.value || 'new',
-      technicianId: document.getElementById('fIntTech')?.value || null,
+      status:       'new',
+      technicianId: null,
       location:     document.getElementById('fIntLocation')?.value || 'client',
-      scheduledDate,
+      scheduledDate: null,
       description:  document.getElementById('fIntDesc')?.value.trim() || '',
       createdBy:    user?.name || 'Admin'
     });
 
     refreshInterventions();
+    this._createDraft = null;
     Modals.close();
-    Toast.success('Intervention created successfully');
+    Toast.success('Machine added successfully');
   },
 
   _openEditModal(interventionId) {

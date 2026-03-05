@@ -247,7 +247,7 @@ Views.Machines = {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Machine Name <span class="required">*</span></label>
-          <input type="text" id="fMachineName" class="form-input" value="${Utils.escapeHtml(machine.name || '')}" required placeholder="e.g. MULTIVAC">
+          <input type="text" id="fMachineName" class="form-input" value="${Utils.escapeHtml(machine.name || 'MULTIVAC')}" required placeholder="MULTIVAC">
         </div>
         <div class="form-group">
           <label class="form-label">Model <span class="required">*</span></label>
@@ -314,7 +314,7 @@ Views.Machines = {
   },
 
   _submitCreate() {
-    const name     = document.getElementById('fMachineName')?.value.trim();
+    const name     = document.getElementById('fMachineName')?.value.trim() || 'MULTIVAC';
     const model    = document.getElementById('fMachineModel')?.value.trim();
     const serial   = document.getElementById('fMachineSerial')?.value.trim();
     const clientId = document.getElementById('fMachineClient')?.value;
