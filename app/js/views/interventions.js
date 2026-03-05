@@ -269,7 +269,7 @@ Views.Interventions = {
             const FINAL = ['completed', 'cancelled'];
             if (!FINAL.includes(i.status)) {
               const n = (i.scheduledHistory || []).filter(s => s.status === i.status).length;
-              if (n > 1) {
+              if (n >= 1) {
                 const cfg = CONFIG.STATUSES[i.status];
                 return `<span class="badge ${cfg.color}">${cfg.label} ${n}</span>`;
               }
