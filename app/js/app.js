@@ -57,15 +57,7 @@ function showApp() {
   Scheduler.start();
 
   // Start router (triggers first view render)
-  const user = appState.currentUser;
-  if (user && user.role === 'technician') {
-    // Technicians go directly to their interventions
-    // Pre-filter by their ID
-    appState.filters.technicianId = user.id;
-    Router.init();
-  } else {
-    Router.init();
-  }
+  Router.init();
 }
 
 function showLogin() {

@@ -8,12 +8,10 @@ const ROUTES = {
   interventions: () => Views.Interventions.mount(),
   planning:      () => Views.Planning.mount(),
   technicians:   () => Views.Technicians.mount(),
+  users:         () => Views.Users.mount(),
   reports:       () => Views.Reports.mount(),
   settings:      () => Views.Settings.mount()
 };
-
-// Routes accessible by technicians only
-const TECH_ROUTES = ['interventions', 'settings'];
 
 const Router = {
   _current: null,
@@ -30,13 +28,6 @@ const Router = {
   _navigate() {
     const hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
     const route = Object.keys(ROUTES).includes(hash) ? hash : 'dashboard';
-
-    // Role-based access: technicians can only access their interventions
-    const user = appState.currentUser;
-    if (user && user.role === 'technician' && !TECH_ROUTES.includes(route)) {
-      this.go('interventions');
-      return;
-    }
 
     this._current = route;
     appState.currentRoute = route;

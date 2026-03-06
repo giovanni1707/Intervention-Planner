@@ -387,21 +387,20 @@ Views.Interventions = {
       `<option value="${k}" ${(intervention.priority || 'medium') === k ? 'selected' : ''}>${v.label}</option>`
     ).join('');
 
-    // When current status is 'new', only allow transitioning to assigned/tentative/cancelled.
-    // For all other statuses, allow everything except 'new'.
-    // Technicians cannot set tentative, assigned, or cancelled.
+    // Role-based status access:
+    // Admin: can set all statuses except 'new'
+    // Technician: can set all statuses except 'new', 'assigned', 'tentative', 'cancelled'
     const isCurrentlyNew = !intervention.status || intervention.status === 'new';
-    const allowedFromNew = ['assigned', 'tentative', 'cancelled'];
     const isAdmin = appState.currentUser?.role === 'admin';
-    const ADMIN_ONLY_STATUSES = ['tentative', 'assigned', 'cancelled'];
+    const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const statusOptions = Object.entries(CONFIG.STATUSES)
       .filter(([k]) => {
-        if (isCurrentlyNew ? !allowedFromNew.includes(k) : k === 'new') return false;
-        if (!isAdmin && ADMIN_ONLY_STATUSES.includes(k)) return false;
+        if (k === 'new') return false;
+        if (!isAdmin && TECH_RESTRICTED_STATUSES.includes(k)) return false;
         return true;
       })
       .map(([k, v]) =>
-        `<option value="${k}" ${(intervention.status && !isCurrentlyNew && intervention.status === k) ? 'selected' : ''}>${v.label}</option>`
+        `<option value="${k}" ${intervention.status === k ? 'selected' : ''}>${v.label}</option>`
       ).join('');
 
     const techOptions = [
@@ -521,7 +520,15 @@ Views.Interventions = {
         ${isEdit ? `
         <div class="form-group">
           <label class="form-label">Status</label>
-          <select id="fIntStatus" class="form-select">${statusOptions}</select>
+          ${!isAdmin && isCurrentlyNew ? `
+          <select id="fIntStatus" class="form-select" disabled style="opacity:0.55;cursor:not-allowed">
+            <option value="new">New</option>
+          </select>
+          <div style="display:flex;align-items:flex-start;gap:6px;margin-top:6px;padding:8px 10px;background:var(--yellow-light);border:1px solid #FCD34D;border-radius:var(--radius-sm);font-size:0.786rem;color:#92400E;line-height:1.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Status cannot be updated yet. This intervention must first be scheduled or assigned by an Administrator.
+          </div>` : `
+          <select id="fIntStatus" class="form-select">${statusOptions}</select>`}
         </div>` : '<div class="form-group"></div>'}
       </div>
       ${isEdit ? `
@@ -700,6 +707,9 @@ Views.Interventions = {
       return;
     }
 
+    const user = appState.currentUser;
+    const isTechOnNew = user?.role === 'technician' && (!intervention.status || intervention.status === 'new');
+
     Modals.open(`Edit Intervention`, this._interventionFormHTML(intervention), `
       <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._openAddNoteModal('${interventionId}','edit')" style="margin-right:4px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -710,8 +720,13 @@ Views.Interventions = {
         Add Part
       </button>
       <div style="flex:1"></div>
+      ${isTechOnNew ? `
+      <span style="font-size:0.786rem;color:#92400E;background:var(--yellow-light);border:1px solid #FCD34D;border-radius:var(--radius-sm);padding:6px 10px;display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Must be scheduled or assigned by an Admin first.
+      </span>` : ''}
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
-      <button class="btn btn-primary" onclick="Views.Interventions._submitEdit('${interventionId}')">Save Changes</button>
+      <button class="btn btn-primary" onclick="Views.Interventions._submitEdit('${interventionId}')" ${isTechOnNew ? 'disabled title="This intervention must first be scheduled or assigned by an Administrator."' : ''}>Save Changes</button>
     `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); } });
   },
 
@@ -727,6 +742,15 @@ Views.Interventions = {
       return;
     }
 
+    const currentUser = appState.currentUser;
+    const userIsAdmin = currentUser?.role === 'admin';
+
+    // Block technicians from editing a 'new' intervention
+    if (!userIsAdmin && (!original.status || original.status === 'new')) {
+      Toast.error('This intervention must first be scheduled or assigned by an Administrator.');
+      return;
+    }
+
     const clientId  = document.getElementById('fIntClient')?.value;
     const machineId = document.getElementById('fIntMachine')?.value;
 
@@ -734,12 +758,10 @@ Views.Interventions = {
     if (!machineId) { Toast.error('Please select a machine'); return; }
 
     const newStatus = document.getElementById('fIntStatus')?.value || original.status;
-    const currentUser = appState.currentUser;
-    const userIsAdmin = currentUser?.role === 'admin';
 
-    // Block technicians from setting admin-only statuses
-    const ADMIN_ONLY_STATUSES = ['tentative', 'assigned', 'cancelled'];
-    if (!userIsAdmin && ADMIN_ONLY_STATUSES.includes(newStatus)) {
+    // Technicians cannot set assigned, tentative, or cancelled
+    const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled'];
+    if (!userIsAdmin && TECH_RESTRICTED_STATUSES.includes(newStatus)) {
       Toast.error('You do not have permission to set this status.');
       return;
     }
@@ -778,7 +800,7 @@ Views.Interventions = {
     const timeVal = document.getElementById('fIntTime')?.value || '08:00';
     const scheduledDate = dateVal ? new Date(`${dateVal}T${timeVal}`).toISOString() : null;
     const statusNote = document.getElementById('fIntStatusNote')?.value.trim() || '';
-    const user = appState.currentUser;
+    const user = currentUser;
 
     const auditEntry = newStatus !== original.status ? {
       action: 'Status Changed',

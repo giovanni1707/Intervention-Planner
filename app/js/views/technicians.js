@@ -17,12 +17,6 @@ Views.Technicians = {
           <h1 class="page-title">Technicians</h1>
           <p class="page-subtitle">${technicians.length} technician${technicians.length !== 1 ? 's' : ''} · Workload overview</p>
         </div>
-        ${Auth.isAdmin() ? `<div class="page-actions">
-          <button class="btn btn-primary" onclick="Views.Technicians._openCreateModal()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Technician
-          </button>
-        </div>` : ''}
       </div>
 
       <!-- Workload summary chart -->
@@ -233,9 +227,9 @@ Views.Technicians = {
   },
 
   _openCreateModal() {
-    Modals.open('Add Technician', this._techFormHTML(), `
+    Modals.open('Add User', this._techFormHTML(), `
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
-      <button class="btn btn-primary" onclick="Views.Technicians._submitCreate()">Add Technician</button>
+      <button class="btn btn-primary" onclick="Views.Technicians._submitCreate()">Add User</button>
     `);
   },
 
@@ -258,8 +252,8 @@ Views.Technicians = {
     Storage.createUser({ name, email, password: pass, role });
     refreshUsers();
     Modals.close();
-    Toast.success(`Technician "${name}" added`);
-    this.mount();
+    Toast.success(`User "${name}" added`);
+    Views.Users.mount();
   },
 
   _openEditModal(userId) {
@@ -293,7 +287,96 @@ Views.Technicians = {
     Storage.updateUser(userId, updates);
     refreshUsers();
     Modals.close();
-    Toast.success('Technician updated');
-    this.mount();
+    Toast.success('User updated');
+    Views.Users.mount();
+  }
+};
+
+/* ============================================================
+   views/users.js — User Management View
+   ============================================================ */
+
+Views.Users = {
+  mount() {
+    const content = document.getElementById('mainContent');
+    content.innerHTML = this._template();
+    this._renderTable();
+  },
+
+  _template() {
+    return `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Users</h1>
+          <p class="page-subtitle">${appState.users.length} registered user${appState.users.length !== 1 ? 's' : ''}</p>
+        </div>
+        ${appState.currentUser?.role === 'admin' ? `
+        <div class="page-actions">
+          <button class="btn btn-primary" onclick="Views.Technicians._openCreateModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add User
+          </button>
+        </div>` : ''}
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Active Jobs</th>
+              <th>Completed Jobs</th>
+              <th style="width:80px"></th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody"></tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  _renderTable() {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+
+    const users = [...appState.users].sort((a, b) => a.name.localeCompare(b.name));
+
+    if (users.length === 0) {
+      tbody.innerHTML = `
+        <tr><td colspan="6">
+          <div class="table-empty">
+            <p class="table-empty-text">No users registered yet.</p>
+          </div>
+        </td></tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = users.map(u => {
+      const activeJobs = u.role === 'technician'
+        ? appState.interventions.filter(i => i.technicianId === u.id && CONFIG.OPEN_STATUSES.includes(i.status)).length
+        : '—';
+      const completedJobs = u.role === 'technician'
+        ? appState.interventions.filter(i => i.technicianId === u.id && i.status === 'completed').length
+        : '—';
+      return `
+        <tr>
+          <td class="td-primary">${Utils.escapeHtml(u.name)}</td>
+          <td style="font-size:0.857rem;color:var(--gray-500)">${Utils.escapeHtml(u.email)}</td>
+          <td>${Utils.getRoleBadge(u.role)}</td>
+          <td>${activeJobs}</td>
+          <td>${completedJobs}</td>
+          ${appState.currentUser?.role === 'admin' ? `
+          <td>
+            <div class="td-actions">
+              <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Technicians._openEditModal('${u.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            </div>
+          </td>` : '<td></td>'}
+        </tr>
+      `;
+    }).join('');
   }
 };
