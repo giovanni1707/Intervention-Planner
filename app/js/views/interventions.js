@@ -388,14 +388,16 @@ Views.Interventions = {
     ).join('');
 
     // Role-based status access:
-    // Admin: can set all statuses except 'new'
+    // Admin: can only set Assigned, Tentative, Cancelled
     // Technician: can set all statuses except 'new', 'assigned', 'tentative', 'cancelled'
     const isCurrentlyNew = !intervention.status || intervention.status === 'new';
     const isAdmin = appState.currentUser?.role === 'admin';
+    const ADMIN_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const statusOptions = Object.entries(CONFIG.STATUSES)
       .filter(([k]) => {
         if (k === 'new') return false;
+        if (isAdmin && !ADMIN_STATUSES.includes(k)) return false;
         if (!isAdmin && TECH_RESTRICTED_STATUSES.includes(k)) return false;
         return true;
       })
@@ -409,19 +411,21 @@ Views.Interventions = {
         `<option value="${u.id}" ${intervention.technicianId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`)
     ].join('');
 
+    const techReadOnly = isEdit && !isAdmin;
+
     // Machine section — register new on create, dropdowns on edit
     const machineSection = isEdit ? `
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Client <span class="required">*</span></label>
-          <select id="fIntClient" class="form-select">
+          <label class="form-label">Client</label>
+          <select id="fIntClient" class="form-select" ${techReadOnly ? 'disabled' : ''}>
             <option value="">— Select client —</option>
             ${clientOptions}
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Machine <span class="required">*</span></label>
-          <select id="fIntMachine" class="form-select">
+          <label class="form-label">Machine</label>
+          <select id="fIntMachine" class="form-select" ${techReadOnly ? 'disabled' : ''}>
             <option value="">— Select machine —</option>
             ${machineOptions}
           </select>
@@ -498,21 +502,26 @@ Views.Interventions = {
     `;})();
 
     return `
+      ${techReadOnly ? `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.786rem;color:var(--gray-600)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Client, Machine, Type, Priority, Location, Scheduled Date and Time are managed by Administrators.
+      </div>` : ''}
       ${machineSection}
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Type <span class="required">*</span></label>
-          <select id="fIntType" class="form-select">${typeOptions}</select>
+          <label class="form-label">Type${!techReadOnly ? ' <span class="required">*</span>' : ''}</label>
+          <select id="fIntType" class="form-select" ${techReadOnly ? 'disabled' : ''}>${typeOptions}</select>
         </div>
         <div class="form-group">
-          <label class="form-label">Priority <span class="required">*</span></label>
-          <select id="fIntPriority" class="form-select">${priorityOptions}</select>
+          <label class="form-label">Priority${!techReadOnly ? ' <span class="required">*</span>' : ''}</label>
+          <select id="fIntPriority" class="form-select" ${techReadOnly ? 'disabled' : ''}>${priorityOptions}</select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Intervention Location</label>
-          <select id="fIntLocation" class="form-select">
+          <select id="fIntLocation" class="form-select" ${techReadOnly ? 'disabled' : ''}>
             <option value="client" ${(intervention.location || 'client') === 'client' ? 'selected' : ''}>Client Premises</option>
             <option value="workshop" ${intervention.location === 'workshop' ? 'selected' : ''}>Workshop</option>
           </select>
@@ -546,12 +555,12 @@ Views.Interventions = {
       </div>` : ''}
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Scheduled Date <span class="required" id="fIntDateRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
-          <input type="date" id="fIntDate" class="form-input" value="${intervention.scheduledDate ? intervention.scheduledDate.slice(0, 10) : ''}">
+          <label class="form-label">Scheduled Date${!techReadOnly ? ` <span class="required" id="fIntDateRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span>` : ''}</label>
+          <input type="date" id="fIntDate" class="form-input" value="${intervention.scheduledDate ? intervention.scheduledDate.slice(0, 10) : ''}" ${techReadOnly ? 'disabled' : ''}>
         </div>
         <div class="form-group">
-          <label class="form-label">Scheduled Time <span class="required" id="fIntTimeRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
-          <input type="time" id="fIntTime" class="form-input" value="${intervention.scheduledDate ? new Date(intervention.scheduledDate).toTimeString().slice(0,5) : '08:00'}">
+          <label class="form-label">Scheduled Time${!techReadOnly ? ` <span class="required" id="fIntTimeRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span>` : ''}</label>
+          <input type="time" id="fIntTime" class="form-input" value="${intervention.scheduledDate ? new Date(intervention.scheduledDate).toTimeString().slice(0,5) : '08:00'}" ${techReadOnly ? 'disabled' : ''}>
         </div>
       </div>` : ''}
       ${!isEdit ? `
@@ -698,6 +707,12 @@ Views.Interventions = {
     const intervention = Storage.getInterventionById(interventionId);
     if (!intervention) return;
 
+    // Clear queued notes/parts only on a fresh open (not when returning from a sub-modal)
+    if (!this._editDraft) {
+      this._queuedNotes = [];
+      this._queuedParts = [];
+    }
+
     if (intervention.status === 'completed') {
       Toast.error('This intervention is completed. No further changes are allowed.');
       return;
@@ -710,6 +725,14 @@ Views.Interventions = {
     const user = appState.currentUser;
     const isTechOnNew = user?.role === 'technician' && (!intervention.status || intervention.status === 'new');
 
+    const queuedCount = this._queuedNotes.length + this._queuedParts.length;
+    const queuedBadge = queuedCount > 0
+      ? `<span style="font-size:0.786rem;color:#065F46;background:#D1FAE5;border:1px solid #6EE7B7;border-radius:var(--radius-sm);padding:5px 10px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+          ${this._queuedNotes.length > 0 ? `${this._queuedNotes.length} note${this._queuedNotes.length > 1 ? 's' : ''}` : ''}${this._queuedNotes.length > 0 && this._queuedParts.length > 0 ? ' &amp; ' : ''}${this._queuedParts.length > 0 ? `${this._queuedParts.length} part${this._queuedParts.length > 1 ? 's' : ''}` : ''} pending save
+        </span>`
+      : '';
+
     Modals.open(`Edit Intervention`, this._interventionFormHTML(intervention), `
       <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._openAddNoteModal('${interventionId}','edit')" style="margin-right:4px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -719,6 +742,7 @@ Views.Interventions = {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
         Add Part
       </button>
+      ${queuedBadge}
       <div style="flex:1"></div>
       ${isTechOnNew ? `
       <span style="font-size:0.786rem;color:#92400E;background:var(--yellow-light);border:1px solid #FCD34D;border-radius:var(--radius-sm);padding:6px 10px;display:flex;align-items:center;gap:6px">
@@ -727,7 +751,7 @@ Views.Interventions = {
       </span>` : ''}
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitEdit('${interventionId}')" ${isTechOnNew ? 'disabled title="This intervention must first be scheduled or assigned by an Administrator."' : ''}>Save Changes</button>
-    `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); } });
+    `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); this._restoreEditDraft(); } });
   },
 
   _submitEdit(interventionId) {
@@ -751,17 +775,23 @@ Views.Interventions = {
       return;
     }
 
-    const clientId  = document.getElementById('fIntClient')?.value;
-    const machineId = document.getElementById('fIntMachine')?.value;
+    // For technicians, locked fields always retain original values
+    const clientId  = userIsAdmin ? document.getElementById('fIntClient')?.value  : original.clientId;
+    const machineId = userIsAdmin ? document.getElementById('fIntMachine')?.value : original.machineId;
 
     if (!clientId)  { Toast.error('Please select a client'); return; }
     if (!machineId) { Toast.error('Please select a machine'); return; }
 
     const newStatus = document.getElementById('fIntStatus')?.value || original.status;
 
+    // Admins can only set: assigned, tentative, cancelled
+    const ADMIN_ALLOWED_STATUSES = ['tentative', 'assigned', 'cancelled'];
+    if (userIsAdmin && !ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
+      Toast.error('Admins can only set status to Assigned, Tentative, or Cancelled.');
+      return;
+    }
     // Technicians cannot set assigned, tentative, or cancelled
-    const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled'];
-    if (!userIsAdmin && TECH_RESTRICTED_STATUSES.includes(newStatus)) {
+    if (!userIsAdmin && ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
       Toast.error('You do not have permission to set this status.');
       return;
     }
@@ -796,8 +826,8 @@ Views.Interventions = {
       }
     }
 
-    const dateVal = document.getElementById('fIntDate')?.value;
-    const timeVal = document.getElementById('fIntTime')?.value || '08:00';
+    const dateVal = userIsAdmin ? document.getElementById('fIntDate')?.value : (original.scheduledDate ? original.scheduledDate.slice(0, 10) : '');
+    const timeVal = userIsAdmin ? (document.getElementById('fIntTime')?.value || '08:00') : (original.scheduledDate ? new Date(original.scheduledDate).toTimeString().slice(0, 5) : '08:00');
     const scheduledDate = dateVal ? new Date(`${dateVal}T${timeVal}`).toISOString() : null;
     const statusNote = document.getElementById('fIntStatusNote')?.value.trim() || '';
     const user = currentUser;
@@ -816,13 +846,25 @@ Views.Interventions = {
 
     Storage.updateIntervention(interventionId, {
       clientId, machineId,
-      type:         document.getElementById('fIntType')?.value,
-      priority:     document.getElementById('fIntPriority')?.value,
+      type:         userIsAdmin ? document.getElementById('fIntType')?.value     : original.type,
+      priority:     userIsAdmin ? document.getElementById('fIntPriority')?.value : original.priority,
       status:       newStatus,
       technicianId: userIsAdmin ? (document.getElementById('fIntTech')?.value || null) : original.technicianId,
-      location:     document.getElementById('fIntLocation')?.value || 'client',
+      location:     userIsAdmin ? (document.getElementById('fIntLocation')?.value || 'client') : original.location,
       scheduledDate
     }, auditEntry);
+
+    // Flush queued notes (added via Add Note during this edit session)
+    if (this._queuedNotes.length > 0) {
+      this._queuedNotes.forEach(note => Storage.addInterventionNote(interventionId, note));
+      this._queuedNotes = [];
+    }
+
+    // Flush queued parts (added via Add Part during this edit session)
+    if (this._queuedParts.length > 0) {
+      this._queuedParts.forEach(p => Storage.addInterventionPart(interventionId, p));
+      this._queuedParts = [];
+    }
 
     refreshInterventions();
     Modals.close();
@@ -1064,6 +1106,7 @@ Views.Interventions = {
   },
 
   _openAddNoteModal(interventionId, context = 'detail') {
+    if (context === 'edit') this._captureEditDraft();
     Modals.open('Add Note', `
       <div class="form-group">
         <label class="form-label">Note <span class="required">*</span></label>
@@ -1080,6 +1123,16 @@ Views.Interventions = {
     if (!text) { Toast.error('Note text is required'); return; }
 
     const user = appState.currentUser;
+
+    if (context === 'edit') {
+      // Queue the note — it will be saved after the status update in _submitEdit
+      this._queuedNotes.push({ text, author: user?.name || 'Admin' });
+      Modals.close();
+      Toast.success('Note queued — will be saved with this status update');
+      setTimeout(() => this._openEditModal(interventionId), 100);
+      return;
+    }
+
     Storage.addInterventionNote(interventionId, {
       text,
       author: user?.name || 'Admin'
@@ -1094,12 +1147,50 @@ Views.Interventions = {
     refreshInterventions();
     Modals.close();
     Toast.success('Note added');
-    setTimeout(() => context === 'edit' ? this._openEditModal(interventionId) : this.openDetailModal(interventionId), 100);
+    setTimeout(() => this.openDetailModal(interventionId), 100);
+  },
+
+  _editDraft: null,
+
+  _captureEditDraft() {
+    const get = id => document.getElementById(id)?.value ?? null;
+    this._editDraft = {
+      clientId:    get('fIntClient'),
+      machineId:   get('fIntMachine'),
+      type:        get('fIntType'),
+      priority:    get('fIntPriority'),
+      location:    get('fIntLocation'),
+      status:      get('fIntStatus'),
+      statusNote:  get('fIntStatusNote'),
+      technicianId: get('fIntTech'),
+      scheduledDate: get('fIntDate'),
+      scheduledTime: get('fIntTime'),
+    };
+  },
+
+  _restoreEditDraft() {
+    if (!this._editDraft) return;
+    const d = this._editDraft;
+    const set = (id, val) => { if (val === null) return; const el = document.getElementById(id); if (el) el.value = val; };
+    set('fIntClient', d.clientId);
+    set('fIntMachine', d.machineId);
+    set('fIntType', d.type);
+    set('fIntPriority', d.priority);
+    set('fIntLocation', d.location);
+    set('fIntStatus', d.status);
+    set('fIntStatusNote', d.statusNote);
+    set('fIntTech', d.technicianId);
+    set('fIntDate', d.scheduledDate);
+    set('fIntTime', d.scheduledTime);
+    this._editDraft = null;
   },
 
   _pendingParts: [],
+  _queuedNotes: [],
+  _queuedParts: [],
 
   _openAddPartModal(interventionId, context = 'detail') {
+    if (context === 'edit') this._captureEditDraft();
     this._pendingParts = [];
     Modals.open('Add Parts Used', this._addPartModalBody(), `
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
@@ -1219,6 +1310,17 @@ Views.Interventions = {
     if (this._pendingParts.length === 0) return;
     const user = appState.currentUser;
 
+    if (context === 'edit') {
+      // Queue the parts — they will be saved after the status update in _submitEdit
+      this._queuedParts.push(...this._pendingParts);
+      const count = this._pendingParts.length;
+      this._pendingParts = [];
+      Modals.close();
+      Toast.success(`${count} part${count > 1 ? 's' : ''} queued — will be saved with this status update`);
+      setTimeout(() => this._openEditModal(interventionId), 100);
+      return;
+    }
+
     this._pendingParts.forEach(p => {
       Storage.addInterventionPart(interventionId, p);
     });
@@ -1234,6 +1336,6 @@ Views.Interventions = {
     refreshInterventions();
     Modals.close();
     Toast.success(`${count} part${count > 1 ? 's' : ''} saved successfully`);
-    setTimeout(() => context === 'edit' ? this._openEditModal(interventionId) : this.openDetailModal(interventionId), 100);
+    setTimeout(() => this.openDetailModal(interventionId), 100);
   }
 };
