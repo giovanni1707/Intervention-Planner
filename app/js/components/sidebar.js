@@ -10,6 +10,8 @@ const Sidebar = {
     localStorage.setItem('bps_sidebar_collapsed', this._collapsed);
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.classList.toggle('collapsed', this._collapsed);
+    // Trigger resize after transition so layout recomputes
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 260);
   },
 
   _navItems: [
