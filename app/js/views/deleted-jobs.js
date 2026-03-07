@@ -20,7 +20,7 @@ Views.DeletedJobs = {
         <td>${CONFIG.INTERVENTION_TYPES[r.type] || Utils.escapeHtml(r.type || '—')}</td>
         <td>${Utils.getStatusBadge(r.status)}</td>
         <td>${Utils.formatDate(r.createdAt)}</td>
-        <td>${Utils.formatDate(r.deletedAt)}</td>
+        <td style="white-space:nowrap">${Utils.formatDateTime(r.deletedAt)}</td>
         <td>
           <div style="display:flex;align-items:center;gap:8px">
             <div style="width:28px;height:28px;border-radius:50%;background:var(--red);color:white;display:flex;align-items:center;justify-content:center;font-size:0.714rem;font-weight:600;flex-shrink:0">
