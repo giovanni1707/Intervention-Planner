@@ -123,6 +123,13 @@ Views.JobTracker = {
             <td>${Utils.escapeHtml(tech?.name || '—')}</td>
             <td>${Utils.getStatusBadge(i.status)}</td>
             <td style="text-align:center;white-space:nowrap">
+              <button class="btn btn-ghost btn-sm btn-icon" title="View Details"
+                onclick="Views.Interventions.openDetailModal('${i.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
               ${appState.currentUser?.role === 'admin' ? `
               <button class="btn btn-ghost btn-sm btn-icon" title="Edit"
                 onclick="Views.Interventions._openEditModal('${i.id}')">
@@ -139,13 +146,6 @@ Views.JobTracker = {
                   <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
                 </svg>
               </button>` : ''}
-              <button class="btn btn-ghost btn-sm btn-icon" title="View Details"
-                onclick="Views.Interventions.openDetailModal('${i.id}')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
             </td>
           </tr>
         `;
