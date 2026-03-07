@@ -3,15 +3,16 @@
    ============================================================ */
 
 function seedDemoData() {
-  if (localStorage.getItem(CONFIG.STORAGE_KEYS.SEEDED) === 'v3') return;
+  if (localStorage.getItem(CONFIG.STORAGE_KEYS.SEEDED) === 'v4') return;
   // Clear existing data so seed runs fresh with updated schema
   ['USERS','CLIENTS','MACHINES','INTERVENTIONS','CONTRACTS'].forEach(k => localStorage.removeItem(CONFIG.STORAGE_KEYS[k]));
 
   // ── USERS ──────────────────────────────────────────────────
   const users = [
-    { id: 'u1', name: 'Admin User',       role: 'admin',      email: 'admin@bavarian.mu', password: 'admin123', createdAt: '2024-01-01T08:00:00Z' },
-    { id: 'u2', name: 'Jean-Marc Dupont', role: 'technician', email: 'jm@bavarian.mu',    password: 'tech123',  createdAt: '2024-01-05T08:00:00Z' },
-    { id: 'u3', name: 'Priya Naidoo',     role: 'technician', email: 'priya@bavarian.mu', password: 'tech123',  createdAt: '2024-01-05T08:00:00Z' }
+    { id: 'u0', name: 'Super Admin',      role: 'superadmin', email: 'superadmin@bavarian.mu', password: 'super123',  createdAt: '2024-01-01T07:00:00Z' },
+    { id: 'u1', name: 'Admin User',       role: 'admin',      email: 'admin@bavarian.mu',      password: 'admin123',  createdAt: '2024-01-01T08:00:00Z' },
+    { id: 'u2', name: 'Jean-Marc Dupont', role: 'technician', email: 'jm@bavarian.mu',         password: 'tech123',   createdAt: '2024-01-05T08:00:00Z' },
+    { id: 'u3', name: 'Priya Naidoo',     role: 'technician', email: 'priya@bavarian.mu',      password: 'tech123',   createdAt: '2024-01-05T08:00:00Z' }
   ];
   localStorage.setItem(CONFIG.STORAGE_KEYS.USERS, JSON.stringify(users));
 
@@ -314,6 +315,6 @@ function seedDemoData() {
   ];
   localStorage.setItem(CONFIG.STORAGE_KEYS.CONTRACTS, JSON.stringify(contracts));
 
-  localStorage.setItem(CONFIG.STORAGE_KEYS.SEEDED, 'v3');
+  localStorage.setItem(CONFIG.STORAGE_KEYS.SEEDED, 'v4');
   console.log('[Seed] Demo data loaded successfully');
 }

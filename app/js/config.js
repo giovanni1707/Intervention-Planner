@@ -11,7 +11,8 @@ const CONFIG = {
     CONTRACTS:     'bps_contracts',
     SESSION:       'bps_session',
     SEEDED:        'bps_seeded',
-    DELETED_JOBS:  'bps_deleted_jobs'
+    DELETED_JOBS:  'bps_deleted_jobs',
+    ACTION_LOG:    'bps_action_log'
   },
 
   STATUSES: {
@@ -54,6 +55,7 @@ const CONFIG = {
   },
 
   ROLES: {
+    superadmin: 'Head Administrator',
     admin:      'Admin',
     technician: 'Technician'
   },

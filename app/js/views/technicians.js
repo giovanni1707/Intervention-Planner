@@ -103,8 +103,8 @@ Views.Technicians = {
                     onclick="Views.Technicians.openInterventionsModal('${tech.id}')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
             </button>
-            ${Auth.isAdmin() ? `
-            <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Technicians._openEditModal('${tech.id}')">
+            ${Auth.isSuperAdmin() ? `
+            <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Users._openEditModal('${tech.id}')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>` : ''}
           </div>
@@ -310,11 +310,11 @@ Views.Users = {
           <h1 class="page-title">Users</h1>
           <p class="page-subtitle">${appState.users.length} registered user${appState.users.length !== 1 ? 's' : ''}</p>
         </div>
-        ${appState.currentUser?.role === 'admin' ? `
+        ${Auth.isSuperAdmin() ? `
         <div class="page-actions">
-          <button class="btn btn-primary" onclick="Views.Technicians._openCreateModal()">
+          <button class="btn btn-primary" onclick="Router.go('users')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add User
+            Manage Users
           </button>
         </div>` : ''}
       </div>
@@ -367,10 +367,10 @@ Views.Users = {
           <td>${Utils.getRoleBadge(u.role)}</td>
           <td>${activeJobs}</td>
           <td>${completedJobs}</td>
-          ${appState.currentUser?.role === 'admin' ? `
+          ${Auth.isSuperAdmin() ? `
           <td>
             <div class="td-actions">
-              <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Technicians._openEditModal('${u.id}')">
+              <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Users._openEditModal('${u.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </button>
             </div>

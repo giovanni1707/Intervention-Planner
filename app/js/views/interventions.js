@@ -65,7 +65,7 @@ Views.Interventions = {
 
   _template() {
     const user = appState.currentUser;
-    const isAdmin = user && user.role === 'admin';
+    const isAdmin = user && (user.role === 'admin' || user.role === 'superadmin');
 
     const statusOptions = [
       '<option value="all">All Statuses</option>',
@@ -388,17 +388,19 @@ Views.Interventions = {
     ).join('');
 
     // Role-based status access:
+    // Super Admin: full access to all statuses
     // Admin: can only set Assigned, Tentative, Cancelled
     // Technician: can set all statuses except 'new', 'assigned', 'tentative', 'cancelled'
     const isCurrentlyNew = !intervention.status || intervention.status === 'new';
+    const isSuperAdmin = appState.currentUser?.role === 'superadmin';
     const isAdmin = appState.currentUser?.role === 'admin';
     const ADMIN_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const statusOptions = Object.entries(CONFIG.STATUSES)
       .filter(([k]) => {
         if (k === 'new') return false;
-        if (isAdmin && !ADMIN_STATUSES.includes(k)) return false;
-        if (!isAdmin && TECH_RESTRICTED_STATUSES.includes(k)) return false;
+        if (!isSuperAdmin && isAdmin && !ADMIN_STATUSES.includes(k)) return false;
+        if (!isSuperAdmin && !isAdmin && TECH_RESTRICTED_STATUSES.includes(k)) return false;
         return true;
       })
       .map(([k, v]) =>
@@ -411,7 +413,7 @@ Views.Interventions = {
         `<option value="${u.id}" ${intervention.technicianId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`)
     ].join('');
 
-    const techReadOnly = isEdit && !isAdmin;
+    const techReadOnly = isEdit && !isAdmin && !isSuperAdmin;
 
     // Machine section — register new on create, dropdowns on edit
     const machineSection = isEdit ? `
@@ -767,7 +769,8 @@ Views.Interventions = {
     }
 
     const currentUser = appState.currentUser;
-    const userIsAdmin = currentUser?.role === 'admin';
+    const userIsSuperAdmin = currentUser?.role === 'superadmin';
+    const userIsAdmin = currentUser?.role === 'admin' || userIsSuperAdmin;
 
     // Block technicians from editing a 'new' intervention
     if (!userIsAdmin && (!original.status || original.status === 'new')) {
@@ -784,16 +787,18 @@ Views.Interventions = {
 
     const newStatus = document.getElementById('fIntStatus')?.value || original.status;
 
-    // Admins can only set: assigned, tentative, cancelled
+    // Role-based status guard (Super Admin has full access)
     const ADMIN_ALLOWED_STATUSES = ['tentative', 'assigned', 'cancelled'];
-    if (userIsAdmin && !ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
-      Toast.error('Admins can only set status to Assigned, Tentative, or Cancelled.');
-      return;
-    }
-    // Technicians cannot set assigned, tentative, or cancelled
-    if (!userIsAdmin && ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
-      Toast.error('You do not have permission to set this status.');
-      return;
+    if (!userIsSuperAdmin) {
+      if (currentUser?.role === 'admin' && !ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
+        Toast.error('Admins can only set status to Assigned, Tentative, or Cancelled.');
+        return;
+      }
+      // Technicians cannot set assigned, tentative, or cancelled
+      if (currentUser?.role === 'technician' && ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
+        Toast.error('You do not have permission to set this status.');
+        return;
+      }
     }
 
     // Enforce max 5 updates per non-final status
@@ -934,7 +939,7 @@ Views.Interventions = {
     const admin = users.find(u =>
       u.email.toLowerCase() === email.toLowerCase() &&
       u.password === password &&
-      u.role === 'admin'
+      (u.role === 'admin' || u.role === 'superadmin')
     );
     if (!admin) {
       Toast.error('Admin email or password is incorrect.'); return;
@@ -971,7 +976,7 @@ Views.Interventions = {
     const machine   = appState.machines.find(m => m.id === i.machineId);
     const tech      = appState.users.find(u => u.id === i.technicianId);
     const user      = appState.currentUser;
-    const isAdmin   = user && user.role === 'admin';
+    const isAdmin   = user && (user.role === 'admin' || user.role === 'superadmin');
     const isTech    = user && user.id === i.technicianId;
     const creatorUser = appState.users.find(u => u.name === i.createdBy);
     const creatorRole = creatorUser ? (CONFIG.ROLES[creatorUser.role] || creatorUser.role) : null;

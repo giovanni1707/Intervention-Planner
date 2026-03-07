@@ -778,6 +778,7 @@ input, select, textarea {
 .badge-none { background: var(--gray-100); color: var(--gray-400); }
 
 /* Role badges */
+.badge-superadmin { background: #F5F3FF; color: #7C3AED; }
 .badge-admin { background: var(--blue-light); color: var(--blue); }
 .badge-technician { background: var(--green-light); color: var(--green); }
 

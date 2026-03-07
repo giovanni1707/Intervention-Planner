@@ -46,9 +46,15 @@ const Auth = {
     return !!this.getCurrentUser();
   },
 
+  // Returns true for admin AND superadmin (superadmin has all admin privileges)
   isAdmin() {
     const user = this.getCurrentUser();
-    return user && user.role === 'admin';
+    return user && (user.role === 'admin' || user.role === 'superadmin');
+  },
+
+  isSuperAdmin() {
+    const user = this.getCurrentUser();
+    return user && user.role === 'superadmin';
   },
 
   requireAdmin() {

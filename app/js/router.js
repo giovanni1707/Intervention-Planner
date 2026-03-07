@@ -10,9 +10,10 @@ const ROUTES = {
   technicians:   () => Views.Technicians.mount(),
   users:         () => Views.Users.mount(),
   reports:       () => Views.Reports.mount(),
-  'job-tracker':   () => Views.JobTracker.mount(),
-  'deleted-jobs':  () => Views.DeletedJobs.mount(),
-  settings:        () => Views.Settings.mount()
+  'job-tracker':  () => Views.JobTracker.mount(),
+  'deleted-jobs': () => Views.DeletedJobs.mount(),
+  'action-log':   () => Views.ActionLog.mount(),
+  settings:       () => Views.Settings.mount()
 };
 
 const Router = {

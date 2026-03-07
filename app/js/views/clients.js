@@ -520,7 +520,7 @@ Views.Clients = {
     const admin = users.find(u =>
       u.email.toLowerCase() === email.toLowerCase() &&
       u.password === password &&
-      u.role === 'admin'
+      (u.role === 'admin' || u.role === 'superadmin')
     );
     if (!admin) {
       Toast.error('Admin email or password is incorrect.'); return;

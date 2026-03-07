@@ -262,6 +262,31 @@ const Storage = {
     this.set(CONFIG.STORAGE_KEYS.DELETED_JOBS, records);
   },
 
+  purgeDeletedJob(jobNumber) {
+    const records = this.getDeletedJobs().filter(r => r.jobNumber !== jobNumber);
+    this.set(CONFIG.STORAGE_KEYS.DELETED_JOBS, records);
+  },
+
+  // ── ACTION LOG (Super Admin only) ─────────────────────────
+  getActionLog() {
+    return this.get(CONFIG.STORAGE_KEYS.ACTION_LOG) || [];
+  },
+
+  logAction(entry) {
+    const log = this.getActionLog();
+    log.unshift({
+      id: Utils.generateId(),
+      timestamp: new Date().toISOString(),
+      ...entry
+    });
+    this.set(CONFIG.STORAGE_KEYS.ACTION_LOG, log);
+  },
+
+  deleteUser(id) {
+    const users = this.getUsers().filter(u => u.id !== id);
+    this.set(CONFIG.STORAGE_KEYS.USERS, users);
+  },
+
   addInterventionNote(id, note) {
     const interventions = this.getInterventions();
     const idx = interventions.findIndex(i => i.id === id);

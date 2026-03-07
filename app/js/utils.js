@@ -91,7 +91,7 @@ const Utils = {
   },
 
   getRoleBadge(role) {
-    const cfg = { admin: { label: 'Admin', cls: 'badge-admin' }, technician: { label: 'Technician', cls: 'badge-technician' } };
+    const cfg = { superadmin: { label: 'Head Administrator', cls: 'badge-superadmin' }, admin: { label: 'Admin', cls: 'badge-admin' }, technician: { label: 'Technician', cls: 'badge-technician' } };
     const c = cfg[role] || { label: role, cls: 'badge-gray' };
     return `<span class="badge ${c.cls}">${c.label}</span>`;
   },

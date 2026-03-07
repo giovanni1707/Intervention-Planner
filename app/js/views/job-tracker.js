@@ -130,7 +130,7 @@ Views.JobTracker = {
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
               </button>
-              ${appState.currentUser?.role === 'admin' ? `
+              ${Auth.isAdmin() ? `
               <button class="btn btn-ghost btn-sm btn-icon" title="Edit"
                 onclick="Views.Interventions._openEditModal('${i.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
@@ -372,7 +372,7 @@ Views.JobTracker = {
     const admin = users.find(u =>
       u.email.toLowerCase() === email.toLowerCase() &&
       u.password === password &&
-      u.role === 'admin'
+      (u.role === 'admin' || u.role === 'superadmin')
     );
     if (!admin) {
       Toast.error('Admin email or password is incorrect.'); return;
