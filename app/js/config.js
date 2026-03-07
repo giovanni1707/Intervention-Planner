@@ -10,7 +10,8 @@ const CONFIG = {
     INTERVENTIONS: 'bps_interventions',
     CONTRACTS:     'bps_contracts',
     SESSION:       'bps_session',
-    SEEDED:        'bps_seeded'
+    SEEDED:        'bps_seeded',
+    DELETED_JOBS:  'bps_deleted_jobs'
   },
 
   STATUSES: {

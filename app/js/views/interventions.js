@@ -871,12 +871,95 @@ Views.Interventions = {
     Toast.success('Intervention updated');
   },
 
-  async _deleteIntervention(interventionId) {
-    const confirmed = await Modals.confirm('Delete this intervention? This cannot be undone.', 'Delete Intervention');
-    if (!confirmed) return;
+  _deleteIntervention(interventionId) {
+    const intervention = Storage.getInterventionById(interventionId);
+    if (!intervention) return;
+
+    const machine = appState.machines.find(m => m.id === intervention.machineId);
+    const jobNumber = machine?.jobNumber || '—';
+
+    Modals.open('Confirm Job Deletion', `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--radius-sm);margin-bottom:16px;font-size:0.857rem;color:#991B1B">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>This action is <strong>permanent and irreversible</strong>. The job will be archived in the Deleted Jobs log.</span>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Job Number <span class="required">*</span></label>
+          <input type="text" id="dJobNumber" class="form-input" placeholder="${jobNumber}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Your Email <span class="required">*</span></label>
+          <input type="email" id="dAdminEmail" class="form-input" placeholder="admin@example.com">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Your Password <span class="required">*</span></label>
+          <input type="password" id="dAdminPassword" class="form-input" placeholder="••••••••">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type <strong>delete</strong> to confirm <span class="required">*</span></label>
+          <input type="text" id="dConfirmWord" class="form-input" placeholder="delete">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reason for Deletion <span class="required">*</span></label>
+        <textarea id="dReason" class="form-textarea" rows="3" placeholder="Explain why this job is being deleted…"></textarea>
+      </div>
+    `, `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-danger" onclick="Views.Interventions._confirmDeleteIntervention('${interventionId}','${jobNumber}')">Delete Job</button>
+    `);
+  },
+
+  _confirmDeleteIntervention(interventionId, expectedJobNumber) {
+    const jobNumberInput = document.getElementById('dJobNumber')?.value.trim();
+    const email          = document.getElementById('dAdminEmail')?.value.trim();
+    const password       = document.getElementById('dAdminPassword')?.value;
+    const confirmWord    = document.getElementById('dConfirmWord')?.value.trim();
+    const reason         = document.getElementById('dReason')?.value.trim();
+
+    if (!jobNumberInput || !email || !password || !confirmWord || !reason) {
+      Toast.error('All fields are required.'); return;
+    }
+    if (jobNumberInput !== expectedJobNumber) {
+      Toast.error('Job Number does not match.'); return;
+    }
+    if (confirmWord !== 'delete') {
+      Toast.error('You must type "delete" exactly to confirm.'); return;
+    }
+
+    const users = Storage.getUsers();
+    const admin = users.find(u =>
+      u.email.toLowerCase() === email.toLowerCase() &&
+      u.password === password &&
+      u.role === 'admin'
+    );
+    if (!admin) {
+      Toast.error('Admin email or password is incorrect.'); return;
+    }
+
+    const intervention = Storage.getInterventionById(interventionId);
+    const machine = appState.machines.find(m => m.id === intervention?.machineId);
+    const client  = appState.clients.find(c => c.id === intervention?.clientId);
+    Storage.archiveDeletedJob({
+      id:           interventionId,
+      jobNumber:    machine?.jobNumber || '—',
+      clientName:   client?.name || '—',
+      machineModel: machine?.model || '—',
+      type:         intervention?.type || '—',
+      status:       intervention?.status || '—',
+      createdAt:    intervention?.createdAt || null,
+      deletedAt:    new Date().toISOString(),
+      deletedBy:    admin.name,
+      reason
+    });
+
     Storage.deleteIntervention(interventionId);
     refreshInterventions();
-    Toast.success('Intervention deleted');
+    Modals.close();
+    Toast.success('Job deleted and archived in Deleted Jobs log.');
   },
 
   // ── DETAIL MODAL ──────────────────────────────────────────

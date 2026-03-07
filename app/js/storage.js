@@ -239,6 +239,16 @@ const Storage = {
     this.set(CONFIG.STORAGE_KEYS.INTERVENTIONS, interventions);
   },
 
+  getDeletedJobs() {
+    return this.get(CONFIG.STORAGE_KEYS.DELETED_JOBS) || [];
+  },
+
+  archiveDeletedJob(record) {
+    const records = this.getDeletedJobs();
+    records.unshift(record);
+    this.set(CONFIG.STORAGE_KEYS.DELETED_JOBS, records);
+  },
+
   addInterventionNote(id, note) {
     const interventions = this.getInterventions();
     const idx = interventions.findIndex(i => i.id === id);
