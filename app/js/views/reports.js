@@ -47,7 +47,6 @@ Views.Reports = {
             <label class="form-label" style="margin:0;white-space:nowrap">To</label>
             <input type="date" id="repDateTo" class="form-input" style="width:auto" value="${this._dateTo}">
           </div>
-          <button class="btn btn-primary btn-sm" onclick="Views.Reports._applyDateRange()">Apply</button>
           <button class="btn btn-ghost btn-sm" onclick="Views.Reports._setThisMonth()">This Month</button>
           <button class="btn btn-ghost btn-sm" onclick="Views.Reports._setLast3Months()">Last 3 Months</button>
           <button class="btn btn-ghost btn-sm" onclick="Views.Reports._setAllTime()">All Time</button>
@@ -362,7 +361,10 @@ Views.Reports = {
   },
 
   _bindEvents() {
-    // Date range apply is bound inline via onclick
+    const from = document.getElementById('repDateFrom');
+    const to   = document.getElementById('repDateTo');
+    if (from) from.addEventListener('change', () => this._applyDateRange());
+    if (to)   to.addEventListener('change',   () => this._applyDateRange());
   },
 
   _applyDateRange() {

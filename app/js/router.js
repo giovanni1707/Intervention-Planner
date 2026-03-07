@@ -10,6 +10,7 @@ const ROUTES = {
   technicians:   () => Views.Technicians.mount(),
   users:         () => Views.Users.mount(),
   reports:       () => Views.Reports.mount(),
+  'job-tracker': () => Views.JobTracker.mount(),
   settings:      () => Views.Settings.mount()
 };
 

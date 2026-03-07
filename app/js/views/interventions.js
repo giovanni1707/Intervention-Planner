@@ -91,11 +91,11 @@ Views.Interventions = {
         `<option value="${u.id}" ${appState.filters.technicianId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`)
     ].join('');
 
-    const clientOptions = isAdmin ? [
+    const clientOptions = [
       '<option value="all">All Clients</option>',
       ...appState.clients.map(c =>
         `<option value="${c.id}" ${appState.filters.clientId === c.id ? 'selected' : ''}>${Utils.escapeHtml(c.name)}</option>`)
-    ].join('') : '';
+    ].join('');
 
     return `
       <div class="page-header">
@@ -132,8 +132,8 @@ Views.Interventions = {
           <select id="intStatus" class="toolbar-select">${statusOptions}</select>
           <select id="intPriority" class="toolbar-select">${priorityOptions}</select>
           <select id="intType" class="toolbar-select">${typeOptions}</select>
-          ${isAdmin ? `<select id="intTech" class="toolbar-select">${techOptions}</select>` : ''}
-          ${isAdmin ? `<select id="intClient" class="toolbar-select">${clientOptions}</select>` : ''}
+          <select id="intTech" class="toolbar-select">${techOptions}</select>
+          <select id="intClient" class="toolbar-select">${clientOptions}</select>
           <input type="date" id="intDateFrom" class="toolbar-select" value="${appState.filters.dateFrom}" title="From date" style="min-width:120px">
           <input type="date" id="intDateTo" class="toolbar-select" value="${appState.filters.dateTo}" title="To date" style="min-width:120px">
           <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._resetFilters()">Clear</button>
