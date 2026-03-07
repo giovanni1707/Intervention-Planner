@@ -143,14 +143,14 @@ const Utils = {
 
       if (filters.dateFrom) {
         const from = new Date(filters.dateFrom);
-        const scheduled = i.scheduledDate ? new Date(i.scheduledDate) : null;
-        if (!scheduled || scheduled < from) return false;
+        const created = i.createdAt ? new Date(i.createdAt) : null;
+        if (!created || created < from) return false;
       }
       if (filters.dateTo) {
         const to = new Date(filters.dateTo);
         to.setHours(23, 59, 59);
-        const scheduled = i.scheduledDate ? new Date(i.scheduledDate) : null;
-        if (!scheduled || scheduled > to) return false;
+        const created = i.createdAt ? new Date(i.createdAt) : null;
+        if (!created || created > to) return false;
       }
 
       if (filters.jobNumber) {

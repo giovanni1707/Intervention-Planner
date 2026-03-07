@@ -17,11 +17,11 @@ function seedDemoData() {
 
   // ── CLIENTS ────────────────────────────────────────────────
   const clients = [
-    { id: 'c1', name: 'Ciel Group',         contactPerson: 'Marc Lagesse',      phone: '+230 203 6200', email: 'procurement@cielgroup.com',     region: 'Port Louis',  industry: 'Conglomerate', createdAt: '2024-01-10T08:00:00Z' },
-    { id: 'c2', name: 'IBL Ltd',            contactPerson: 'Sophie Ah Vee',     phone: '+230 402 5600', email: 'maintenance@ibl.mu',            region: 'Ebène',       industry: 'Logistics',    createdAt: '2024-01-12T08:00:00Z' },
-    { id: 'c3', name: 'Rogers Group',       contactPerson: 'Didier Moheeputh',  phone: '+230 206 5000', email: 'technical@rogers.mu',           region: 'Port Louis',  industry: 'Hospitality',  createdAt: '2024-01-15T08:00:00Z' },
-    { id: 'c4', name: 'Constance Hotels',  contactPerson: 'Laetitia Perrier',  phone: '+230 697 9000', email: 'facilities@constancehotels.com', region: 'Grand Baie',  industry: 'Hospitality',  createdAt: '2024-01-18T08:00:00Z' },
-    { id: 'c5', name: 'Leal & Co',         contactPerson: 'Antoine Leal',      phone: '+230 206 2900', email: 'operations@lealco.mu',          region: 'Rose Hill',   industry: 'Retail',       createdAt: '2024-01-20T08:00:00Z' }
+    { id: 'c1', clientNumber: 'CLT-11001', name: 'Ciel Group',         contactPerson: 'Marc Lagesse',      phone: '+230 203 6200', email: 'procurement@cielgroup.com',     region: 'Port Louis',  industry: 'Conglomerate', createdAt: '2024-01-10T08:00:00Z' },
+    { id: 'c2', clientNumber: 'CLT-11002', name: 'IBL Ltd',            contactPerson: 'Sophie Ah Vee',     phone: '+230 402 5600', email: 'maintenance@ibl.mu',            region: 'Ebène',       industry: 'Logistics',    createdAt: '2024-01-12T08:00:00Z' },
+    { id: 'c3', clientNumber: 'CLT-11003', name: 'Rogers Group',       contactPerson: 'Didier Moheeputh',  phone: '+230 206 5000', email: 'technical@rogers.mu',           region: 'Port Louis',  industry: 'Hospitality',  createdAt: '2024-01-15T08:00:00Z' },
+    { id: 'c4', clientNumber: 'CLT-11004', name: 'Constance Hotels',   contactPerson: 'Laetitia Perrier',  phone: '+230 697 9000', email: 'facilities@constancehotels.com', region: 'Grand Baie',  industry: 'Hospitality',  createdAt: '2024-01-18T08:00:00Z' },
+    { id: 'c5', clientNumber: 'CLT-11005', name: 'Leal & Co',          contactPerson: 'Antoine Leal',      phone: '+230 206 2900', email: 'operations@lealco.mu',          region: 'Rose Hill',   industry: 'Retail',       createdAt: '2024-01-20T08:00:00Z' }
   ];
   localStorage.setItem(CONFIG.STORAGE_KEYS.CLIENTS, JSON.stringify(clients));
 

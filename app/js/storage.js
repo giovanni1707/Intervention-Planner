@@ -58,9 +58,22 @@ const Storage = {
     return this.getClients().find(c => c.id === id) || null;
   },
 
+  _generateClientNumber() {
+    const existing = this.getClients().map(c => c.clientNumber).filter(Boolean);
+    let num;
+    do { num = 'CLT-' + String(Math.floor(10000 + Math.random() * 90000)); }
+    while (existing.includes(num));
+    return num;
+  },
+
   createClient(data) {
     const clients = this.getClients();
-    const client = { id: Utils.generateId(), createdAt: new Date().toISOString(), ...data };
+    const client = {
+      id: Utils.generateId(),
+      clientNumber: this._generateClientNumber(),
+      createdAt: new Date().toISOString(),
+      ...data
+    };
     clients.push(client);
     this.set(CONFIG.STORAGE_KEYS.CLIENTS, clients);
     return client;

@@ -102,6 +102,7 @@ Views.Clients = {
     if (thead) {
       const si = this._sortIcon();
       thead.innerHTML = `<tr>
+        <th class="${this._thClass('clientNumber')}" onclick="Views.Clients._setSort('clientNumber')">Client ID${si}</th>
         <th class="${this._thClass('name')}" onclick="Views.Clients._setSort('name')">Company${si}</th>
         <th class="${this._thClass('contactPerson')}" onclick="Views.Clients._setSort('contactPerson')">Contact Person${si}</th>
         <th>Phone</th>
@@ -129,7 +130,7 @@ Views.Clients = {
 
     if (sorted.length === 0) {
       tbody.innerHTML = `
-        <tr><td colspan="8">
+        <tr><td colspan="9">
           <div class="table-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
             <p class="table-empty-text">No clients found</p>
@@ -150,6 +151,7 @@ Views.Clients = {
       const machineCount = appState.machines.filter(m => m.clientId === c.id).length;
       return `
         <tr>
+          <td style="font-family:monospace;font-size:0.857rem;white-space:nowrap">${Utils.escapeHtml(c.clientNumber || '—')}</td>
           <td class="td-primary">${Utils.escapeHtml(c.name)}</td>
           <td>${Utils.escapeHtml(c.contactPerson || '—')}</td>
           <td style="white-space:nowrap">${Utils.escapeHtml((Array.isArray(c.phones) ? c.phones.filter(Boolean)[0] : c.phone) || '—')}</td>
@@ -359,6 +361,10 @@ Views.Clients = {
         <!-- Header info -->
         <div class="detail-grid">
           <div class="detail-field">
+            <div class="detail-field-label">Client ID</div>
+            <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(client.clientNumber || '—')}</div>
+          </div>
+          <div class="detail-field">
             <div class="detail-field-label">Company</div>
             <div class="detail-field-value">${Utils.escapeHtml(client.name)}</div>
           </div>
@@ -443,24 +449,87 @@ Views.Clients = {
     `);
   },
 
-  async _deleteClient(clientId) {
+  _deleteClient(clientId) {
     const client = Storage.getClientById(clientId);
     if (!client) return;
 
-    const machineCount = appState.machines.filter(m => m.clientId === clientId).length;
+    const machineCount      = appState.machines.filter(m => m.clientId === clientId).length;
     const interventionCount = appState.interventions.filter(i => i.clientId === clientId).length;
+    const clientNumber      = client.clientNumber || '—';
 
-    let msg = `Delete "${client.name}"?`;
-    if (machineCount > 0 || interventionCount > 0) {
-      msg += ` This client has ${machineCount} machine(s) and ${interventionCount} intervention(s) linked to them.`;
+    const warningHTML = (machineCount > 0 || interventionCount > 0) ? `
+      <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 12px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.857rem;color:#92400E">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>This client has <strong>${machineCount} machine(s)</strong> and <strong>${interventionCount} intervention(s)</strong> linked. All associated records will be affected.</span>
+      </div>` : '';
+
+    Modals.open('Confirm Client Deletion', `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--radius-sm);margin-bottom:16px;font-size:0.857rem;color:#991B1B">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>This action is <strong>permanent and irreversible</strong>. The client record will be permanently removed.</span>
+      </div>
+      ${warningHTML}
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Client ID <span class="required">*</span></label>
+          <input type="text" id="dClientNumber" class="form-input" placeholder="${clientNumber}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Your Email <span class="required">*</span></label>
+          <input type="email" id="dAdminEmail" class="form-input" placeholder="admin@example.com">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Your Password <span class="required">*</span></label>
+          <input type="password" id="dAdminPassword" class="form-input" placeholder="••••••••">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type <strong>delete</strong> to confirm <span class="required">*</span></label>
+          <input type="text" id="dConfirmWord" class="form-input" placeholder="delete">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reason for Deletion <span class="required">*</span></label>
+        <textarea id="dReason" class="form-textarea" rows="3" placeholder="Explain why this client is being deleted…"></textarea>
+      </div>
+    `, `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-danger" onclick="Views.Clients._confirmDeleteClient('${clientId}','${clientNumber}')">Delete Client</button>
+    `);
+  },
+
+  _confirmDeleteClient(clientId, expectedClientNumber) {
+    const clientNumberInput = document.getElementById('dClientNumber')?.value.trim();
+    const email             = document.getElementById('dAdminEmail')?.value.trim();
+    const password          = document.getElementById('dAdminPassword')?.value;
+    const confirmWord       = document.getElementById('dConfirmWord')?.value.trim();
+    const reason            = document.getElementById('dReason')?.value.trim();
+
+    if (!clientNumberInput || !email || !password || !confirmWord || !reason) {
+      Toast.error('All fields are required.'); return;
+    }
+    if (clientNumberInput !== expectedClientNumber) {
+      Toast.error('Client ID does not match.'); return;
+    }
+    if (confirmWord !== 'delete') {
+      Toast.error('You must type "delete" exactly to confirm.'); return;
     }
 
-    const confirmed = await Modals.confirm(msg, 'Delete Client');
-    if (!confirmed) return;
+    const users = Storage.getUsers();
+    const admin = users.find(u =>
+      u.email.toLowerCase() === email.toLowerCase() &&
+      u.password === password &&
+      u.role === 'admin'
+    );
+    if (!admin) {
+      Toast.error('Admin email or password is incorrect.'); return;
+    }
 
     Storage.deleteClient(clientId);
     refreshClients();
-    Toast.success('Client deleted');
+    Modals.close();
+    Toast.success('Client deleted successfully.');
     this.mount();
   }
 };
