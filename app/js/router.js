@@ -14,6 +14,7 @@ const ROUTES = {
   'deleted-jobs': () => Views.DeletedJobs.mount(),
   'action-log':              () => Views.ActionLog.mount(),
   'maintenance-contracts':   () => Views.MaintenanceContracts.mount(),
+  'maintenance-forecast':    () => Views.MaintenanceForecast.mount(),
   settings:                  () => Views.Settings.mount()
 };
 
