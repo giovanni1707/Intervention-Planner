@@ -116,7 +116,7 @@ Views.MaintenanceContracts = {
 
     /* Table rows */
     const rows = contracts.length === 0 ? `
-      <tr><td colspan="9">
+      <tr><td colspan="10">
         <div class="table-empty">
           <p class="table-empty-text">No maintenance contracts found</p>
           ${isAdmin ? `<p style="font-size:0.8rem;color:var(--gray-400);margin-top:4px">Click "Add Contract" to register the first one.</p>` : ''}
@@ -133,6 +133,7 @@ Views.MaintenanceContracts = {
 
       return `
         <tr>
+          <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
           <td>
             <div style="font-weight:600">${Utils.escapeHtml(client ? client.name : '—')}</div>
             <div style="font-size:0.8rem;color:var(--gray-500)">${client ? Utils.escapeHtml(client.region || '') : ''}</div>
@@ -215,6 +216,7 @@ Views.MaintenanceContracts = {
             <table class="data-table">
               <thead>
                 <tr>
+                  <th>Job No.</th>
                   <th>Client</th>
                   <th>Machine / Serial</th>
                   <th>Start</th>
@@ -710,72 +712,134 @@ Views.MaintenanceContracts = {
       `;
     }).join('');
 
+    const intervalMonths = this._intervalMonths(contract.visitsPerYear);
+    const intervalLabel  = `Every ${intervalMonths} month${intervalMonths > 1 ? 's' : ''}`;
+    const nextV          = this._nextVisit(contract);
+    const creatorUser    = Storage.getUsers().find(u => u.name === contract.createdBy);
+    const creatorRole    = creatorUser ? (CONFIG.ROLES?.[creatorUser.role] || creatorUser.role) : null;
+
     const body = `
-      <!-- Header info -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-        <div>
-          <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;color:var(--gray-400);letter-spacing:.05em;margin-bottom:4px">Client</div>
-          <div style="font-weight:700;font-size:1rem">${Utils.escapeHtml(client ? client.name : '—')}</div>
-          <div style="font-size:0.857rem;color:var(--gray-500)">${client ? Utils.escapeHtml(client.region || '') : ''}</div>
+      <!-- Section 1: Contract Details -->
+      <div class="detail-section">
+        <div class="detail-section-label">Contract Details</div>
+        <div class="detail-grid">
+          <div class="detail-field">
+            <div class="detail-field-label">Client</div>
+            <div class="detail-field-value">${Utils.escapeHtml(client ? client.name : '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Region</div>
+            <div class="detail-field-value" style="${!client?.region ? 'color:var(--gray-400)' : ''}">${Utils.escapeHtml(client?.region || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Machine</div>
+            <div class="detail-field-value">${Utils.escapeHtml(machine ? machine.model : '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Machine Type</div>
+            <div class="detail-field-value" style="${!machine?.type ? 'color:var(--gray-400)' : ''}">${Utils.escapeHtml(machine?.type || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Job Number</div>
+            <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.jobNumber || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Serial Number</div>
+            <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(contract.serialNumber || machine?.serialNumber || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Status</div>
+            <div class="detail-field-value">${this._statusBadge(status)}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Start Date</div>
+            <div class="detail-field-value">${Utils.formatDate(contract.startDate)}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">End Date</div>
+            <div class="detail-field-value">${Utils.formatDate(contract.endDate)}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Maintenances / Year</div>
+            <div class="detail-field-value">${contract.visitsPerYear}×/yr</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Maintenance Interval</div>
+            <div class="detail-field-value">${intervalLabel}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Created By</div>
+            <div class="detail-field-value">${contract.createdBy
+              ? `${Utils.escapeHtml(contract.createdBy)}${creatorRole ? `<span class="creator-role-tag">${Utils.escapeHtml(creatorRole)}</span>` : ''}`
+              : '<span style="color:var(--gray-400)">—</span>'}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Created</div>
+            <div class="detail-field-value">${Utils.formatDateTime(contract.createdAt)}</div>
+          </div>
         </div>
-        <div>
-          <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;color:var(--gray-400);letter-spacing:.05em;margin-bottom:4px">Machine</div>
-          <div style="font-weight:700;font-size:1rem">${Utils.escapeHtml(machine ? machine.model : '—')}</div>
-          <div style="font-size:0.857rem;color:var(--gray-500)">S/N: ${Utils.escapeHtml(contract.serialNumber || (machine ? machine.serialNumber : '—'))}</div>
+        ${contract.notes ? `
+        <div class="detail-field detail-field-full" style="margin-top:10px">
+          <div class="detail-field-label">Notes / Special Conditions</div>
+          <div class="detail-field-value" style="white-space:pre-wrap;line-height:1.6">${Utils.escapeHtml(contract.notes)}</div>
+        </div>` : ''}
+      </div>
+
+      <!-- Section 2: Maintenance Tracking -->
+      <div class="detail-section">
+        <div class="detail-section-label">Maintenance Tracking</div>
+        <div class="detail-grid">
+          <div class="detail-field">
+            <div class="detail-field-label">Total Planned</div>
+            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem">${stats.total}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Completed</div>
+            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem;color:#059669">${stats.completed}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Remaining</div>
+            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem">${stats.remaining}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Overdue</div>
+            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem;${stats.overdue > 0 ? 'color:var(--red)' : 'color:var(--gray-400)'}">${stats.overdue || '—'}</div>
+          </div>
+          <div class="detail-field detail-field-full">
+            <div class="detail-field-label">Next Scheduled Visit</div>
+            <div class="detail-field-value" style="${!nextV ? 'color:var(--gray-400)' : 'font-weight:600'}">${nextV ? Utils.formatDate(nextV) : '—'}</div>
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div style="margin-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:0.8rem;font-weight:600;color:var(--gray-600)">Completion Progress</span>
+            <span style="font-size:0.8rem;color:var(--gray-500)">${stats.completed} / ${stats.total} (${progPct}%)</span>
+          </div>
+          <div style="background:var(--gray-200);border-radius:6px;height:8px">
+            <div style="width:${progPct}%;background:${progColor};height:8px;border-radius:6px;transition:width 0.3s"></div>
+          </div>
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-        <div style="padding:12px;background:var(--gray-50);border-radius:8px;text-align:center">
-          <div style="font-size:0.75rem;color:var(--gray-500);margin-bottom:4px">Start</div>
-          <div style="font-weight:600;font-size:0.9rem">${Utils.formatDate(contract.startDate)}</div>
+      <!-- Section 3: Maintenance Schedule -->
+      <div class="detail-section">
+        <div class="detail-section-label">Maintenance Schedule</div>
+        <div class="table-wrapper" style="max-height:300px;overflow-y:auto">
+          <table class="data-table" id="scheduleTable_${contractId}">
+            <thead>
+              <tr>
+                <th>Visit</th>
+                <th>Scheduled Date</th>
+                <th>Status</th>
+                <th>Intervention</th>
+                <th>${isAdmin ? 'Action' : ''}</th>
+              </tr>
+            </thead>
+            <tbody>${scheduleRows || `<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">No schedule generated</td></tr>`}</tbody>
+          </table>
         </div>
-        <div style="padding:12px;background:var(--gray-50);border-radius:8px;text-align:center">
-          <div style="font-size:0.75rem;color:var(--gray-500);margin-bottom:4px">End</div>
-          <div style="font-weight:600;font-size:0.9rem">${Utils.formatDate(contract.endDate)}</div>
-        </div>
-        <div style="padding:12px;background:var(--gray-50);border-radius:8px;text-align:center">
-          <div style="font-size:0.75rem;color:var(--gray-500);margin-bottom:4px">Frequency</div>
-          <div style="font-weight:600;font-size:0.9rem">${contract.visitsPerYear}×/yr</div>
-        </div>
-        <div style="padding:12px;background:var(--gray-50);border-radius:8px;text-align:center">
-          <div style="font-size:0.75rem;color:var(--gray-500);margin-bottom:4px">Status</div>
-          <div>${this._statusBadge(status)}</div>
-        </div>
-      </div>
-
-      <!-- Progress -->
-      <div style="margin-bottom:20px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:0.857rem;font-weight:600">Completion Progress</span>
-          <span style="font-size:0.857rem;color:var(--gray-600)">${stats.completed} / ${stats.total} visits (${progPct}%)</span>
-        </div>
-        <div style="background:var(--gray-200);border-radius:6px;height:10px">
-          <div style="width:${progPct}%;background:${progColor};height:10px;border-radius:6px;transition:width 0.3s"></div>
-        </div>
-        ${stats.overdue > 0 ? `<div style="font-size:0.8rem;color:var(--red);margin-top:4px">${stats.overdue} visit${stats.overdue > 1 ? 's' : ''} overdue</div>` : ''}
-      </div>
-
-      ${contract.notes ? `
-      <div style="margin-bottom:16px;padding:10px 14px;background:var(--gray-50);border-radius:6px;font-size:0.857rem;color:var(--gray-600)">
-        <strong style="color:var(--gray-700)">Notes:</strong> ${Utils.escapeHtml(contract.notes)}
-      </div>` : ''}
-
-      <!-- Schedule Table -->
-      <div style="font-weight:600;font-size:0.857rem;margin-bottom:8px;color:var(--gray-700)">Maintenance Schedule</div>
-      <div class="table-wrapper" style="max-height:280px;overflow-y:auto">
-        <table class="data-table" id="scheduleTable_${contractId}">
-          <thead>
-            <tr>
-              <th>Visit</th>
-              <th>Scheduled Date</th>
-              <th>Status</th>
-              <th>Intervention</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>${scheduleRows || `<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">No schedule generated</td></tr>`}</tbody>
-        </table>
       </div>
     `;
 
