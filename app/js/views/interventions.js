@@ -528,8 +528,8 @@ Views.Interventions = {
             <input type="date" id="fPmcStart" class="form-input" value="${dPmcStart}">
           </div>
           <div class="form-group">
-            <label class="form-label">Contract End Date <span class="required">*</span></label>
-            <input type="date" id="fPmcEnd" class="form-input" value="${dPmcEnd}">
+            <label class="form-label">Contract End Date</label>
+            <input type="text" class="form-input" disabled placeholder="Auto: 1 year from start date" style="color:var(--gray-400);background:var(--gray-50)">
           </div>
         </div>
         <div class="form-row">
@@ -660,7 +660,6 @@ Views.Interventions = {
       location:        get('fIntLocation'),
       description:     get('fIntDesc'),
       pmcStartDate:    get('fPmcStart'),
-      pmcEndDate:      get('fPmcEnd'),
       pmcVisits:       get('fPmcVisits'),
     };
     // Discard if every meaningful field is empty / default
@@ -702,10 +701,7 @@ Views.Interventions = {
     // If type is PMC, validate and collect contract fields
     if (type === 'pmc') {
       const pmcStart = document.getElementById('fPmcStart')?.value;
-      const pmcEnd   = document.getElementById('fPmcEnd')?.value;
       if (!pmcStart) { Toast.error('Contract Start Date is required for PMC'); return; }
-      if (!pmcEnd)   { Toast.error('Contract End Date is required for PMC'); return; }
-      if (new Date(pmcEnd) <= new Date(pmcStart)) { Toast.error('Contract End Date must be after Start Date'); return; }
     }
 
     const newMachine = Storage.createMachine({
@@ -721,8 +717,11 @@ Views.Interventions = {
     let pmcStartDate  = null;
     if (type === 'pmc') {
       const pmcStart  = document.getElementById('fPmcStart')?.value;
-      const pmcEnd    = document.getElementById('fPmcEnd')?.value;
       const pmcVisits = parseInt(document.getElementById('fPmcVisits')?.value, 10) || 2;
+      // Auto-calculate end date as exactly 1 year after start date
+      const endDateObj = new Date(pmcStart);
+      endDateObj.setFullYear(endDateObj.getFullYear() + 1);
+      const pmcEnd = endDateObj.toISOString().split('T')[0];
       const schedule  = Views.MaintenanceContracts._generateSchedule(pmcStart, pmcEnd, pmcVisits);
       const contract  = Storage.createMaintenanceContract({
         clientId, machineId,
