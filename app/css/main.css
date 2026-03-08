@@ -507,6 +507,23 @@ input, select, textarea {
 .main-content::-webkit-scrollbar-track { background: transparent; }
 .main-content::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
 
+/* ── APP FOOTER ─────────────────────────────────────────────── */
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 32px;
+  background: var(--gray-50);
+  border-top: 1px solid var(--gray-200);
+  font-size: 0.75rem;
+  color: var(--gray-400);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.app-footer strong { color: var(--gray-500); font-weight: 600; }
+.app-footer-sep { color: var(--gray-300); }
+
 /* ── PAGE HEADER ────────────────────────────────────────────── */
 .page-header {
   display: flex;
