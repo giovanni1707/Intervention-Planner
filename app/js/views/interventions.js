@@ -395,7 +395,33 @@ Views.Interventions = {
     const isAdmin = appState.currentUser?.role === 'admin' || isSuperAdmin;
     const ADMIN_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled'];
-    const statusOptions = Object.entries(CONFIG.STATUSES)
+
+    // PMC sequential status options for technicians
+    const isPmcIntervention = isEdit && intervention.type === 'pmc' && intervention.maintenanceContractId && !isAdmin;
+    let pmcStatusOptions = '';
+    let pmcNextVisitIndex = -1; // 0-based index of the next incomplete visit
+    if (isPmcIntervention) {
+      const contract = Storage.getMaintenanceContractById(intervention.maintenanceContractId);
+      if (contract) {
+        const schedule = contract.schedule || [];
+        const completed = contract.completedVisits || [];
+        pmcNextVisitIndex = schedule.findIndex(d => !completed.includes(d));
+        if (pmcNextVisitIndex >= 0) {
+          const total = schedule.length;
+          const visitNum = pmcNextVisitIndex + 1;
+          const ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'];
+          const label = total === 1
+            ? 'Contract Maintenance – Completed'
+            : `${ordinals[pmcNextVisitIndex] || `${visitNum}th`} Maintenance – Completed`;
+          pmcStatusOptions = `<option value="pmc_visit_${pmcNextVisitIndex}" selected>${label}</option>`;
+        } else {
+          // All visits done — show disabled completed state
+          pmcStatusOptions = `<option value="pmc_all_done" disabled selected>All Maintenances Completed</option>`;
+        }
+      }
+    }
+
+    const statusOptions = isPmcIntervention ? pmcStatusOptions : Object.entries(CONFIG.STATUSES)
       .filter(([k]) => {
         if (k === 'new') return false;
         if (isAdmin && !ADMIN_STATUSES.includes(k)) return false;
@@ -836,20 +862,55 @@ Views.Interventions = {
     if (!clientId)  { Toast.error('Please select a client'); return; }
     if (!machineId) { Toast.error('Please select a machine'); return; }
 
-    const newStatus = document.getElementById('fIntStatus')?.value || original.status;
+    const rawStatus = document.getElementById('fIntStatus')?.value || original.status;
+
+    if (rawStatus === 'pmc_all_done') {
+      Toast.error('All maintenance visits for this contract are already completed.');
+      return;
+    }
+
+    // Handle PMC visit completion statuses (pmc_visit_N)
+    const isPmcCompletion = rawStatus.startsWith('pmc_visit_');
+    let newStatus = rawStatus;
+    if (isPmcCompletion && original.maintenanceContractId) {
+      const visitIndex = parseInt(rawStatus.replace('pmc_visit_', ''), 10);
+      const contract = Storage.getMaintenanceContractById(original.maintenanceContractId);
+      if (contract) {
+        const schedule = contract.schedule || [];
+        const visitDate = schedule[visitIndex];
+        if (visitDate) {
+          const completed = [...(contract.completedVisits || [])];
+          if (!completed.includes(visitDate)) completed.push(visitDate);
+          Storage.updateMaintenanceContract(original.maintenanceContractId, { completedVisits: completed });
+          const allDone = schedule.every(d => completed.includes(d));
+          if (allDone) {
+            newStatus = 'completed';
+            Toast.success(`All ${schedule.length} maintenance visit${schedule.length > 1 ? 's' : ''} completed. Contract fulfilled!`);
+          } else {
+            const remaining = schedule.filter(d => !completed.includes(d)).length;
+            newStatus = 'ongoing';
+            Toast.success(`Visit ${visitIndex + 1} marked as completed. ${remaining} visit${remaining > 1 ? 's' : ''} remaining.`);
+          }
+        }
+      } else {
+        newStatus = 'completed';
+      }
+    }
 
     // Role-based status guard
     // Admin & Head Administrator: Assigned, Tentative, Cancelled only
     // Technician: cannot set Assigned, Tentative, or Cancelled
     const ADMIN_ALLOWED_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const currentIsAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
-    if (currentIsAdmin && !ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
-      Toast.error('Admins can only set status to Assigned, Tentative, or Cancelled.');
-      return;
-    }
-    if (!currentIsAdmin && ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
-      Toast.error('You do not have permission to set this status.');
-      return;
+    if (!isPmcCompletion) {
+      if (currentIsAdmin && !ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
+        Toast.error('Admins can only set status to Assigned, Tentative, or Cancelled.');
+        return;
+      }
+      if (!currentIsAdmin && ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
+        Toast.error('You do not have permission to set this status.');
+        return;
+      }
     }
 
     // Enforce max 5 updates per non-final status
@@ -924,7 +985,7 @@ Views.Interventions = {
 
     refreshInterventions();
     Modals.close();
-    Toast.success('Intervention updated');
+    if (!isPmcCompletion) Toast.success('Intervention updated');
   },
 
   _deleteIntervention(interventionId) {
