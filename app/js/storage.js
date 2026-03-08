@@ -350,5 +350,36 @@ const Storage = {
   deleteContract(id) {
     const contracts = this.getContracts().filter(c => c.id !== id);
     this.set(CONFIG.STORAGE_KEYS.CONTRACTS, contracts);
+  },
+
+  // ── MAINTENANCE CONTRACTS ───────────────────────────────────
+  getMaintenanceContracts() {
+    return this.get(CONFIG.STORAGE_KEYS.MAINTENANCE_CONTRACTS);
+  },
+
+  getMaintenanceContractById(id) {
+    return this.getMaintenanceContracts().find(c => c.id === id) || null;
+  },
+
+  createMaintenanceContract(data) {
+    const contracts = this.getMaintenanceContracts();
+    const contract = { id: Utils.generateId(), createdAt: new Date().toISOString(), ...data };
+    contracts.push(contract);
+    this.set(CONFIG.STORAGE_KEYS.MAINTENANCE_CONTRACTS, contracts);
+    return contract;
+  },
+
+  updateMaintenanceContract(id, data) {
+    const contracts = this.getMaintenanceContracts();
+    const idx = contracts.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    contracts[idx] = { ...contracts[idx], ...data, updatedAt: new Date().toISOString() };
+    this.set(CONFIG.STORAGE_KEYS.MAINTENANCE_CONTRACTS, contracts);
+    return contracts[idx];
+  },
+
+  deleteMaintenanceContract(id) {
+    const contracts = this.getMaintenanceContracts().filter(c => c.id !== id);
+    this.set(CONFIG.STORAGE_KEYS.MAINTENANCE_CONTRACTS, contracts);
   }
 };

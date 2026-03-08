@@ -12,8 +12,9 @@ const ROUTES = {
   reports:       () => Views.Reports.mount(),
   'job-tracker':  () => Views.JobTracker.mount(),
   'deleted-jobs': () => Views.DeletedJobs.mount(),
-  'action-log':   () => Views.ActionLog.mount(),
-  settings:       () => Views.Settings.mount()
+  'action-log':              () => Views.ActionLog.mount(),
+  'maintenance-contracts':   () => Views.MaintenanceContracts.mount(),
+  settings:                  () => Views.Settings.mount()
 };
 
 const Router = {

@@ -11,8 +11,9 @@ const CONFIG = {
     CONTRACTS:     'bps_contracts',
     SESSION:       'bps_session',
     SEEDED:        'bps_seeded',
-    DELETED_JOBS:  'bps_deleted_jobs',
-    ACTION_LOG:    'bps_action_log'
+    DELETED_JOBS:           'bps_deleted_jobs',
+    ACTION_LOG:             'bps_action_log',
+    MAINTENANCE_CONTRACTS:  'bps_maintenance_contracts'
   },
 
   STATUSES: {
