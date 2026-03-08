@@ -164,10 +164,6 @@ Views.MaintenanceContracts = {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
               ${isAdmin ? `
-              <button class="btn btn-ghost btn-sm btn-icon" title="Edit Contract"
-                      onclick="Views.MaintenanceContracts.openEditModal('${contract.id}')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
               <button class="btn btn-ghost btn-sm btn-icon" title="Delete Contract" style="color:var(--red)"
                       onclick="Views.MaintenanceContracts._confirmDelete('${contract.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
@@ -565,17 +561,89 @@ Views.MaintenanceContracts = {
     const contract = Storage.getMaintenanceContractById(contractId);
     if (!contract) return;
     const clients  = Storage.getClients();
+    const machines = Storage.getMachines();
     const client   = clients.find(c => c.id === contract.clientId);
+    const machine  = machines.find(m => m.id === contract.machineId);
+    const shortId  = contractId.slice(-8).toUpperCase();
 
-    Modals.confirm(
-      `Delete maintenance contract for "${client ? client.name : 'this client'}"? This cannot be undone.`,
-      'Delete Contract?'
-    ).then(confirmed => {
-      if (!confirmed) return;
-      Storage.deleteMaintenanceContract(contractId);
-      Toast.success('Contract deleted.');
-      this.mount();
+    Modals.open('Confirm Contract Deletion', `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--radius-sm);margin-bottom:16px;font-size:0.857rem;color:#991B1B">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>This action is <strong>permanent and irreversible</strong>. The maintenance contract and all its schedule data will be permanently removed.</span>
+      </div>
+      <div style="padding:8px 12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);margin-bottom:16px;font-size:0.8rem">
+        <strong>Contract:</strong> ${Utils.escapeHtml(client ? client.name : '—')} — ${Utils.escapeHtml(machine ? machine.model : '—')}<br>
+        <strong>Contract ID:</strong> <span style="font-family:monospace">${shortId}</span>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Contract ID <span class="required">*</span></label>
+          <input type="text" id="dcContractId" class="form-input" placeholder="${shortId}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Your Email <span class="required">*</span></label>
+          <input type="email" id="dcEmail" class="form-input" placeholder="admin@example.com">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Your Password <span class="required">*</span></label>
+          <input type="password" id="dcPassword" class="form-input" placeholder="••••••••">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type <strong>delete</strong> to confirm <span class="required">*</span></label>
+          <input type="text" id="dcConfirmWord" class="form-input" placeholder="delete">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reason for Deletion <span class="required">*</span></label>
+        <textarea id="dcReason" class="form-textarea" rows="3" placeholder="Explain why this contract is being deleted…"></textarea>
+      </div>
+    `, `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-danger" onclick="Views.MaintenanceContracts._submitDelete('${contractId}','${shortId}')">Delete Contract</button>
+    `);
+  },
+
+  _submitDelete(contractId, expectedShortId) {
+    const contractIdInput = document.getElementById('dcContractId')?.value.trim().toUpperCase();
+    const email           = document.getElementById('dcEmail')?.value.trim();
+    const password        = document.getElementById('dcPassword')?.value;
+    const confirmWord     = document.getElementById('dcConfirmWord')?.value.trim().toLowerCase();
+    const reason          = document.getElementById('dcReason')?.value.trim();
+
+    if (!contractIdInput || !email || !password || !confirmWord || !reason) {
+      Toast.error('All fields are required.'); return;
+    }
+    if (contractIdInput !== expectedShortId) {
+      Toast.error('Contract ID does not match.'); return;
+    }
+    if (confirmWord !== 'delete') {
+      Toast.error('You must type "delete" exactly to confirm.'); return;
+    }
+
+    const users = Storage.getUsers();
+    const admin = users.find(u =>
+      u.email.toLowerCase() === email.toLowerCase() &&
+      u.password === password &&
+      (u.role === 'admin' || u.role === 'superadmin')
+    );
+    if (!admin) {
+      Toast.error('Admin email or password is incorrect.'); return;
+    }
+
+    Storage.logAction({
+      action:   'Delete Maintenance Contract',
+      user:     admin.name,
+      role:     admin.role,
+      targetId: contractId,
+      reason
     });
+
+    Storage.deleteMaintenanceContract(contractId);
+    Modals.close();
+    Toast.success('Maintenance contract permanently deleted.');
+    this.mount();
   },
 
   /* ── DETAIL MODAL ────────────────────────────────────────── */
@@ -713,7 +781,6 @@ Views.MaintenanceContracts = {
 
     const footer = `
       <button class="btn btn-ghost" onclick="Modals.close()">Close</button>
-      ${isAdmin ? `<button class="btn btn-primary" onclick="Modals.close();setTimeout(()=>Views.MaintenanceContracts.openEditModal('${contractId}'),80)">Edit Contract</button>` : ''}
     `;
 
     Modals.open(`Contract — ${client ? Utils.escapeHtml(client.name) : ''}`, body, footer, { size: 'lg' });
