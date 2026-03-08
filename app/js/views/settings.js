@@ -29,7 +29,11 @@ const Settings = {
     '#EF4444', // Red
     '#F59E0B', // Amber
     '#8B5CF6', // Purple
-    '#06B6D4'  // Cyan
+    '#06B6D4', // Cyan
+    '#EC4899', // Pink
+    '#F97316', // Orange
+    '#14B8A6', // Teal
+    '#6366F1'  // Indigo
   ],
 
   _fontSizes: {
