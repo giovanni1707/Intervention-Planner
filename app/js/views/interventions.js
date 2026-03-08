@@ -414,6 +414,11 @@ Views.Interventions = {
 
     const techReadOnly = isEdit && !isAdmin && !isSuperAdmin;
 
+    // PMC draft values — needed in outer template scope
+    const dPmcStart  = intervention.pmcStartDate ?? '';
+    const dPmcEnd    = intervention.pmcEndDate   ?? '';
+    const dPmcVisits = intervention.pmcVisits    ?? '2';
+
     // Machine section — register new on create, dropdowns on edit
     const machineSection = isEdit ? `
       <div class="form-row">
@@ -440,14 +445,8 @@ Views.Interventions = {
       const dMType    = d.machineType    ?? '';
       const dClient   = d.clientId       ?? '';
       const dLocation = d.machineLocation ?? '';
-      const dContract = d.contractType   ?? 'none';
-      const dExpiry   = d.contractExpiry ?? '';
-      const expiryDisplay = dContract === 'none' ? 'none' : '';
       const draftClientOptions = appState.clients.map(c =>
         `<option value="${c.id}" ${dClient === c.id ? 'selected' : ''}>${Utils.escapeHtml(c.name)}</option>`
-      ).join('');
-      const contractOptions = Object.entries(CONFIG.CONTRACT_TYPES).map(([k,v]) =>
-        `<option value="${k}" ${dContract === k ? 'selected' : ''}>${v}</option>`
       ).join('');
       return `
       <div style="background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:0.786rem;color:var(--blue)">
@@ -473,7 +472,21 @@ Views.Interventions = {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Machine Type</label>
-          <input type="text" id="fNewMachineType" class="form-input" value="${Utils.escapeHtml(dMType)}" placeholder="e.g. Tray Sealer">
+          <select id="fNewMachineType" class="form-select">
+            <option value="">— Select type —</option>
+            ${[
+              'Thermoforming',
+              'Vacuum Chamber Machines',
+              'Chamber Belt Machines',
+              'Tray Sealers',
+              'Labelling Machines',
+              'Shrink & Drying Units',
+              'Inspection Systems',
+              'Pouch Loading Systems',
+              'Slicer',
+              'Flowpack'
+            ].map(t => `<option value="${t}" ${dMType === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">Client <span class="required">*</span></label>
@@ -482,22 +495,6 @@ Views.Interventions = {
             ${draftClientOptions}
           </select>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Contract Type</label>
-          <select id="fNewMachineContract" class="form-select" onchange="Views.Interventions._toggleNewMachineExpiry(this.value)">
-            ${contractOptions}
-          </select>
-        </div>
-        <div class="form-group"></div>
-      </div>
-      <div class="form-row" id="fNewMachineExpiryGroup" style="display:${expiryDisplay}">
-        <div class="form-group">
-          <label class="form-label">Contract Expiry Date</label>
-          <input type="date" id="fNewMachineExpiry" class="form-input" value="${Utils.escapeHtml(dExpiry)}">
-        </div>
-        <div class="form-group"></div>
       </div>
       <hr style="border:none;border-top:1px solid var(--gray-200);margin:8px 0 12px">
     `;})();
@@ -512,13 +509,42 @@ Views.Interventions = {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Type${!techReadOnly ? ' <span class="required">*</span>' : ''}</label>
-          <select id="fIntType" class="form-select" ${techReadOnly ? 'disabled' : ''}>${typeOptions}</select>
+          <select id="fIntType" class="form-select" ${techReadOnly ? 'disabled' : ''}
+            ${!isEdit ? `onchange="Views.Interventions._onTypeChange(this.value)"` : ''}>${typeOptions}</select>
         </div>
         <div class="form-group">
           <label class="form-label">Priority${!techReadOnly ? ' <span class="required">*</span>' : ''}</label>
           <select id="fIntPriority" class="form-select" ${techReadOnly ? 'disabled' : ''}>${priorityOptions}</select>
         </div>
       </div>
+      ${!isEdit ? `
+      <div id="fPmcFields" style="display:${(intervention.type || 'breakdown') === 'pmc' ? '' : 'none'}">
+        <div style="padding:10px 14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.786rem;color:#1E40AF">
+          <strong>Maintenance Contract</strong> — A contract will be automatically created and linked to this machine.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Contract Start Date <span class="required">*</span></label>
+            <input type="date" id="fPmcStart" class="form-input" value="${dPmcStart}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contract End Date <span class="required">*</span></label>
+            <input type="date" id="fPmcEnd" class="form-input" value="${dPmcEnd}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Maintenances per Year <span class="required">*</span></label>
+            <select id="fPmcVisits" class="form-select">
+              <option value="1" ${dPmcVisits === '1' ? 'selected' : ''}>1 per year</option>
+              <option value="2" ${dPmcVisits === '2' ? 'selected' : ''}>2 per year</option>
+              <option value="3" ${dPmcVisits === '3' ? 'selected' : ''}>3 per year</option>
+              <option value="4" ${dPmcVisits === '4' ? 'selected' : ''}>4 per year</option>
+            </select>
+          </div>
+          <div class="form-group"></div>
+        </div>
+      </div>` : ''}
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Intervention Location</label>
@@ -572,14 +598,9 @@ Views.Interventions = {
     `;
   },
 
-  _toggleNewMachineExpiry(contractType) {
-    const group = document.getElementById('fNewMachineExpiryGroup');
-    if (!group) return;
-    group.style.display = contractType === 'none' ? 'none' : '';
-    if (contractType === 'none') {
-      const input = document.getElementById('fNewMachineExpiry');
-      if (input) input.value = '';
-    }
+  _onTypeChange(type) {
+    const pmcFields = document.getElementById('fPmcFields');
+    if (pmcFields) pmcFields.style.display = type === 'pmc' ? '' : 'none';
   },
 
   _bindClientMachineDropdown() {
@@ -634,15 +655,16 @@ Views.Interventions = {
       machineType:     get('fNewMachineType'),
       clientId:        get('fNewMachineClient'),
       machineLocation: get('fNewMachineLocation'),
-      contractType:    get('fNewMachineContract'),
-      contractExpiry:  get('fNewMachineExpiry'),
       type:            get('fIntType'),
       priority:        get('fIntPriority'),
       location:        get('fIntLocation'),
       description:     get('fIntDesc'),
+      pmcStartDate:    get('fPmcStart'),
+      pmcEndDate:      get('fPmcEnd'),
+      pmcVisits:       get('fPmcVisits'),
     };
     // Discard if every meaningful field is empty / default
-    const meaningful = ['model','serial','machineType','machineLocation','contractExpiry','description'];
+    const meaningful = ['model','serial','machineType','machineLocation','description','pmcStartDate','pmcEndDate'];
     const hasData = meaningful.some(k => this._createDraft[k]);
     const nonDefaultClient = this._createDraft.clientId;
     const nonDefaultName   = this._createDraft.machineName && this._createDraft.machineName !== 'MULTIVAC';
@@ -654,9 +676,9 @@ Views.Interventions = {
     // Re-render the modal body with a blank form
     const bodyEl = document.getElementById('modalBody');
     if (bodyEl) bodyEl.innerHTML = this._interventionFormHTML({});
-    // Re-apply expiry toggle state
-    const contract = document.getElementById('fNewMachineContract');
-    if (contract) this._toggleNewMachineExpiry(contract.value);
+    // Re-apply PMC fields visibility
+    const typeEl = document.getElementById('fIntType');
+    if (typeEl) this._onTypeChange(typeEl.value);
   },
 
   _submitCreate() {
@@ -677,15 +699,41 @@ Views.Interventions = {
     if (!clientId)    { Toast.error('Please select a client for the machine'); return; }
     if (!description) { Toast.error('Description is required'); return; }
 
+    // If type is PMC, validate and collect contract fields
+    if (type === 'pmc') {
+      const pmcStart = document.getElementById('fPmcStart')?.value;
+      const pmcEnd   = document.getElementById('fPmcEnd')?.value;
+      if (!pmcStart) { Toast.error('Contract Start Date is required for PMC'); return; }
+      if (!pmcEnd)   { Toast.error('Contract End Date is required for PMC'); return; }
+      if (new Date(pmcEnd) <= new Date(pmcStart)) { Toast.error('Contract End Date must be after Start Date'); return; }
+    }
+
     const newMachine = Storage.createMachine({
       name: machineName, model, serialNumber: serial, clientId,
-      type:           document.getElementById('fNewMachineType')?.value.trim() || '',
-      location:       document.getElementById('fNewMachineLocation')?.value.trim() || '',
-      contractType:   document.getElementById('fNewMachineContract')?.value || 'none',
-      contractExpiry: document.getElementById('fNewMachineExpiry')?.value || null
+      type: document.getElementById('fNewMachineType')?.value || '',
+      location: document.getElementById('fNewMachineLocation')?.value.trim() || '',
     });
     const machineId = newMachine.id;
     refreshMachines();
+
+    // Auto-create maintenance contract for PMC type
+    if (type === 'pmc') {
+      const pmcStart  = document.getElementById('fPmcStart')?.value;
+      const pmcEnd    = document.getElementById('fPmcEnd')?.value;
+      const pmcVisits = parseInt(document.getElementById('fPmcVisits')?.value, 10) || 2;
+      const schedule  = Views.MaintenanceContracts._generateSchedule(pmcStart, pmcEnd, pmcVisits);
+      Storage.createMaintenanceContract({
+        clientId, machineId,
+        serialNumber: serial,
+        startDate:    pmcStart,
+        endDate:      pmcEnd,
+        visitsPerYear: pmcVisits,
+        schedule,
+        completedVisits: [],
+        notes: '',
+        createdBy: user?.name || 'Admin'
+      });
+    }
 
     Storage.createIntervention({
       clientId, machineId, type,

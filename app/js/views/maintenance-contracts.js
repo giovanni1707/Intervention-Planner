@@ -184,13 +184,7 @@ Views.MaintenanceContracts = {
           <h1 class="page-title">Maintenance Contracts</h1>
           <p class="page-subtitle">Manage and track yearly equipment maintenance agreements</p>
         </div>
-        ${isAdmin ? `
-        <div>
-          <button class="btn btn-primary" id="addContractBtn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Contract
-          </button>
-        </div>` : ''}
+        <div></div>
       </div>
 
       <!-- KPI Cards -->
@@ -245,10 +239,7 @@ Views.MaintenanceContracts = {
   },
 
   /* ── BIND EVENTS ─────────────────────────────────────────── */
-  _bindEvents() {
-    const addBtn = document.getElementById('addContractBtn');
-    if (addBtn) addBtn.addEventListener('click', () => this.openCreateModal());
-  },
+  _bindEvents() {},
 
   /* ── NOTIFICATIONS ───────────────────────────────────────── */
   _checkNotifications() {

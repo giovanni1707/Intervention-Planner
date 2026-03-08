@@ -35,10 +35,11 @@ const CONFIG = {
   },
 
   INTERVENTION_TYPES: {
-    breakdown:  'Breakdown Repair',
-    preventive: 'Preventive Maintenance',
+    breakdown:    'Breakdown Repair',
+    preventive:   'Preventive Maintenance',
+    pmc:          'PMC – Preventive Maintenance Contract',
     installation: 'Installation & Commissioning',
-    support:    'Technical Support'
+    support:      'Technical Support'
   },
 
   CONTRACT_TYPES: {
