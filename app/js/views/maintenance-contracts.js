@@ -696,18 +696,6 @@ Views.MaintenanceContracts = {
                 View Intervention
               </a>` : ''}
           </td>
-          <td>
-            ${isAdmin && !isCompleted ? `
-              <button class="btn btn-ghost btn-sm" style="color:#059669;font-size:0.8rem"
-                      onclick="Views.MaintenanceContracts._markVisitDone('${contractId}', '${date}')">
-                Mark Done
-              </button>` : ''}
-            ${isAdmin && isCompleted ? `
-              <button class="btn btn-ghost btn-sm" style="color:var(--gray-500);font-size:0.8rem"
-                      onclick="Views.MaintenanceContracts._unmarkVisit('${contractId}', '${date}')">
-                Undo
-              </button>` : ''}
-          </td>
         </tr>
       `;
     }).join('');
@@ -834,10 +822,9 @@ Views.MaintenanceContracts = {
                 <th>Scheduled Date</th>
                 <th>Status</th>
                 <th>Intervention</th>
-                <th>${isAdmin ? 'Action' : ''}</th>
               </tr>
             </thead>
-            <tbody>${scheduleRows || `<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">No schedule generated</td></tr>`}</tbody>
+            <tbody>${scheduleRows || `<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No schedule generated</td></tr>`}</tbody>
           </table>
         </div>
       </div>
