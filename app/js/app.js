@@ -56,6 +56,11 @@ function showApp() {
   // Start scheduling alerts monitor
   Scheduler.start();
 
+  // Auto-schedule PMC interventions for upcoming maintenance visits
+  if (Auth.isAdmin()) {
+    setTimeout(() => Views.MaintenanceContracts._checkNotifications(), 800);
+  }
+
   // Start router (triggers first view render)
   Router.init();
 }

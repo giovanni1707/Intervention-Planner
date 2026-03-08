@@ -271,20 +271,58 @@ Views.MaintenanceContracts = {
         sessionStorage.setItem(notifKey, JSON.stringify(notified));
       }
 
-      // Upcoming maintenance notifications (7 & 1 day before)
+      // Upcoming maintenance notifications (7 & 1 day before) + auto-create intervention
       const nextV = this._nextVisit(contract);
       if (nextV) {
         const visitDiff = Math.ceil((new Date(nextV) - today) / 86400000);
-        if (visitDiff === 1 && !notified.visit1) {
-          Toast.warning(`Maintenance due tomorrow: ${label}`);
-          notified.visit1 = true;
-          sessionStorage.setItem(notifKey, JSON.stringify(notified));
-        } else if (visitDiff <= 7 && visitDiff > 1 && !notified.visit7) {
-          Toast.warning(`Maintenance due in ${visitDiff} days: ${label}`);
-          notified.visit7 = true;
-          sessionStorage.setItem(notifKey, JSON.stringify(notified));
+        if (visitDiff >= 0 && visitDiff <= 7) {
+          // Auto-create PMC intervention if one doesn't already exist for this machine+date
+          this._ensurePmcIntervention(contract, nextV, client, machine);
+
+          if (visitDiff === 1 && !notified.visit1) {
+            Toast.warning(`Maintenance due tomorrow: ${label}`);
+            notified.visit1 = true;
+            sessionStorage.setItem(notifKey, JSON.stringify(notified));
+          } else if (visitDiff > 1 && visitDiff <= 7 && !notified.visit7) {
+            Toast.warning(`Maintenance due in ${visitDiff} days: ${label}`);
+            notified.visit7 = true;
+            sessionStorage.setItem(notifKey, JSON.stringify(notified));
+          } else if (visitDiff === 0 && !notified.visit0) {
+            Toast.warning(`Maintenance due today: ${label}`);
+            notified.visit0 = true;
+            sessionStorage.setItem(notifKey, JSON.stringify(notified));
+          }
         }
       }
+    });
+  },
+
+  // Auto-creates a PMC intervention for an upcoming maintenance visit if none exists yet
+  _ensurePmcIntervention(contract, scheduledDate, client, machine) {
+    const interventions = Storage.getInterventions();
+    // Check if a PMC intervention already exists for this machine on this date
+    const alreadyExists = interventions.some(i =>
+      i.type === 'pmc' &&
+      i.machineId === contract.machineId &&
+      i.scheduledDate === scheduledDate &&
+      !['cancelled'].includes(i.status)
+    );
+    if (alreadyExists) return;
+
+    Storage.createIntervention({
+      clientId:     contract.clientId,
+      machineId:    contract.machineId,
+      type:         'pmc',
+      priority:     'medium',
+      status:       'new',
+      scheduledDate,
+      description:  `Scheduled PMC visit — ${contract.visitsPerYear}×/yr contract` +
+                    (machine ? ` for ${machine.model}` : '') +
+                    (client  ? ` (${client.name})`    : ''),
+      technicianId: null,
+      location:     'client',
+      maintenanceContractId: contract.id,
+      createdBy:    'System (Auto-scheduled)'
     });
   },
 
@@ -555,12 +593,20 @@ Views.MaintenanceContracts = {
     const progPct  = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
     const progColor = progPct >= 80 ? '#10B981' : progPct >= 40 ? '#F59E0B' : '#3B82F6';
 
-    // Schedule table
+    // Schedule table — look up linked interventions
+    const allInterventions = Storage.getInterventions();
     const scheduleRows = (contract.schedule || []).map((date, idx) => {
       const isCompleted = (contract.completedVisits || []).includes(date);
       const isPast      = new Date(date) < new Date();
       const isOverdue   = isPast && !isCompleted;
       const rowBg       = isCompleted ? '#F0FDF4' : isOverdue ? '#FEF2F2' : '';
+      // Find linked PMC intervention for this machine+date
+      const linkedIntervention = allInterventions.find(i =>
+        i.type === 'pmc' &&
+        i.machineId === contract.machineId &&
+        i.scheduledDate === date &&
+        !['cancelled'].includes(i.status)
+      );
       return `
         <tr style="background:${rowBg}">
           <td style="font-weight:500">Visit ${idx + 1}</td>
@@ -572,6 +618,13 @@ Views.MaintenanceContracts = {
               ? `<span style="color:var(--red);font-size:0.857rem">Overdue</span>`
               : `<span style="color:var(--gray-500);font-size:0.857rem">Scheduled</span>`
             }
+          </td>
+          <td>
+            ${linkedIntervention ? `
+              <a href="javascript:void(0)" style="color:var(--blue);font-size:0.8rem;text-decoration:underline"
+                 onclick="Modals.close();setTimeout(()=>Views.Interventions.openDetailModal('${linkedIntervention.id}'),80)">
+                View Intervention
+              </a>` : ''}
           </td>
           <td>
             ${isAdmin && !isCompleted ? `
@@ -649,10 +702,11 @@ Views.MaintenanceContracts = {
               <th>Visit</th>
               <th>Scheduled Date</th>
               <th>Status</th>
+              <th>Intervention</th>
               <th>Action</th>
             </tr>
           </thead>
-          <tbody>${scheduleRows || `<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No schedule generated</td></tr>`}</tbody>
+          <tbody>${scheduleRows || `<tr><td colspan="5" style="text-align:center;color:var(--gray-400)">No schedule generated</td></tr>`}</tbody>
         </table>
       </div>
     `;

@@ -717,12 +717,14 @@ Views.Interventions = {
     refreshMachines();
 
     // Auto-create maintenance contract for PMC type
+    let pmcContractId = null;
+    let pmcStartDate  = null;
     if (type === 'pmc') {
       const pmcStart  = document.getElementById('fPmcStart')?.value;
       const pmcEnd    = document.getElementById('fPmcEnd')?.value;
       const pmcVisits = parseInt(document.getElementById('fPmcVisits')?.value, 10) || 2;
       const schedule  = Views.MaintenanceContracts._generateSchedule(pmcStart, pmcEnd, pmcVisits);
-      Storage.createMaintenanceContract({
+      const contract  = Storage.createMaintenanceContract({
         clientId, machineId,
         serialNumber: serial,
         startDate:    pmcStart,
@@ -733,6 +735,8 @@ Views.Interventions = {
         notes: '',
         createdBy: user?.name || 'Admin'
       });
+      pmcContractId = contract.id;
+      pmcStartDate  = pmcStart;
     }
 
     Storage.createIntervention({
@@ -741,9 +745,10 @@ Views.Interventions = {
       status:       'new',
       technicianId: null,
       location:     document.getElementById('fIntLocation')?.value || 'client',
-      scheduledDate: null,
+      scheduledDate: pmcStartDate ? new Date(`${pmcStartDate}T08:00`).toISOString() : null,
       description,
-      createdBy:    user?.name || 'Admin'
+      createdBy:    user?.name || 'Admin',
+      ...(pmcContractId ? { maintenanceContractId: pmcContractId } : {})
     });
 
     refreshInterventions();
@@ -1202,6 +1207,7 @@ Views.Interventions = {
           <div class="detail-field"><div class="detail-field-label">Created</div><div class="detail-field-value">${Utils.formatDateTime(i.createdAt)}</div></div>
           <div class="detail-field"><div class="detail-field-label">Created By</div><div class="detail-field-value">${i.createdBy ? `${Utils.escapeHtml(i.createdBy)}${creatorRole ? `<span class="creator-role-tag">${Utils.escapeHtml(creatorRole)}</span>` : ''}` : '<span style="color:var(--gray-400)">—</span>'}</div></div>
           <div class="detail-field"><div class="detail-field-label">Status Last Updated</div><div class="detail-field-value">${i.statusUpdatedAt ? Utils.formatDateTime(i.statusUpdatedAt) : '—'}</div></div>
+          ${i.maintenanceContractId ? `<div class="detail-field detail-field-full"><div class="detail-field-label">PMC Contract</div><div class="detail-field-value"><a href="javascript:void(0)" style="color:var(--blue);text-decoration:underline;font-size:0.857rem" onclick="Modals.close();setTimeout(()=>{Router.go('maintenance-contracts');setTimeout(()=>Views.MaintenanceContracts.openDetailModal('${i.maintenanceContractId}'),300)},80)">View Maintenance Contract</a></div></div>` : ''}
         </div>
         ${i.description ? `
         <div class="detail-field detail-field-full" style="margin-top:10px">
