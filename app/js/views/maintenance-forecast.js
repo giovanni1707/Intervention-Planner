@@ -6,6 +6,8 @@ window.Views = window.Views || {};
 
 Views.MaintenanceForecast = {
 
+  _selectedYear: null, // null = All years
+
   /* ── HELPERS ─────────────────────────────────────────────── */
 
   _buildForecastData() {
@@ -22,12 +24,12 @@ Views.MaintenanceForecast = {
     // Build 18 month buckets starting from current month
     const buckets = [];
     for (let i = 0; i < 18; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const d   = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const yr  = d.getFullYear();
       const mo  = String(d.getMonth() + 1).padStart(2, '0');
       const key = `${yr}-${mo}`;
       const label = d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-      buckets.push({ key, label, visits: [], count: 0 });
+      buckets.push({ key, label, year: yr, visits: [], count: 0 });
     }
 
     const bucketMap = Object.fromEntries(buckets.map(b => [b.key, b]));
@@ -38,15 +40,15 @@ Views.MaintenanceForecast = {
       const completed = contract.completedVisits || [];
       (contract.schedule || []).forEach(date => {
         if (completed.includes(date)) return;
-        const key = date.substring(0, 7); // "YYYY-MM"
+        const key = date.substring(0, 7);
         if (key < firstKey || key > lastKey) return;
         const bucket = bucketMap[key];
         if (!bucket) return;
         bucket.visits.push({
-          contractId:   contract.id,
-          clientName:   clientMap[contract.clientId]?.name   || '—',
-          machineName:  machineMap[contract.machineId]?.model || '—',
-          serialNumber: contract.serialNumber || machineMap[contract.machineId]?.serialNumber || '—',
+          contractId:    contract.id,
+          clientName:    clientMap[contract.clientId]?.name    || '—',
+          machineName:   machineMap[contract.machineId]?.model || '—',
+          serialNumber:  contract.serialNumber || machineMap[contract.machineId]?.serialNumber || '—',
           scheduledDate: date,
           visitsPerYear: contract.visitsPerYear
         });
@@ -64,7 +66,7 @@ Views.MaintenanceForecast = {
     return 'high';
   },
 
-  _workloadBadge(level, count) {
+  _workloadBadge(level) {
     if (level === 'none') return '<span style="color:var(--gray-400)">—</span>';
     const styles = {
       low:    'background:#D1FAE5;color:#065F46',
@@ -77,44 +79,88 @@ Views.MaintenanceForecast = {
 
   /* ── MOUNT ───────────────────────────────────────────────── */
   mount() {
-    const months  = this._buildForecastData();
-    const content = document.getElementById('mainContent');
-    content.innerHTML = this._template(months);
-    this._bindEvents();
+    // Reset year filter on fresh mount
+    this._selectedYear = null;
+    const allMonths = this._buildForecastData();
+    const content   = document.getElementById('mainContent');
+    content.innerHTML = this._template(allMonths);
+    this._bindEvents(allMonths);
   },
 
-  /* ── TEMPLATE ────────────────────────────────────────────── */
-  _template(months) {
-    const contracts   = Storage.getMaintenanceContracts();
-    const today       = new Date();
+  /* ── YEAR FILTER ─────────────────────────────────────────── */
+  _setYear(year, allMonths) {
+    this._selectedYear = year;
+    const filtered = year === null ? allMonths : allMonths.filter(m => m.year === year);
+    this._updateView(filtered, allMonths);
+  },
+
+  _updateView(filtered, allMonths) {
+    const contracts = Storage.getMaintenanceContracts();
+    const today     = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const totalPending  = months.reduce((s, m) => s + m.count, 0);
-    const monthsWithWork = months.filter(m => m.count > 0).length;
-    const maxCount      = Math.max(1, ...months.map(m => m.count));
-    const busiest       = months.reduce((a, b) => b.count > a.count ? b : a, months[0]);
+    // Update year filter buttons
+    const years = [...new Set(allMonths.map(m => m.year))];
+    document.querySelectorAll('[data-year-btn]').forEach(btn => {
+      const y = btn.dataset.yearBtn === 'all' ? null : parseInt(btn.dataset.yearBtn);
+      const active = y === this._selectedYear;
+      btn.style.background     = active ? 'var(--blue)'  : 'var(--gray-100)';
+      btn.style.color          = active ? '#fff'          : 'var(--gray-700)';
+      btn.style.borderColor    = active ? 'var(--blue)'  : 'var(--gray-300)';
+    });
+
+    // Update KPIs
+    const totalPending    = filtered.reduce((s, m) => s + m.count, 0);
+    const monthsWithWork  = filtered.filter(m => m.count > 0).length;
+    const busiest         = filtered.length ? filtered.reduce((a, b) => b.count > a.count ? b : a, filtered[0]) : null;
     const activeContracts = contracts.filter(c => new Date(c.endDate) >= today).length;
 
-    /* ── Table rows ── */
-    const rows = months.map(month => {
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerHTML = val; };
+    set('fcKpiPending',  totalPending);
+    set('fcKpiMonths',   monthsWithWork);
+    set('fcKpiBusiest',  busiest && busiest.count > 0
+      ? `${busiest.label} <span style="font-size:0.9rem;color:var(--gray-500)">(${busiest.count})</span>`
+      : '—');
+    set('fcKpiContracts', activeContracts);
+
+    // Update card subtitle
+    const sub = document.getElementById('fcCardSub');
+    if (sub) sub.textContent = `${totalPending} visit${totalPending !== 1 ? 's' : ''} across ${monthsWithWork} month${monthsWithWork !== 1 ? 's' : ''}`;
+
+    // Re-render table body
+    const tbody = document.querySelector('#forecastTable tbody');
+    if (tbody) tbody.innerHTML = this._buildRows(filtered);
+
+    // Re-bind accordion on new rows
+    this._bindAccordion();
+  },
+
+  /* ── BUILD TABLE ROWS ────────────────────────────────────── */
+  _buildRows(months) {
+    if (!months.length) return `<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--gray-400)">No data for selected year</td></tr>`;
+
+    const today    = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    const maxCount = Math.max(1, ...months.map(m => m.count));
+
+    return months.map(month => {
       const level    = this._workloadLevel(month.count);
       const barColor = level === 'high' ? '#EF4444' : level === 'medium' ? '#F59E0B' : '#10B981';
       const barWidth = month.count > 0 ? Math.round((month.count / maxCount) * 100) : 0;
       const rowBg    = level === 'high' ? 'background:#FEF2F2' : level === 'medium' ? 'background:#FFFBEB' : level === 'low' ? 'background:#F0FDF4' : '';
 
-      // Detail rows (client/machine breakdown)
       const detailRows = month.visits.length === 0
         ? `<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:10px;font-size:0.8rem">No visits scheduled</td></tr>`
         : month.visits.map(v => {
-            const isPast = v.scheduledDate < today.toISOString().split('T')[0];
-            return `
-              <tr>
-                <td style="font-size:0.8rem;padding:6px 12px">${Utils.escapeHtml(v.clientName)}</td>
-                <td style="font-size:0.8rem;padding:6px 12px">${Utils.escapeHtml(v.machineName)}</td>
-                <td style="font-size:0.8rem;padding:6px 12px;font-family:monospace">${Utils.escapeHtml(v.serialNumber)}</td>
-                <td style="font-size:0.8rem;padding:6px 12px;${isPast ? 'color:var(--red)' : ''}">${Utils.formatDate(v.scheduledDate)}</td>
-                <td style="font-size:0.8rem;padding:6px 12px;text-align:center">${v.visitsPerYear}×/yr</td>
-              </tr>`;
+            const isPast = v.scheduledDate < todayStr;
+            return `<tr>
+              <td style="font-size:0.8rem;padding:6px 12px">${Utils.escapeHtml(v.clientName)}</td>
+              <td style="font-size:0.8rem;padding:6px 12px">${Utils.escapeHtml(v.machineName)}</td>
+              <td style="font-size:0.8rem;padding:6px 12px;font-family:monospace">${Utils.escapeHtml(v.serialNumber)}</td>
+              <td style="font-size:0.8rem;padding:6px 12px;${isPast ? 'color:var(--red)' : ''}">${Utils.formatDate(v.scheduledDate)}</td>
+              <td style="font-size:0.8rem;padding:6px 12px;text-align:center">${v.visitsPerYear}×/yr</td>
+            </tr>`;
           }).join('');
 
       const toggleBtn = month.count > 0
@@ -135,7 +181,7 @@ Views.MaintenanceForecast = {
               </div>
             </div>
           </td>
-          <td>${this._workloadBadge(level, month.count)}</td>
+          <td>${this._workloadBadge(level)}</td>
           <td>${toggleBtn}</td>
         </tr>
         <tr class="forecast-detail-row" data-detail-key="${month.key}" style="display:none">
@@ -155,9 +201,35 @@ Views.MaintenanceForecast = {
               </table>
             </div>
           </td>
-        </tr>
-      `;
+        </tr>`;
     }).join('');
+  },
+
+  /* ── TEMPLATE ────────────────────────────────────────────── */
+  _template(allMonths) {
+    const contracts = Storage.getMaintenanceContracts();
+    const today     = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const totalPending    = allMonths.reduce((s, m) => s + m.count, 0);
+    const monthsWithWork  = allMonths.filter(m => m.count > 0).length;
+    const busiest         = allMonths.reduce((a, b) => b.count > a.count ? b : a, allMonths[0]);
+    const activeContracts = contracts.filter(c => new Date(c.endDate) >= today).length;
+
+    // Derive distinct years from the 18-month window
+    const years = [...new Set(allMonths.map(m => m.year))].sort();
+    const yearBtnStyle = (y) => {
+      const active = y === null ? this._selectedYear === null : this._selectedYear === y;
+      return `padding:5px 14px;border-radius:6px;border:1px solid;cursor:pointer;font-size:0.8rem;font-weight:600;transition:background 0.15s;
+        background:${active ? 'var(--blue)' : 'var(--gray-100)'};
+        color:${active ? '#fff' : 'var(--gray-700)'};
+        border-color:${active ? 'var(--blue)' : 'var(--gray-300)'}`;
+    };
+
+    const yearButtons = [
+      `<button data-year-btn="all" style="${yearBtnStyle(null)}">All</button>`,
+      ...years.map(y => `<button data-year-btn="${y}" style="${yearBtnStyle(y)}">${y}</button>`)
+    ].join('');
 
     return `
       <div class="page-header">
@@ -171,35 +243,41 @@ Views.MaintenanceForecast = {
       <div class="grid-4" style="margin-bottom:20px">
         <div class="kpi-card">
           <div class="kpi-label">Pending Visits</div>
-          <div class="kpi-value">${totalPending}</div>
+          <div class="kpi-value" id="fcKpiPending">${totalPending}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Months with Work</div>
-          <div class="kpi-value">${monthsWithWork}</div>
+          <div class="kpi-value" id="fcKpiMonths">${monthsWithWork}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Busiest Month</div>
-          <div class="kpi-value" style="font-size:1.1rem">${busiest.count > 0 ? `${busiest.label} <span style="font-size:0.9rem;color:var(--gray-500)">(${busiest.count})</span>` : '—'}</div>
+          <div class="kpi-value" id="fcKpiBusiest" style="font-size:1.1rem">${busiest.count > 0 ? `${busiest.label} <span style="font-size:0.9rem;color:var(--gray-500)">(${busiest.count})</span>` : '—'}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Active Contracts</div>
-          <div class="kpi-value" style="color:var(--green-dark,#059669)">${activeContracts}</div>
+          <div class="kpi-value" id="fcKpiContracts" style="color:var(--green-dark,#059669)">${activeContracts}</div>
         </div>
       </div>
 
-      <!-- Legend -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:0.786rem">
-        <span style="color:var(--gray-500);font-weight:600">Workload:</span>
-        <span style="padding:2px 10px;border-radius:12px;background:#D1FAE5;color:#065F46;font-weight:600">Low (1–2)</span>
-        <span style="padding:2px 10px;border-radius:12px;background:#FEF3C7;color:#92400E;font-weight:600">Medium (3–5)</span>
-        <span style="padding:2px 10px;border-radius:12px;background:#FEE2E2;color:#991B1B;font-weight:600">High (6+)</span>
+      <!-- Filter + Legend row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:0.8rem;font-weight:600;color:var(--gray-500);margin-right:4px">Year:</span>
+          ${yearButtons}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.786rem">
+          <span style="color:var(--gray-500);font-weight:600">Workload:</span>
+          <span style="padding:2px 10px;border-radius:12px;background:#D1FAE5;color:#065F46;font-weight:600">Low (1–2)</span>
+          <span style="padding:2px 10px;border-radius:12px;background:#FEF3C7;color:#92400E;font-weight:600">Medium (3–5)</span>
+          <span style="padding:2px 10px;border-radius:12px;background:#FEE2E2;color:#991B1B;font-weight:600">High (6+)</span>
+        </div>
       </div>
 
       <!-- Forecast Table -->
       <div class="card">
         <div class="card-header">
           <span class="card-title">18-Month Forecast</span>
-          <span class="text-sm text-muted">${totalPending} visits across ${monthsWithWork} month${monthsWithWork !== 1 ? 's' : ''}</span>
+          <span class="text-sm text-muted" id="fcCardSub">${totalPending} visit${totalPending !== 1 ? 's' : ''} across ${monthsWithWork} month${monthsWithWork !== 1 ? 's' : ''}</span>
         </div>
         <div class="card-body" style="padding:0">
           <div class="table-wrapper">
@@ -212,7 +290,7 @@ Views.MaintenanceForecast = {
                   <th>Details</th>
                 </tr>
               </thead>
-              <tbody>${rows}</tbody>
+              <tbody>${this._buildRows(allMonths)}</tbody>
             </table>
           </div>
         </div>
@@ -221,10 +299,25 @@ Views.MaintenanceForecast = {
   },
 
   /* ── BIND EVENTS ─────────────────────────────────────────── */
-  _bindEvents() {
+  _bindEvents(allMonths) {
+    // Year filter buttons
+    document.querySelectorAll('[data-year-btn]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.yearBtn;
+        this._setYear(val === 'all' ? null : parseInt(val), allMonths);
+      });
+    });
+
+    this._bindAccordion();
+  },
+
+  _bindAccordion() {
     const tbody = document.querySelector('#forecastTable tbody');
     if (!tbody) return;
-    tbody.addEventListener('click', e => {
+    // Remove old listener by replacing the node
+    const fresh = tbody.cloneNode(true);
+    tbody.parentNode.replaceChild(fresh, tbody);
+    fresh.addEventListener('click', e => {
       const btn = e.target.closest('[data-toggle-month]');
       if (!btn) return;
       const key       = btn.dataset.toggleMonth;
