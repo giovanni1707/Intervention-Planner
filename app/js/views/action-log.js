@@ -48,7 +48,9 @@ Views.ActionLog = {
             </span>
           </td>
           <td style="font-weight:500">${Utils.escapeHtml(r.target || '—')}</td>
-          <td style="font-size:0.857rem;color:var(--gray-600);max-width:300px;white-space:normal">${Utils.escapeHtml(r.details || '—')}</td>
+          <td style="font-size:0.857rem;color:var(--gray-600);max-width:320px;white-space:normal">
+            ${(r.details || '—').split(' | ').map(line => `<div>${Utils.escapeHtml(line)}</div>`).join('')}
+          </td>
         </tr>
       `;
     }).join('');

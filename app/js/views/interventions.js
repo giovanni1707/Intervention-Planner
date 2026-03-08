@@ -388,19 +388,18 @@ Views.Interventions = {
     ).join('');
 
     // Role-based status access:
-    // Super Admin: full access to all statuses
-    // Admin: can only set Assigned, Tentative, Cancelled
+    // Admin & Head Administrator: can only set Assigned, Tentative, Cancelled
     // Technician: can set all statuses except 'new', 'assigned', 'tentative', 'cancelled'
     const isCurrentlyNew = !intervention.status || intervention.status === 'new';
     const isSuperAdmin = appState.currentUser?.role === 'superadmin';
-    const isAdmin = appState.currentUser?.role === 'admin';
+    const isAdmin = appState.currentUser?.role === 'admin' || isSuperAdmin;
     const ADMIN_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled'];
     const statusOptions = Object.entries(CONFIG.STATUSES)
       .filter(([k]) => {
         if (k === 'new') return false;
-        if (!isSuperAdmin && isAdmin && !ADMIN_STATUSES.includes(k)) return false;
-        if (!isSuperAdmin && !isAdmin && TECH_RESTRICTED_STATUSES.includes(k)) return false;
+        if (isAdmin && !ADMIN_STATUSES.includes(k)) return false;
+        if (!isAdmin && TECH_RESTRICTED_STATUSES.includes(k)) return false;
         return true;
       })
       .map(([k, v]) =>
@@ -787,18 +786,18 @@ Views.Interventions = {
 
     const newStatus = document.getElementById('fIntStatus')?.value || original.status;
 
-    // Role-based status guard (Super Admin has full access)
+    // Role-based status guard
+    // Admin & Head Administrator: Assigned, Tentative, Cancelled only
+    // Technician: cannot set Assigned, Tentative, or Cancelled
     const ADMIN_ALLOWED_STATUSES = ['tentative', 'assigned', 'cancelled'];
-    if (!userIsSuperAdmin) {
-      if (currentUser?.role === 'admin' && !ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
-        Toast.error('Admins can only set status to Assigned, Tentative, or Cancelled.');
-        return;
-      }
-      // Technicians cannot set assigned, tentative, or cancelled
-      if (currentUser?.role === 'technician' && ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
-        Toast.error('You do not have permission to set this status.');
-        return;
-      }
+    const currentIsAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+    if (currentIsAdmin && !ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
+      Toast.error('Admins can only set status to Assigned, Tentative, or Cancelled.');
+      return;
+    }
+    if (!currentIsAdmin && ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
+      Toast.error('You do not have permission to set this status.');
+      return;
     }
 
     // Enforce max 5 updates per non-final status

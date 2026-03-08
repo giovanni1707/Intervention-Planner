@@ -59,12 +59,13 @@ Views.Clients = {
           <h1 class="page-title">Clients</h1>
           <p class="page-subtitle">${appState.clients.length} client${appState.clients.length !== 1 ? 's' : ''} registered</p>
         </div>
+        ${Auth.isAdmin() ? `
         <div class="page-actions">
           <button class="btn btn-primary" onclick="Views.Clients._openCreateModal()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Client
           </button>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="toolbar">
@@ -166,12 +167,13 @@ Views.Clients = {
               <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick="Views.Clients.openDetailModal('${c.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
+              ${Auth.isAdmin() ? `
               <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Clients._openEditModal('${c.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </button>
               <button class="btn btn-ghost btn-sm btn-icon" title="Delete" style="color:var(--red)" onclick="Views.Clients._deleteClient('${c.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-              </button>
+              </button>` : ''}
             </div>
           </td>
         </tr>

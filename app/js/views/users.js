@@ -254,13 +254,25 @@ Views.Users = {
     }
 
     const u = Storage.getUserById(userId);
+
+    // Build per-field change log
+    const changes = [];
+    if (u.name !== name)
+      changes.push(`Name: "${u.name}" → "${name}"`);
+    if (u.email !== email)
+      changes.push(`Email: "${u.email}" → "${email}"`);
+    if (u.role !== role)
+      changes.push(`Role: "${CONFIG.ROLES[u.role] || u.role}" → "${CONFIG.ROLES[role] || role}"`);
+    if (password)
+      changes.push('Password: changed');
+
     Storage.updateUser(userId, updates);
     Storage.logAction({
       actor: sa.name,
       actorId: sa.id,
       action: 'EDIT_USER',
       target: `${name} (${email})`,
-      details: `Role: ${CONFIG.ROLES[role] || role}${password ? ', Password changed' : ''}`
+      details: changes.length ? changes.join(' | ') : 'No changes'
     });
 
     // Update session if editing self
