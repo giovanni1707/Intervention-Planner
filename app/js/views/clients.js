@@ -1,0 +1,649 @@
+/* ============================================================
+   views/clients.js — Client Management View
+   ============================================================ */
+
+Views.Clients = {
+  _searchTerm: '',
+  _sortKey: 'name',
+  _sortDir: 'asc',
+  _page: 1,
+
+  _sortIcon() {
+    return `<span class="sort-icon">
+      <svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 0L7 5H0z" fill="currentColor"/></svg>
+      <svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 5L0 0h7z" fill="currentColor"/></svg>
+    </span>`;
+  },
+
+  _thClass(key) {
+    if (this._sortKey !== key) return 'sortable';
+    return `sortable sort-${this._sortDir}`;
+  },
+
+  _setSort(key) {
+    if (this._sortKey === key) {
+      this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this._sortKey = key;
+      this._sortDir = 'asc';
+    }
+    this._page = 1;
+    this._renderTable(this._getFiltered());
+  },
+
+  _goToPage(p) {
+    this._page = p;
+    this._renderTable(this._getFiltered());
+  },
+
+  _getFiltered() {
+    if (!this._searchTerm) return appState.clients;
+    const q = this._searchTerm.toLowerCase();
+    return appState.clients.filter(c => {
+      const phones = Array.isArray(c.phones) ? c.phones.join(' ') : (c.phone || '');
+      return [c.name, c.contactPerson, c.email, phones, c.region].join(' ').toLowerCase().includes(q);
+    });
+  },
+
+  mount() {
+    const content = document.getElementById('mainContent');
+    content.innerHTML = this._template();
+    this._renderTable(this._getFiltered());
+    this._bindSearch();
+  },
+
+  _template() {
+    return `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Clients</h1>
+          <p class="page-subtitle">${appState.clients.length} client${appState.clients.length !== 1 ? 's' : ''} registered</p>
+        </div>
+        ${Auth.isAdmin() ? `
+        <div class="page-actions">
+          <button class="btn btn-primary" onclick="Views.Clients._openCreateModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Client
+          </button>
+        </div>` : ''}
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar-filters">
+          <div class="search-bar">
+            <span class="search-bar-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input type="text" id="clientSearch" class="search-input" placeholder="Search clients…" value="${Utils.escapeHtml(this._searchTerm)}">
+          </div>
+        </div>
+        <span id="clientCount" class="text-sm text-muted"></span>
+      </div>
+
+      <div class="table-wrapper has-toolbar" id="clientTableWrapper">
+        <table class="data-table" id="clientTable">
+          <thead id="clientThead">
+          </thead>
+          <tbody id="clientTableBody"></tbody>
+        </table>
+        <div id="clientPagination"></div>
+      </div>
+    `;
+  },
+
+  _renderTable(clients) {
+    const tbody   = document.getElementById('clientTableBody');
+    const thead   = document.getElementById('clientThead');
+    const countEl = document.getElementById('clientCount');
+    const pgEl    = document.getElementById('clientPagination');
+    if (!tbody) return;
+
+    if (countEl) countEl.textContent = `${clients.length} result${clients.length !== 1 ? 's' : ''}`;
+
+    if (thead) {
+      const si = this._sortIcon();
+      thead.innerHTML = `<tr>
+        <th class="${this._thClass('clientNumber')}" onclick="Views.Clients._setSort('clientNumber')">Client ID${si}</th>
+        <th class="${this._thClass('name')}" onclick="Views.Clients._setSort('name')">Company${si}</th>
+        <th class="${this._thClass('contactPerson')}" onclick="Views.Clients._setSort('contactPerson')">Contact Person${si}</th>
+        <th>Phone</th>
+        <th>Email</th>
+        <th class="${this._thClass('region')}" onclick="Views.Clients._setSort('region')">Region${si}</th>
+        <th class="${this._thClass('_machineCount')}" onclick="Views.Clients._setSort('_machineCount')">Machines${si}</th>
+        <th class="${this._thClass('createdAt')}" onclick="Views.Clients._setSort('createdAt')">Added${si}</th>
+        <th style="width:110px"></th>
+      </tr>`;
+    }
+
+    // sort
+    const sorted = [...clients].sort((a, b) => {
+      let va, vb;
+      if (this._sortKey === '_machineCount') {
+        va = appState.machines.filter(m => m.clientId === a.id).length;
+        vb = appState.machines.filter(m => m.clientId === b.id).length;
+      } else {
+        va = (a[this._sortKey] || '').toString().toLowerCase();
+        vb = (b[this._sortKey] || '').toString().toLowerCase();
+      }
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return this._sortDir === 'desc' ? -cmp : cmp;
+    });
+
+    if (sorted.length === 0) {
+      tbody.innerHTML = `
+        <tr><td colspan="9">
+          <div class="table-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <p class="table-empty-text">No clients found</p>
+          </div>
+        </td></tr>
+      `;
+      if (pgEl) pgEl.innerHTML = '';
+      return;
+    }
+
+    // pagination
+    const pageSize = Pagination.getPageSize();
+    const totalPages = Math.ceil(sorted.length / pageSize);
+    if (this._page > totalPages) this._page = totalPages;
+    const pageItems = Pagination.paginate(sorted, this._page, pageSize);
+
+    tbody.innerHTML = pageItems.map(c => {
+      const machineCount = appState.machines.filter(m => m.clientId === c.id).length;
+      return `
+        <tr>
+          <td style="font-family:monospace;font-size:0.857rem;white-space:nowrap">${Utils.escapeHtml(c.clientNumber || '—')}</td>
+          <td class="td-primary">${Utils.escapeHtml(c.name)}</td>
+          <td>${Utils.escapeHtml(c.contactPerson || '—')}</td>
+          <td style="white-space:nowrap">${Utils.escapeHtml((Array.isArray(c.phones) ? c.phones.filter(Boolean)[0] : c.phone) || '—')}</td>
+          <td><a href="mailto:${Utils.escapeHtml(c.email || '')}">${Utils.escapeHtml(c.email || '—')}</a></td>
+          <td>${Utils.escapeHtml(c.region || '—')}</td>
+          <td>
+            <span class="badge badge-gray">${machineCount} machine${machineCount !== 1 ? 's' : ''}</span>
+          </td>
+          <td style="white-space:nowrap;font-size:0.786rem">${Utils.formatDateTime(c.createdAt)}</td>
+          <td>
+            <div class="td-actions">
+              <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick="Views.Clients.openDetailModal('${c.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              ${Auth.isAdmin() ? `
+              <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Clients._openEditModal('${c.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-sm btn-icon" title="Delete" style="color:var(--red)" onclick="Views.Clients._deleteClient('${c.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    if (pgEl) pgEl.innerHTML = Pagination.render(
+      sorted.length, this._page, pageSize,
+      p => `Views.Clients._goToPage(${p})`
+    );
+  },
+
+  _bindSearch() {
+    const input = document.getElementById('clientSearch');
+    if (!input) return;
+    input.addEventListener('input', () => {
+      this._searchTerm = input.value;
+      this._page = 1;
+      this._renderTable(this._getFiltered());
+    });
+  },
+
+  _clientFormHTML(client = {}) {
+    return `
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Company Name <span class="required">*</span></label>
+          <input type="text" id="fClientName" class="form-input" value="${Utils.escapeHtml(client.name || '')}" required placeholder="e.g. Ciel Group">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Industry</label>
+          <input type="text" id="fClientIndustry" class="form-input" value="${Utils.escapeHtml(client.industry || '')}" placeholder="e.g. Food Processing">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Contact Person</label>
+          <input type="text" id="fClientContact" class="form-input" value="${Utils.escapeHtml(client.contactPerson || '')}" placeholder="Full name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Region</label>
+          <input type="text" id="fClientRegion" class="form-input" value="${Utils.escapeHtml(client.region || '')}" placeholder="e.g. Port Louis">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone Number(s)</label>
+          <div id="fClientPhones" class="phone-list">
+            ${(() => {
+              const phones = Array.isArray(client.phones) && client.phones.length
+                ? client.phones
+                : [client.phone || ''];
+              return phones.map((p, i) => `
+                <div class="phone-entry">
+                  <input type="tel" class="form-input phone-input" value="${Utils.escapeHtml(p)}" placeholder="+230 000 0000">
+                  ${i === 0
+                    ? `<button type="button" class="btn btn-ghost btn-sm btn-icon phone-add-btn" title="Add phone" onclick="Views.Clients._addPhoneField()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                       </button>`
+                    : `<button type="button" class="btn btn-ghost btn-sm btn-icon phone-remove-btn" title="Remove" onclick="Views.Clients._removePhoneField(this)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                       </button>`
+                  }
+                </div>
+              `).join('');
+            })()}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="fClientEmail" class="form-input" value="${Utils.escapeHtml(client.email || '')}" placeholder="contact@company.mu">
+        </div>
+      </div>
+    `;
+  },
+
+  _addPhoneField() {
+    const list = document.getElementById('fClientPhones');
+    if (!list) return;
+    const entry = document.createElement('div');
+    entry.className = 'phone-entry';
+    entry.innerHTML = `
+      <input type="tel" class="form-input phone-input" placeholder="+230 000 0000">
+      <button type="button" class="btn btn-ghost btn-sm btn-icon phone-remove-btn" title="Remove" onclick="Views.Clients._removePhoneField(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+    list.appendChild(entry);
+    entry.querySelector('input').focus();
+  },
+
+  _removePhoneField(btn) {
+    btn.closest('.phone-entry').remove();
+  },
+
+  _getPhones() {
+    return Array.from(document.querySelectorAll('#fClientPhones .phone-input'))
+      .map(el => el.value.trim())
+      .filter(Boolean);
+  },
+
+  _openCreateModal() {
+    Modals.open('Add New Client', this._clientFormHTML(), `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="Views.Clients._submitCreate()">Create Client</button>
+    `);
+  },
+
+  async _submitCreate() {
+    const name = document.getElementById('fClientName')?.value.trim();
+    if (!name) { Toast.error('Company name is required'); return; }
+
+    await Storage.createClient({
+      name,
+      industry:      document.getElementById('fClientIndustry')?.value.trim() || '',
+      contactPerson: document.getElementById('fClientContact')?.value.trim() || '',
+      region:        document.getElementById('fClientRegion')?.value.trim() || '',
+      phones:        this._getPhones(),
+      email:         document.getElementById('fClientEmail')?.value.trim() || ''
+    });
+
+    Modals.close();
+    Toast.success(`Client "${name}" created successfully`);
+    this.mount();
+  },
+
+  _openEditModal(clientId) {
+    const client = appState.clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    Modals.open(`Edit Client — ${client.name}`, this._clientFormHTML(client), `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="Views.Clients._submitEdit('${clientId}')">Save Changes</button>
+    `);
+  },
+
+  async _submitEdit(clientId) {
+    const name = document.getElementById('fClientName')?.value.trim();
+    if (!name) { Toast.error('Company name is required'); return; }
+
+    await Storage.updateClient(clientId, {
+      name,
+      industry:      document.getElementById('fClientIndustry')?.value.trim() || '',
+      contactPerson: document.getElementById('fClientContact')?.value.trim() || '',
+      region:        document.getElementById('fClientRegion')?.value.trim() || '',
+      phones:        this._getPhones(),
+      email:         document.getElementById('fClientEmail')?.value.trim() || ''
+    });
+
+    Modals.close();
+    Toast.success('Client updated successfully');
+    this.mount();
+  },
+
+  openDetailModal(clientId) {
+    const client = appState.clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const machines     = appState.machines.filter(m => m.clientId === clientId);
+    const allIntv      = appState.interventions.filter(i => i.clientId === clientId);
+    const openIntv     = allIntv.filter(i => CONFIG.OPEN_STATUSES.includes(i.status));
+    const lastService  = allIntv
+      .filter(i => i.status === 'completed' && i.scheduledDate)
+      .sort((a, b) => new Date(b.scheduledDate) - new Date(a.scheduledDate))[0];
+
+    const machinesHTML = machines.length === 0
+      ? '<p class="text-sm text-muted" style="padding:8px 0">No machines registered for this client.</p>'
+      : `<table class="data-table" style="margin-top:0">
+          <thead><tr><th>Model</th><th>Serial</th><th>Type</th><th>Contract</th><th></th></tr></thead>
+          <tbody>
+            ${machines.map(m => `
+              <tr>
+                <td class="td-primary">${Utils.escapeHtml(m.model)}</td>
+                <td style="font-family:monospace;font-size:0.8rem">${Utils.escapeHtml(m.serialNumber || '—')}</td>
+                <td>${Utils.escapeHtml(CONFIG.INTERVENTION_TYPES[m.type] || m.type || '—')}</td>
+                <td>${Utils.getContractBadge(m.contractType)}</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm btn-icon" title="View Machine Details"
+                    onclick="Views.Clients._openMachineDetail('${m.id}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+
+    const body = `
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- Header info -->
+        <div class="detail-grid">
+          <div class="detail-field">
+            <div class="detail-field-label">Client ID</div>
+            <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(client.clientNumber || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Company</div>
+            <div class="detail-field-value">${Utils.escapeHtml(client.name)}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Industry</div>
+            <div class="detail-field-value">${Utils.escapeHtml(client.industry || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Region</div>
+            <div class="detail-field-value">${Utils.escapeHtml(client.region || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Client Since</div>
+            <div class="detail-field-value">${Utils.formatDate(client.createdAt)}</div>
+          </div>
+        </div>
+
+        <!-- Contact -->
+        <div>
+          <div class="detail-section-label">Contact Information</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-field-label">Contact Person</div>
+              <div class="detail-field-value">${Utils.escapeHtml(client.contactPerson || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Phone</div>
+              <div class="detail-field-value">
+                ${(() => {
+                  const phones = Array.isArray(client.phones) && client.phones.filter(Boolean).length
+                    ? client.phones.filter(Boolean)
+                    : (client.phone ? [client.phone] : []);
+                  return phones.length
+                    ? phones.map(p => `<div>${Utils.escapeHtml(p)}</div>`).join('')
+                    : '—';
+                })()}
+              </div>
+            </div>
+            <div class="detail-field" style="grid-column:1/-1">
+              <div class="detail-field-label">Email</div>
+              <div class="detail-field-value">
+                ${client.email
+                  ? `<a href="mailto:${Utils.escapeHtml(client.email)}">${Utils.escapeHtml(client.email)}</a>`
+                  : '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div style="display:flex;gap:12px">
+          <div class="stat-box" style="flex:1;padding:12px 16px">
+            <div class="stat-box-value">${machines.length}</div>
+            <div class="stat-box-label">Machines</div>
+          </div>
+          <div class="stat-box" style="flex:1;padding:12px 16px">
+            <div class="stat-box-value">${allIntv.length}</div>
+            <div class="stat-box-label">Total Interventions</div>
+          </div>
+          <div class="stat-box" style="flex:1;padding:12px 16px">
+            <div class="stat-box-value">${openIntv.length}</div>
+            <div class="stat-box-label">Open</div>
+          </div>
+          <div class="stat-box" style="flex:1;padding:12px 16px">
+            <div class="stat-box-value" style="font-size:0.9rem">${lastService ? Utils.formatDate(lastService.scheduledDate) : '—'}</div>
+            <div class="stat-box-label">Last Service</div>
+          </div>
+        </div>
+
+        <!-- Machines -->
+        <div>
+          <div class="detail-section-label">Registered Machines (${machines.length})</div>
+          ${machinesHTML}
+        </div>
+
+      </div>
+    `;
+
+    Modals.open(`${client.name}`, body, `
+      <button class="btn btn-ghost" onclick="Modals.close()">Close</button>
+      ${Auth.isAdmin() ? `<button class="btn btn-primary" onclick="Modals.close(); setTimeout(() => Views.Clients._openEditModal('${clientId}'), 100)">Edit Client</button>` : ''}
+    `);
+  },
+
+  _openMachineDetail(machineId) {
+    const machine       = appState.machines.find(m => m.id === machineId);
+    if (!machine) return;
+    const client        = appState.clients.find(c => c.id === machine.clientId);
+    const users         = appState.users;
+    const interventions = appState.interventions.filter(i => i.machineId === machineId);
+    const contract      = appState.maintenanceContracts.find(c => c.machineId === machineId) || null;
+
+    const lastIntervention = Utils.sortBy(interventions, 'createdAt', 'desc')[0];
+    const openCount        = interventions.filter(i => CONFIG.OPEN_STATUSES.includes(i.status)).length;
+    const completedCount   = interventions.filter(i => i.status === 'completed').length;
+
+    const intRows = interventions.length === 0
+      ? `<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:16px">No interventions recorded</td></tr>`
+      : Utils.sortBy(interventions, 'createdAt', 'desc').slice(0, 10).map(i => {
+          return `<tr>
+            <td style="font-size:0.786rem">${Utils.formatDate(i.createdAt)}</td>
+            <td>${Utils.escapeHtml(CONFIG.INTERVENTION_TYPES[i.type] || i.type || '—')}</td>
+            <td>${Utils.getPriorityBadge(i.priority)}</td>
+            <td>${Utils.getStatusBadge(i.status, i)}</td>
+            <td style="font-size:0.8rem">${Utils.escapeHtml(Utils.getTechnicianNames(i))}</td>
+          </tr>`;
+        }).join('');
+
+    const body = `
+      <div class="detail-section">
+        <div class="detail-section-label">Machine Details</div>
+        <div class="detail-grid">
+          <div class="detail-field">
+            <div class="detail-field-label">Job Number</div>
+            <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine.jobNumber || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Model</div>
+            <div class="detail-field-value">${Utils.escapeHtml(machine.model || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Serial Number</div>
+            <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine.serialNumber || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Type</div>
+            <div class="detail-field-value">${Utils.escapeHtml(CONFIG.INTERVENTION_TYPES[machine.type] || machine.type || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Location</div>
+            <div class="detail-field-value">${Utils.escapeHtml(machine.location || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Contract Type</div>
+            <div class="detail-field-value">${Utils.getContractBadge(machine.contractType)}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Client</div>
+            <div class="detail-field-value">${Utils.escapeHtml(client?.name || '—')}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Last Service</div>
+            <div class="detail-field-value">${lastIntervention ? Utils.formatDate(lastIntervention.createdAt) : '—'}</div>
+          </div>
+        </div>
+        ${contract ? `
+        <div class="detail-field detail-field-full" style="margin-top:10px">
+          <div class="detail-field-label">PMC Contract</div>
+          <div class="detail-field-value">
+            <a href="javascript:void(0)" style="color:var(--blue);text-decoration:underline;font-size:0.857rem"
+               onclick="Modals.close();setTimeout(()=>{Router.go('maintenance-contracts');setTimeout(()=>Views.MaintenanceContracts.openDetailModal('${contract.id}'),300)},80)">
+              View Maintenance Contract →
+            </a>
+          </div>
+        </div>` : ''}
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-label">Intervention Summary</div>
+        <div class="detail-grid">
+          <div class="detail-field">
+            <div class="detail-field-label">Total</div>
+            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem">${interventions.length}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Completed</div>
+            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem;color:#059669">${completedCount}</div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-field-label">Open</div>
+            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem;color:var(--blue)">${openCount}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-label">Recent Interventions (last 10)</div>
+        <div class="table-wrapper" style="max-height:260px;overflow-y:auto">
+          <table class="data-table">
+            <thead>
+              <tr><th>Date</th><th>Type</th><th>Priority</th><th>Status</th><th>Technician</th></tr>
+            </thead>
+            <tbody>${intRows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    Modals.open(`Machine — ${Utils.escapeHtml(machine.model || '')}`, body,
+      `<button class="btn btn-ghost" onclick="Modals.close()">Close</button>`,
+      { size: 'lg' }
+    );
+  },
+
+  _deleteClient(clientId) {
+    const client = appState.clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const machineCount      = appState.machines.filter(m => m.clientId === clientId).length;
+    const interventionCount = appState.interventions.filter(i => i.clientId === clientId).length;
+    const clientNumber      = client.clientNumber || '—';
+
+    const warningHTML = (machineCount > 0 || interventionCount > 0) ? `
+      <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 12px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.857rem;color:#92400E">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>This client has <strong>${machineCount} machine(s)</strong> and <strong>${interventionCount} intervention(s)</strong> linked. All associated records will be affected.</span>
+      </div>` : '';
+
+    Modals.open('Confirm Client Deletion', `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--radius-sm);margin-bottom:16px;font-size:0.857rem;color:#991B1B">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>This action is <strong>permanent and irreversible</strong>. The client record will be permanently removed.</span>
+      </div>
+      ${warningHTML}
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Client ID <span class="required">*</span></label>
+          <input type="text" id="dClientNumber" class="form-input" placeholder="${clientNumber}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Your Email <span class="required">*</span></label>
+          <input type="email" id="dAdminEmail" class="form-input" placeholder="admin@example.com">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Your Password <span class="required">*</span></label>
+          <input type="password" id="dAdminPassword" class="form-input" placeholder="••••••••">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type <strong>delete</strong> to confirm <span class="required">*</span></label>
+          <input type="text" id="dConfirmWord" class="form-input" placeholder="delete">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reason for Deletion <span class="required">*</span></label>
+        <textarea id="dReason" class="form-textarea" rows="3" placeholder="Explain why this client is being deleted…"></textarea>
+      </div>
+    `, `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-danger" onclick="Views.Clients._confirmDeleteClient('${clientId}','${clientNumber}')">Delete Client</button>
+    `);
+  },
+
+  async _confirmDeleteClient(clientId, expectedClientNumber) {
+    const clientNumberInput = document.getElementById('dClientNumber')?.value.trim();
+    const email             = document.getElementById('dAdminEmail')?.value.trim();
+    const password          = document.getElementById('dAdminPassword')?.value;
+    const confirmWord       = document.getElementById('dConfirmWord')?.value.trim();
+    const reason            = document.getElementById('dReason')?.value.trim();
+
+    if (!clientNumberInput || !email || !password || !confirmWord || !reason) {
+      Toast.error('All fields are required.'); return;
+    }
+    if (clientNumberInput !== expectedClientNumber) {
+      Toast.error('Client ID does not match.'); return;
+    }
+    if (confirmWord !== 'delete') {
+      Toast.error('You must type "delete" exactly to confirm.'); return;
+    }
+
+    const users = appState.users;
+    const admin = users.find(u =>
+      u.email.toLowerCase() === email.toLowerCase() &&
+      (u.role === 'admin' || u.role === 'superadmin')
+    );
+    if (!admin) {
+      Toast.error('Admin email is incorrect or you do not have admin privileges.'); return;
+    }
+
+    await Storage.deleteClient(clientId);
+    Modals.close();
+    Toast.success('Client deleted successfully.');
+    this.mount();
+  }
+};

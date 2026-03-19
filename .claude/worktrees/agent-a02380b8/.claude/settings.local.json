@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/DELL/Desktop/planning -name *.js -type f)",
+      "Bash(ls -la app/js/*.js)",
+      "Bash(find c:UsersDELLDesktopplanningappjs -type f -name *.js)",
+      "Bash(grep -n technicianId[^s] /c/Users/DELL/Desktop/planning/app/js/*.js)"
+    ]
+  }
+}

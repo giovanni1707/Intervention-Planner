@@ -1,0 +1,86 @@
+/* ============================================================
+   router.js — Hash-based SPA Router
+   ============================================================ */
+
+const ROUTES = {
+  dashboard:     () => Views.Dashboard.mount(),
+  clients:       () => Views.Clients.mount(),
+  interventions: () => Views.Interventions.mount(),
+  planning:      () => Views.Planning.mount(),
+  technicians:   () => Views.Technicians.mount(),
+  users:         () => Views.Users.mount(),
+  reports:       () => Views.Reports.mount(),
+  'job-tracker':  () => Views.JobTracker.mount(),
+  'deleted-jobs': () => Views.DeletedJobs.mount(),
+  'action-log':              () => Views.ActionLog.mount(),
+  'maintenance-contracts':   () => Views.MaintenanceContracts.mount(),
+  'maintenance-forecast':    () => Views.MaintenanceForecast.mount(),
+  'pmc':                     () => Views.PMC.mount(),
+  settings:                  () => Views.Settings.mount()
+};
+
+const Router = {
+  _current: null,
+
+  init() {
+    window.addEventListener('hashchange', () => this._navigate());
+    this._navigate();
+  },
+
+  go(route) {
+    window.location.hash = '#/' + route;
+  },
+
+  _navigate() {
+    const hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
+    const route = Object.keys(ROUTES).includes(hash) ? hash : 'dashboard';
+
+    this._current = route;
+    appState.currentRoute = route;
+    Sidebar.setActive(route);
+
+    const view = ROUTES[route] || ROUTES['dashboard'];
+    try {
+      const result = view();
+      if (result && typeof result.catch === 'function') {
+        result.catch(err => {
+          console.error('[Router] Error mounting view:', route, err);
+          document.getElementById('mainContent').innerHTML = `
+            <div style="padding:40px;text-align:center;color:var(--gray-400)">
+              <p style="font-size:1.2rem;margin-bottom:8px">Error loading view</p>
+              <p style="font-size:0.857rem">${Utils.escapeHtml(err.message)}</p>
+            </div>
+          `;
+        });
+      }
+    } catch (err) {
+      console.error('[Router] Error mounting view:', route, err);
+      document.getElementById('mainContent').innerHTML = `
+        <div style="padding:40px;text-align:center;color:var(--gray-400)">
+          <p style="font-size:1.2rem;margin-bottom:8px">Error loading view</p>
+          <p style="font-size:0.857rem">${Utils.escapeHtml(err.message)}</p>
+        </div>
+      `;
+    }
+  },
+
+  getCurrent() {
+    return this._current;
+  },
+
+  /** Called by onSnapshot listeners to re-render the active view */
+  _rerender() {
+    if (!this._current) return;
+    const view = ROUTES[this._current];
+    if (view) {
+      try {
+        const result = view();
+        if (result && typeof result.catch === 'function') {
+          result.catch(err => console.error('[Router] _rerender error:', err));
+        }
+      } catch (err) {
+        console.error('[Router] _rerender error:', err);
+      }
+    }
+  }
+};

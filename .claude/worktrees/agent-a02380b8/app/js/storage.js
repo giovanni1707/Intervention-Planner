@@ -1,0 +1,390 @@
+/* ============================================================
+   storage.js — localStorage CRUD Wrappers
+   ============================================================ */
+
+const Storage = {
+
+  // ── GENERIC ──────────────────────────────────────────────
+  get(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || []; }
+    catch { return []; }
+  },
+
+  set(key, data) {
+    localStorage.setItem(key, JSON.stringify(data));
+  },
+
+  getOne(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || null; }
+    catch { return null; }
+  },
+
+  // ── USERS ─────────────────────────────────────────────────
+  getUsers() {
+    return this.get(CONFIG.STORAGE_KEYS.USERS);
+  },
+
+  getUserById(id) {
+    return this.getUsers().find(u => u.id === id) || null;
+  },
+
+  getUserByEmail(email) {
+    return this.getUsers().find(u => u.email === email) || null;
+  },
+
+  createUser(data) {
+    const users = this.getUsers();
+    const user = { id: Utils.generateId(), createdAt: new Date().toISOString(), ...data };
+    users.push(user);
+    this.set(CONFIG.STORAGE_KEYS.USERS, users);
+    return user;
+  },
+
+  updateUser(id, data) {
+    const users = this.getUsers();
+    const idx = users.findIndex(u => u.id === id);
+    if (idx === -1) return null;
+    users[idx] = { ...users[idx], ...data, updatedAt: new Date().toISOString() };
+    this.set(CONFIG.STORAGE_KEYS.USERS, users);
+    return users[idx];
+  },
+
+  // ── CLIENTS ───────────────────────────────────────────────
+  getClients() {
+    return this.get(CONFIG.STORAGE_KEYS.CLIENTS);
+  },
+
+  getClientById(id) {
+    return this.getClients().find(c => c.id === id) || null;
+  },
+
+  _generateClientNumber() {
+    const existing = this.getClients().map(c => c.clientNumber).filter(Boolean);
+    let num;
+    do { num = 'CLT-' + String(Math.floor(10000 + Math.random() * 90000)); }
+    while (existing.includes(num));
+    return num;
+  },
+
+  createClient(data) {
+    const clients = this.getClients();
+    const client = {
+      id: Utils.generateId(),
+      clientNumber: this._generateClientNumber(),
+      createdAt: new Date().toISOString(),
+      ...data
+    };
+    clients.push(client);
+    this.set(CONFIG.STORAGE_KEYS.CLIENTS, clients);
+    return client;
+  },
+
+  updateClient(id, data) {
+    const clients = this.getClients();
+    const idx = clients.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    clients[idx] = { ...clients[idx], ...data, updatedAt: new Date().toISOString() };
+    this.set(CONFIG.STORAGE_KEYS.CLIENTS, clients);
+    return clients[idx];
+  },
+
+  deleteClient(id) {
+    const clients = this.getClients().filter(c => c.id !== id);
+    this.set(CONFIG.STORAGE_KEYS.CLIENTS, clients);
+  },
+
+  // ── MACHINES ──────────────────────────────────────────────
+  getMachines() {
+    return this.get(CONFIG.STORAGE_KEYS.MACHINES);
+  },
+
+  getMachineById(id) {
+    return this.getMachines().find(m => m.id === id) || null;
+  },
+
+  getMachinesByClient(clientId) {
+    return this.getMachines().filter(m => m.clientId === clientId);
+  },
+
+  createMachine(data) {
+    const machines = this.getMachines();
+    const now = new Date().toISOString();
+    // Generate unique 6-digit job number not already in use
+    let jobNumber;
+    const existing = new Set(machines.map(m => m.jobNumber));
+    do { jobNumber = String(Math.floor(100000 + Math.random() * 900000)); }
+    while (existing.has(jobNumber));
+    const machine = {
+      id: Utils.generateId(),
+      jobNumber,
+      status: 'new',
+      registeredAt: now,
+      createdAt: now,
+      ...data
+    };
+    machines.push(machine);
+    this.set(CONFIG.STORAGE_KEYS.MACHINES, machines);
+    return machine;
+  },
+
+  updateMachine(id, data) {
+    const machines = this.getMachines();
+    const idx = machines.findIndex(m => m.id === id);
+    if (idx === -1) return null;
+    machines[idx] = { ...machines[idx], ...data, updatedAt: new Date().toISOString() };
+    this.set(CONFIG.STORAGE_KEYS.MACHINES, machines);
+    return machines[idx];
+  },
+
+  deleteMachine(id) {
+    const machines = this.getMachines().filter(m => m.id !== id);
+    this.set(CONFIG.STORAGE_KEYS.MACHINES, machines);
+  },
+
+  // ── INTERVENTIONS ──────────────────────────────────────────
+  getInterventions() {
+    return this.get(CONFIG.STORAGE_KEYS.INTERVENTIONS);
+  },
+
+  getInterventionById(id) {
+    return this.getInterventions().find(i => i.id === id) || null;
+  },
+
+  getInterventionsByTechnician(techId) {
+    return this.getInterventions().filter(i => Utils.getTechIds(i).includes(techId));
+  },
+
+  createIntervention(data) {
+    const interventions = this.getInterventions();
+    const now = new Date().toISOString();
+    const initialStatus = data.status || 'new';
+    const intervention = {
+      id: Utils.generateId(),
+      createdAt: now,
+      updatedAt: now,
+      statusUpdatedAt: now,
+      technicianId: null,
+      notes: [],
+      parts: [],
+      scheduledHistory: data.scheduledDate ? [{
+        scheduledDate: data.scheduledDate,
+        status: initialStatus,
+        technicianIds: data.technicianIds || (data.technicianId ? [data.technicianId] : []),
+        technicianId: data.technicianId || null,
+        changedBy: data.createdBy || 'System',
+        timestamp: now
+      }] : [],
+      statusHistory: [{
+        status: initialStatus,
+        changedBy: data.createdBy || 'System',
+        timestamp: now,
+        note: 'Intervention created'
+      }],
+      auditTrail: [{
+        action: 'Created',
+        user: data.createdBy || 'System',
+        timestamp: now,
+        details: `Status set to ${initialStatus}`
+      }],
+      ...data
+    };
+    interventions.push(intervention);
+    this.set(CONFIG.STORAGE_KEYS.INTERVENTIONS, interventions);
+    return intervention;
+  },
+
+  updateIntervention(id, data, auditEntry) {
+    const interventions = this.getInterventions();
+    const idx = interventions.findIndex(i => i.id === id);
+    if (idx === -1) return null;
+    const now = new Date().toISOString();
+    const existing = interventions[idx];
+    const updated = { ...existing, ...data, updatedAt: now };
+
+    // Record status change in history, or a same-status update when a note was provided
+    const statusChanged = data.status && data.status !== existing.status;
+    if (statusChanged || auditEntry?.statusNote) {
+      if (statusChanged) updated.statusUpdatedAt = now;
+      const historyEntry = {
+        status: data.status || existing.status,
+        changedBy: auditEntry?.user || 'System',
+        timestamp: now,
+        note: auditEntry?.statusNote || ''
+      };
+      updated.statusHistory = [...(existing.statusHistory || []), historyEntry];
+    }
+
+    // Record schedule-relevant changes in scheduledHistory for all non-final statuses
+    const FINAL_STATUSES = ['completed', 'cancelled'];
+    const newStatus     = data.status || existing.status;
+    const newTechId     = data.technicianId !== undefined ? data.technicianId : existing.technicianId;
+    const newTechIds    = data.technicianIds !== undefined ? data.technicianIds : (existing.technicianIds || (existing.technicianId ? [existing.technicianId] : []));
+    const dateChanged   = data.scheduledDate !== undefined && data.scheduledDate !== existing.scheduledDate;
+    const techChanged   = data.technicianIds !== undefined
+      ? JSON.stringify(data.technicianIds.slice().sort()) !== JSON.stringify((existing.technicianIds || []).slice().sort())
+      : (data.technicianId !== undefined && data.technicianId !== existing.technicianId);
+    const isTracked     = !FINAL_STATUSES.includes(newStatus);
+    const hasSchedule   = data.scheduledDate || existing.scheduledDate;
+
+    // Record when: date changes, tech changes on a tracked status, or status itself changes (with a schedule date)
+    const shouldRecord  = isTracked && hasSchedule && (dateChanged || (techChanged && !dateChanged) || statusChanged);
+
+    if (shouldRecord && (data.scheduledDate || existing.scheduledDate)) {
+      const schedEntry = {
+        scheduledDate: data.scheduledDate || existing.scheduledDate,
+        status: newStatus,
+        technicianIds: newTechIds,
+        technicianId: newTechId,
+        changedBy: auditEntry?.user || 'System',
+        timestamp: now
+      };
+      updated.scheduledHistory = [...(existing.scheduledHistory || []), schedEntry];
+    }
+
+    if (auditEntry) {
+      updated.auditTrail = [...(updated.auditTrail || []), {
+        ...auditEntry,
+        timestamp: now
+      }];
+    }
+    interventions[idx] = updated;
+    this.set(CONFIG.STORAGE_KEYS.INTERVENTIONS, interventions);
+    return interventions[idx];
+  },
+
+  deleteIntervention(id) {
+    const interventions = this.getInterventions().filter(i => i.id !== id);
+    this.set(CONFIG.STORAGE_KEYS.INTERVENTIONS, interventions);
+  },
+
+  getDeletedJobs() {
+    return this.get(CONFIG.STORAGE_KEYS.DELETED_JOBS) || [];
+  },
+
+  archiveDeletedJob(record) {
+    const records = this.getDeletedJobs();
+    records.unshift(record);
+    this.set(CONFIG.STORAGE_KEYS.DELETED_JOBS, records);
+  },
+
+  purgeDeletedJob(jobNumber) {
+    const records = this.getDeletedJobs().filter(r => r.jobNumber !== jobNumber);
+    this.set(CONFIG.STORAGE_KEYS.DELETED_JOBS, records);
+  },
+
+  // ── ACTION LOG (Super Admin only) ─────────────────────────
+  getActionLog() {
+    return this.get(CONFIG.STORAGE_KEYS.ACTION_LOG) || [];
+  },
+
+  logAction(entry) {
+    const log = this.getActionLog();
+    log.unshift({
+      id: Utils.generateId(),
+      timestamp: new Date().toISOString(),
+      ...entry
+    });
+    this.set(CONFIG.STORAGE_KEYS.ACTION_LOG, log);
+  },
+
+  deleteUser(id) {
+    const users = this.getUsers().filter(u => u.id !== id);
+    this.set(CONFIG.STORAGE_KEYS.USERS, users);
+  },
+
+  addInterventionNote(id, note) {
+    const interventions = this.getInterventions();
+    const idx = interventions.findIndex(i => i.id === id);
+    if (idx === -1) return null;
+    const newNote = {
+      id: Utils.generateId(),
+      text: note.text,
+      author: note.author,
+      createdAt: new Date().toISOString()
+    };
+    interventions[idx].notes = [...(interventions[idx].notes || []), newNote];
+    interventions[idx].updatedAt = new Date().toISOString();
+    this.set(CONFIG.STORAGE_KEYS.INTERVENTIONS, interventions);
+    return newNote;
+  },
+
+  addInterventionPart(id, part) {
+    const interventions = this.getInterventions();
+    const idx = interventions.findIndex(i => i.id === id);
+    if (idx === -1) return null;
+    const newPart = {
+      id: Utils.generateId(),
+      reference: part.reference,
+      description: part.description,
+      quantity: part.quantity || 1,
+      unit: part.unit || 'pcs',
+      addedAt: new Date().toISOString()
+    };
+    interventions[idx].parts = [...(interventions[idx].parts || []), newPart];
+    interventions[idx].updatedAt = new Date().toISOString();
+    this.set(CONFIG.STORAGE_KEYS.INTERVENTIONS, interventions);
+    return newPart;
+  },
+
+  // ── CONTRACTS ──────────────────────────────────────────────
+  getContracts() {
+    return this.get(CONFIG.STORAGE_KEYS.CONTRACTS);
+  },
+
+  getContractById(id) {
+    return this.getContracts().find(c => c.id === id) || null;
+  },
+
+  createContract(data) {
+    const contracts = this.getContracts();
+    const contract = { id: Utils.generateId(), createdAt: new Date().toISOString(), ...data };
+    contracts.push(contract);
+    this.set(CONFIG.STORAGE_KEYS.CONTRACTS, contracts);
+    return contract;
+  },
+
+  updateContract(id, data) {
+    const contracts = this.getContracts();
+    const idx = contracts.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    contracts[idx] = { ...contracts[idx], ...data };
+    this.set(CONFIG.STORAGE_KEYS.CONTRACTS, contracts);
+    return contracts[idx];
+  },
+
+  deleteContract(id) {
+    const contracts = this.getContracts().filter(c => c.id !== id);
+    this.set(CONFIG.STORAGE_KEYS.CONTRACTS, contracts);
+  },
+
+  // ── MAINTENANCE CONTRACTS ───────────────────────────────────
+  getMaintenanceContracts() {
+    return this.get(CONFIG.STORAGE_KEYS.MAINTENANCE_CONTRACTS);
+  },
+
+  getMaintenanceContractById(id) {
+    return this.getMaintenanceContracts().find(c => c.id === id) || null;
+  },
+
+  createMaintenanceContract(data) {
+    const contracts = this.getMaintenanceContracts();
+    const contract = { id: Utils.generateId(), createdAt: new Date().toISOString(), ...data };
+    contracts.push(contract);
+    this.set(CONFIG.STORAGE_KEYS.MAINTENANCE_CONTRACTS, contracts);
+    return contract;
+  },
+
+  updateMaintenanceContract(id, data) {
+    const contracts = this.getMaintenanceContracts();
+    const idx = contracts.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    contracts[idx] = { ...contracts[idx], ...data, updatedAt: new Date().toISOString() };
+    this.set(CONFIG.STORAGE_KEYS.MAINTENANCE_CONTRACTS, contracts);
+    return contracts[idx];
+  },
+
+  deleteMaintenanceContract(id) {
+    const contracts = this.getMaintenanceContracts().filter(c => c.id !== id);
+    this.set(CONFIG.STORAGE_KEYS.MAINTENANCE_CONTRACTS, contracts);
+  }
+};
