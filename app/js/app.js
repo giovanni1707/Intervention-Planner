@@ -108,6 +108,10 @@ function showLogin() {
   const errEl = document.getElementById('loginError');
   if (errEl) errEl.classList.add('hidden');
 
+  // Clear form fields so no previous user's credentials remain
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) loginForm.reset();
+
   // Reset login button if it was disabled
   const loginBtn = document.getElementById('loginBtn');
   const btnText  = document.getElementById('loginBtnText');
