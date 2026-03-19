@@ -16,6 +16,7 @@ const ROUTES = {
   'maintenance-contracts':   () => Views.MaintenanceContracts.mount(),
   'maintenance-forecast':    () => Views.MaintenanceForecast.mount(),
   'pmc':                     () => Views.PMC.mount(),
+  analytics:                 () => Views.Analytics.mount(),
   settings:                  () => Views.Settings.mount()
 };
 
