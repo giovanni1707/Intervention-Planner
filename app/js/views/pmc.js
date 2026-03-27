@@ -386,26 +386,19 @@ Views.PMC = {
     }
 
     return rows.map(r => {
-      let statusBadge;
-      if (r.isCompleted) {
-        statusBadge = `<span style="padding:2px 10px;border-radius:12px;background:#D1FAE5;color:#065F46;font-size:0.786rem;font-weight:600">Completed</span>`;
-      } else if (r.isOverdue) {
-        statusBadge = `<span style="padding:2px 10px;border-radius:12px;background:#FEE2E2;color:#991B1B;font-size:0.786rem;font-weight:600">Overdue</span>`;
-      } else if (r.statusKey === 'assigned') {
-        statusBadge = `<span style="padding:2px 10px;border-radius:12px;background:#DBEAFE;color:#1E40AF;font-size:0.786rem;font-weight:600">Assigned</span>`;
-      } else if (r.statusKey === 'tentative') {
-        statusBadge = `<span style="padding:2px 10px;border-radius:12px;background:#FEF9C3;color:#854D0E;font-size:0.786rem;font-weight:600">Tentative</span>`;
-      } else if (r.statusKey === 'ongoing') {
-        statusBadge = `<span style="padding:2px 10px;border-radius:12px;background:#FEF3C7;color:#92400E;font-size:0.786rem;font-weight:600">On Going</span>`;
-      } else {
-        statusBadge = `<span style="padding:2px 10px;border-radius:12px;background:var(--gray-100);color:var(--gray-600);font-size:0.786rem;font-weight:600">Planned</span>`;
-      }
+      const statusKeyMap = {
+        completed: 'completed', overdue: 'overdue',
+        assigned: 'assigned', tentative: 'tentative', ongoing: 'ongoing', planned: 'planned'
+      };
+      const statusLabelMap = {
+        completed: 'Completed', overdue: 'Overdue',
+        assigned: 'Assigned', tentative: 'Tentative', ongoing: 'On Going', planned: 'Planned'
+      };
+      const sKey = statusKeyMap[r.statusKey] || 'planned';
+      const statusBadge = `<span class="pmc-status-badge pmc-status-${sKey}">${statusLabelMap[sKey]}</span>`;
 
-      const allDone = r.doneCount >= r.total;
-      const progressStyle = allDone
-        ? 'background:#D1FAE5;color:#065F46'
-        : r.doneCount > 0 ? 'background:#DBEAFE;color:#1E40AF' : 'background:var(--gray-100);color:var(--gray-600)';
-      const progressBadge = `<span style="padding:2px 10px;border-radius:12px;font-size:0.786rem;font-weight:600;${progressStyle}">${r.progress}</span>`;
+      const progressCls = r.doneCount >= r.total ? 'done' : r.doneCount > 0 ? 'partial' : 'none';
+      const progressBadge = `<span class="fc-progress-badge fc-progress-${progressCls}">${r.progress}</span>`;
 
       const dateStyle = r.isOverdue ? 'color:var(--red);font-weight:600' : '';
 

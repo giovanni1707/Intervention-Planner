@@ -90,6 +90,7 @@ function showApp() {
 
   Sidebar.render();
   Scheduler.start();
+  AutoRefresh.start();
 
   if (Auth.isAdmin()) {
     setTimeout(() => Views.MaintenanceContracts._checkNotifications(), 800);

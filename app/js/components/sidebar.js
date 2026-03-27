@@ -182,6 +182,7 @@ const Sidebar = {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
         Scheduler.stop();
+        AutoRefresh.stop();
         Auth.logout();
         showLogin();
       });

@@ -2844,6 +2844,100 @@ th.sort-desc .sort-icon svg:first-child {
 }
 
 /* ============================================================
+   PMC — theme-aware status & progress badge styles
+   ============================================================ */
+
+.pmc-status-badge {
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.786rem;
+  font-weight: 600;
+}
+.pmc-status-completed { background: #D1FAE5; color: #065F46; }
+.pmc-status-overdue   { background: #FEE2E2; color: #991B1B; }
+.pmc-status-assigned  { background: #DBEAFE; color: #1E40AF; }
+.pmc-status-tentative { background: #FEF9C3; color: #854D0E; }
+.pmc-status-ongoing   { background: #FEF3C7; color: #92400E; }
+.pmc-status-planned   { background: var(--gray-100); color: var(--gray-600); }
+
+/* Dark mode */
+body.dark-mode .pmc-status-completed { background: rgba(16,185,129,0.18);  color: #6EE7B7; }
+body.dark-mode .pmc-status-overdue   { background: rgba(239,68,68,0.18);   color: #FCA5A5; }
+body.dark-mode .pmc-status-assigned  { background: rgba(59,130,246,0.18);  color: #93C5FD; }
+body.dark-mode .pmc-status-tentative { background: rgba(234,179,8,0.18);   color: #FDE047; }
+body.dark-mode .pmc-status-ongoing   { background: rgba(245,158,11,0.18);  color: #FCD34D; }
+body.dark-mode .pmc-status-planned   { background: var(--gray-200);        color: var(--gray-500); }
+
+/* ============================================================
+   MAINTENANCE FORECAST — theme-aware row & badge styles
+   ============================================================ */
+
+/* Row tint — light mode */
+tr.fc-row-low    { background: #F0FDF4; }
+tr.fc-row-medium { background: #FFFBEB; }
+tr.fc-row-high   { background: #FEF2F2; }
+
+/* Detail expand panel */
+.fc-detail-panel {
+  background: var(--gray-50);
+  border-top: 1px solid var(--gray-200);
+  padding: 12px 16px;
+}
+
+/* Workload badges */
+.fc-workload-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.fc-workload-low    { background: #D1FAE5; color: #065F46; }
+.fc-workload-medium { background: #FEF3C7; color: #92400E; }
+.fc-workload-high   { background: #FEE2E2; color: #991B1B; }
+
+/* Status badges */
+.fc-status-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.786rem;
+  font-weight: 600;
+}
+.fc-status-assigned  { background: #DBEAFE; color: #1E40AF; }
+.fc-status-tentative { background: #FEF9C3; color: #854D0E; }
+.fc-status-ongoing   { background: #FEF3C7; color: #92400E; }
+.fc-status-planned   { background: var(--gray-100); color: var(--gray-600); }
+
+/* Progress badges */
+.fc-progress-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.786rem;
+  font-weight: 600;
+}
+.fc-progress-done    { background: #D1FAE5; color: #065F46; }
+.fc-progress-partial { background: #DBEAFE; color: #1E40AF; }
+.fc-progress-none    { background: var(--gray-100); color: var(--gray-600); }
+
+/* ── DARK MODE OVERRIDES ──────────────────────────────────── */
+body.dark-mode tr.fc-row-low    { background: rgba(16,185,129,0.10); }
+body.dark-mode tr.fc-row-medium { background: rgba(245,158,11,0.10); }
+body.dark-mode tr.fc-row-high   { background: rgba(239,68,68,0.10);  }
+
+body.dark-mode .fc-workload-low    { background: rgba(16,185,129,0.18); color: #6EE7B7; }
+body.dark-mode .fc-workload-medium { background: rgba(245,158,11,0.18); color: #FCD34D; }
+body.dark-mode .fc-workload-high   { background: rgba(239,68,68,0.18);  color: #FCA5A5; }
+
+body.dark-mode .fc-status-assigned  { background: rgba(59,130,246,0.18);  color: #93C5FD; }
+body.dark-mode .fc-status-tentative { background: rgba(234,179,8,0.18);   color: #FDE047; }
+body.dark-mode .fc-status-ongoing   { background: rgba(245,158,11,0.18);  color: #FCD34D; }
+body.dark-mode .fc-status-planned   { background: var(--gray-200);        color: var(--gray-500); }
+
+body.dark-mode .fc-progress-done    { background: rgba(16,185,129,0.18);  color: #6EE7B7; }
+body.dark-mode .fc-progress-partial { background: rgba(59,130,246,0.18);  color: #93C5FD; }
+body.dark-mode .fc-progress-none    { background: var(--gray-200);        color: var(--gray-500); }
+
+/* ============================================================
    NOTIFICATION CENTER
    ============================================================ */
 

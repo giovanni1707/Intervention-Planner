@@ -112,13 +112,8 @@ Views.MaintenanceForecast = {
 
   _workloadBadge(level) {
     if (level === 'none') return '<span style="color:var(--gray-400)">—</span>';
-    const styles = {
-      low:    'background:#D1FAE5;color:#065F46',
-      medium: 'background:#FEF3C7;color:#92400E',
-      high:   'background:#FEE2E2;color:#991B1B'
-    };
     const labels = { low: 'Low', medium: 'Medium', high: 'High' };
-    return `<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.8rem;font-weight:600;${styles[level]}">${labels[level]}</span>`;
+    return `<span class="fc-workload-badge fc-workload-${level}">${labels[level]}</span>`;
   },
 
   /* ── MOUNT ───────────────────────────────────────────────── */
@@ -192,25 +187,17 @@ Views.MaintenanceForecast = {
       const level    = this._workloadLevel(month.count);
       const barColor = level === 'high' ? '#EF4444' : level === 'medium' ? '#F59E0B' : '#10B981';
       const barWidth = month.count > 0 ? Math.round((month.count / maxCount) * 100) : 0;
-      const rowBg    = level === 'high' ? 'background:#FEF2F2' : level === 'medium' ? 'background:#FFFBEB' : level === 'low' ? 'background:#F0FDF4' : '';
+      const rowClass = level === 'high' ? 'fc-row-high' : level === 'medium' ? 'fc-row-medium' : level === 'low' ? 'fc-row-low' : '';
 
       const statusBadgeHTML = (statusKey) => {
-        const map = {
-          assigned:  { bg:'#DBEAFE', color:'#1E40AF', label:'Assigned' },
-          tentative: { bg:'#FEF9C3', color:'#854D0E', label:'Tentative' },
-          ongoing:   { bg:'#FEF3C7', color:'#92400E', label:'On Going' },
-          planned:   { bg:'var(--gray-100)', color:'var(--gray-600)', label:'Planned' }
-        };
-        const s = map[statusKey] || map.planned;
-        return `<span style="padding:2px 8px;border-radius:10px;font-size:0.786rem;font-weight:600;background:${s.bg};color:${s.color}">${s.label}</span>`;
+        const labels = { assigned: 'Assigned', tentative: 'Tentative', ongoing: 'On Going', planned: 'Planned' };
+        const key = ['assigned','tentative','ongoing','planned'].includes(statusKey) ? statusKey : 'planned';
+        return `<span class="fc-status-badge fc-status-${key}">${labels[key]}</span>`;
       };
 
       const progressBadgeHTML = (progress, doneCount, total) => {
-        const allDone = doneCount >= total;
-        const hasSome = doneCount > 0;
-        const bg    = allDone ? '#D1FAE5' : hasSome ? '#DBEAFE' : 'var(--gray-100)';
-        const color = allDone ? '#065F46' : hasSome ? '#1E40AF' : 'var(--gray-600)';
-        return `<span style="padding:2px 8px;border-radius:10px;font-size:0.786rem;font-weight:600;background:${bg};color:${color}">${progress}</span>`;
+        const cls = doneCount >= total ? 'done' : doneCount > 0 ? 'partial' : 'none';
+        return `<span class="fc-progress-badge fc-progress-${cls}">${progress}</span>`;
       };
 
       const detailRows = month.visits.length === 0
@@ -240,7 +227,7 @@ Views.MaintenanceForecast = {
         : `<span style="color:var(--gray-400);font-size:0.786rem">—</span>`;
 
       return `
-        <tr style="${rowBg}">
+        <tr class="${rowClass}">
           <td style="font-weight:${month.count > 0 ? '600' : '400'};white-space:nowrap">${month.label}</td>
           <td>
             <div style="display:flex;align-items:center;gap:10px">
@@ -255,7 +242,7 @@ Views.MaintenanceForecast = {
         </tr>
         <tr class="forecast-detail-row" data-detail-key="${month.key}" style="display:none">
           <td colspan="4" style="padding:0;border-top:none">
-            <div style="background:var(--gray-50);border-top:1px solid var(--gray-200);padding:12px 16px">
+            <div class="fc-detail-panel">
               <table style="width:100%;border-collapse:collapse">
                 <thead>
                   <tr style="font-size:0.75rem;font-weight:600;text-transform:uppercase;color:var(--gray-400);letter-spacing:.05em">
@@ -340,9 +327,9 @@ Views.MaintenanceForecast = {
         </div>
         <div style="display:flex;align-items:center;gap:8px;font-size:0.786rem">
           <span style="color:var(--gray-500);font-weight:600">Workload:</span>
-          <span style="padding:2px 10px;border-radius:12px;background:#D1FAE5;color:#065F46;font-weight:600">Low (1–2)</span>
-          <span style="padding:2px 10px;border-radius:12px;background:#FEF3C7;color:#92400E;font-weight:600">Medium (3–5)</span>
-          <span style="padding:2px 10px;border-radius:12px;background:#FEE2E2;color:#991B1B;font-weight:600">High (6+)</span>
+          <span class="fc-workload-badge fc-workload-low">Low (1–2)</span>
+          <span class="fc-workload-badge fc-workload-medium">Medium (3–5)</span>
+          <span class="fc-workload-badge fc-workload-high">High (6+)</span>
         </div>
       </div>
 

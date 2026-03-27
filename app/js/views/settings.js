@@ -12,7 +12,8 @@ const Settings = {
     darkMode: false,
     accentColor: '#0066FF',
     sidebarTheme: 'navy',
-    pageSize: 20
+    pageSize: 20,
+    autoRefresh: false
   },
 
   _pageSizeOptions: [10, 20, 50, 100],
@@ -214,7 +215,30 @@ const Settings = {
           </div>
         </div>
 
-        <!-- Card 6: Change Password -->
+        <!-- Card 6: Auto-Refresh -->
+        <div class="setting-card">
+          <div class="setting-card-title">Auto-Refresh</div>
+          <div class="setting-card-desc">Automatically re-render the current view every 5 minutes so changes made by other users become visible without a manual refresh.</div>
+          <div class="toggle-row" style="margin-top:14px">
+            <div class="toggle-label">
+              Auto-Refresh
+              <small>Skipped while a modal is open or you are typing in a field</small>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="autoRefreshToggle" ${s.autoRefresh ? 'checked' : ''}
+                     onchange="Settings._setAutoRefresh(this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div style="margin-top:10px;font-size:0.786rem;display:flex;align-items:center;gap:6px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="flex-shrink:0;color:var(--gray-400)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span id="arStatusIndicator" style="color:${s.autoRefresh ? 'var(--green)' : 'var(--gray-400)'}">
+              ${s.autoRefresh ? 'Active — refreshes every 5 minutes' : 'Off'}
+            </span>
+          </div>
+        </div>
+
+        <!-- Card 7: Change Password -->
         <div class="setting-card" style="grid-column:1/-1">
           <div class="setting-card-title">Change Password</div>
           <div class="setting-card-desc">Update your account password. You will be logged out after a successful change.</div>
@@ -334,6 +358,19 @@ const Settings = {
     document.querySelectorAll('.size-btn[data-pagesize]').forEach(btn => {
       btn.classList.toggle('active', Number(btn.dataset.pagesize) === n);
     });
+  },
+
+  _setAutoRefresh(enabled) {
+    this.save({ autoRefresh: enabled });
+    if (typeof AutoRefresh !== 'undefined') {
+      AutoRefresh.onSettingChange(enabled);
+    }
+    // Update status indicator without full re-mount
+    const indicator = document.getElementById('arStatusIndicator');
+    if (indicator) {
+      indicator.textContent = enabled ? 'Active — refreshes every 5 minutes' : 'Off';
+      indicator.style.color  = enabled ? 'var(--green)' : 'var(--gray-400)';
+    }
   },
 
   _confirmReset() {
