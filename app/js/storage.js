@@ -390,5 +390,11 @@ const Storage = {
 
   async deleteMaintenanceContract(id) {
     await this._delete(COL.MAINTENANCE_CONTRACTS, id);
+  },
+
+  async updateContractParts(contractId, contractParts) {
+    const updatedAt = new Date().toISOString();
+    await this._update(COL.MAINTENANCE_CONTRACTS, contractId, { contractParts, updatedAt });
+    return this._getById(COL.MAINTENANCE_CONTRACTS, contractId);
   }
 };

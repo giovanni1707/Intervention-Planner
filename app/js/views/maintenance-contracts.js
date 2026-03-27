@@ -8,6 +8,8 @@ Views.MaintenanceContracts = {
 
   _sortCol: null,
   _sortDir: 'asc',
+  _manageParts_contractId: null,
+  _manageParts_rows: [],
 
   /* ── SORT HELPERS ────────────────────────────────────────── */
   _thHTML(col, label) {
@@ -891,7 +893,7 @@ Views.MaintenanceContracts = {
   },
 
   /* ── DETAIL MODAL ────────────────────────────────────────── */
-  async openDetailModal(contractId) {
+  async openDetailModal(contractId, activeTab) {
     const contract = appState.maintenanceContracts.find(c => c.id === contractId);
     if (!contract) return;
 
@@ -914,14 +916,12 @@ Views.MaintenanceContracts = {
       const isOverdue   = isPast && !isCompleted;
       const rowBg       = isCompleted ? '#F0FDF4' : isOverdue ? '#FEF2F2' : '';
       const visitLabel  = ordinals[idx] || `${idx + 1}th`;
-      // Find linked PMC intervention for this contract+visitIndex
       const linkedIntervention = allInterventions.find(i =>
         i.type === 'pmc' &&
         i.maintenanceContractId === contract.id &&
         i.maintenanceVisitIndex === idx &&
         !['cancelled'].includes(i.status)
       ) || allInterventions.find(i =>
-        // fallback for older entries created before visitIndex was stored
         i.type === 'pmc' &&
         i.machineId === contract.machineId &&
         i.scheduledDate === date &&
@@ -929,19 +929,25 @@ Views.MaintenanceContracts = {
       );
       const techName = linkedIntervention ? Utils.getTechnicianNames(linkedIntervention) : '—';
 
-      // Admin action cell: Plan Visit (no intervention yet) or View Intervention (exists)
+      // Parts consumed in this visit
+      const visitParts = linkedIntervention ? (linkedIntervention.parts || []) : [];
+      const partsCell = visitParts.length > 0
+        ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;border-radius:999px;padding:1px 8px;font-size:0.75rem;font-weight:600;cursor:pointer"
+                onclick="Views.MaintenanceContracts._showVisitPartsDetail('${contractId}',${idx})"
+                title="View parts used">
+             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v4h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+             ${visitParts.length} part${visitParts.length !== 1 ? 's' : ''}
+           </span>`
+        : `<span style="color:var(--gray-300);font-size:0.75rem">—</span>`;
+
       let actionCell = '';
       if (!isCompleted) {
         if (!linkedIntervention && isAdmin) {
           actionCell = `<button class="btn btn-ghost btn-sm" style="color:var(--blue);font-size:0.8rem"
-            onclick="Views.MaintenanceContracts._openPlanVisitModal('${contractId}',${idx})">
-            Plan Visit
-          </button>`;
+            onclick="Views.MaintenanceContracts._openPlanVisitModal('${contractId}',${idx})">Plan Visit</button>`;
         } else if (linkedIntervention && isAdmin && Utils.getTechIds(linkedIntervention).length === 0) {
           actionCell = `<button class="btn btn-ghost btn-sm" style="color:var(--blue);font-size:0.8rem"
-            onclick="Views.MaintenanceContracts._openPlanVisitModal('${contractId}',${idx})">
-            Assign Technician
-          </button>`;
+            onclick="Views.MaintenanceContracts._openPlanVisitModal('${contractId}',${idx})">Assign Technician</button>`;
         }
       }
 
@@ -960,6 +966,7 @@ Views.MaintenanceContracts = {
           <td style="font-size:0.857rem;color:${techName === '—' ? 'var(--gray-400)' : 'var(--gray-700)'}">
             ${Utils.escapeHtml(techName)}
           </td>
+          <td>${partsCell}</td>
           <td>
             ${linkedIntervention ? `
               <a href="javascript:void(0)" style="color:var(--blue);font-size:0.8rem;text-decoration:underline"
@@ -978,129 +985,166 @@ Views.MaintenanceContracts = {
     const creatorUser    = appState.users.find(u => u.name === contract.createdBy);
     const creatorRole    = creatorUser ? (CONFIG.ROLES?.[creatorUser.role] || creatorUser.role) : null;
 
+    // Build spare parts tab content
+    const sparePartsContent = this._buildSparePartsTabContent(contract, contractId, isAdmin);
+
+    // Spare parts alert badge for tab
+    const { alerts } = this._computePartsConsumption(contract);
+    const partsAlertBadge = alerts > 0
+      ? `<span style="margin-left:6px;background:#FEE2E2;color:#991B1B;border-radius:999px;padding:1px 7px;font-size:0.72rem;font-weight:700">${alerts}</span>`
+      : '';
+
+    const tab = activeTab || 'overview';
+
     const body = `
-      <!-- Section 1: Contract Details -->
-      <div class="detail-section">
-        <div class="detail-section-label">Contract Details</div>
-        <div class="detail-grid">
-          <div class="detail-field">
-            <div class="detail-field-label">Client</div>
-            <div class="detail-field-value">${Utils.escapeHtml(client ? client.name : '—')}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Region</div>
-            <div class="detail-field-value" style="${!client?.region ? 'color:var(--gray-400)' : ''}">${Utils.escapeHtml(client?.region || '—')}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Machine</div>
-            <div class="detail-field-value">${Utils.escapeHtml(machine ? machine.model : '—')}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Machine Type</div>
-            <div class="detail-field-value" style="${!machine?.type ? 'color:var(--gray-400)' : ''}">${Utils.escapeHtml(machine?.type || '—')}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Job Number</div>
-            <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.jobNumber || '—')}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Serial Number</div>
-            <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(contract.serialNumber || machine?.serialNumber || '—')}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Status</div>
-            <div class="detail-field-value">${this._statusBadge(status)}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Start Date</div>
-            <div class="detail-field-value">${Utils.formatDate(contract.startDate)}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">End Date</div>
-            <div class="detail-field-value">${Utils.formatDate(contract.endDate)}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Maintenances / Year</div>
-            <div class="detail-field-value">${contract.visitsPerYear}×/yr</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Maintenance Interval</div>
-            <div class="detail-field-value">${intervalLabel}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Created By</div>
-            <div class="detail-field-value">${contract.createdBy
-              ? `${Utils.escapeHtml(contract.createdBy)}${creatorRole ? `<span class="creator-role-tag">${Utils.escapeHtml(creatorRole)}</span>` : ''}`
-              : '<span style="color:var(--gray-400)">—</span>'}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Created</div>
-            <div class="detail-field-value">${Utils.formatDateTime(contract.createdAt)}</div>
-          </div>
-        </div>
-        ${contract.notes ? `
-        <div class="detail-field detail-field-full" style="margin-top:10px">
-          <div class="detail-field-label">Notes / Special Conditions</div>
-          <div class="detail-field-value" style="white-space:pre-wrap;line-height:1.6">${Utils.escapeHtml(contract.notes)}</div>
-        </div>` : ''}
+      <!-- Tab Bar -->
+      <div id="contractDetailTabs" style="display:flex;gap:0;border-bottom:2px solid var(--gray-200);margin-bottom:20px">
+        <button onclick="Views.MaintenanceContracts._switchDetailTab('${contractId}','overview')"
+          id="cdTab_overview"
+          style="padding:9px 18px;border:none;background:none;cursor:pointer;font-size:0.857rem;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;color:${tab==='overview'?'var(--primary)':'var(--gray-500)'}; border-bottom-color:${tab==='overview'?'var(--primary)':'transparent'}">
+          Overview
+        </button>
+        <button onclick="Views.MaintenanceContracts._switchDetailTab('${contractId}','schedule')"
+          id="cdTab_schedule"
+          style="padding:9px 18px;border:none;background:none;cursor:pointer;font-size:0.857rem;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;color:${tab==='schedule'?'var(--primary)':'var(--gray-500)'}; border-bottom-color:${tab==='schedule'?'var(--primary)':'transparent'}">
+          Visit Schedule
+        </button>
+        <button onclick="Views.MaintenanceContracts._switchDetailTab('${contractId}','parts')"
+          id="cdTab_parts"
+          style="padding:9px 18px;border:none;background:none;cursor:pointer;font-size:0.857rem;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;color:${tab==='parts'?'var(--primary)':'var(--gray-500)'}; border-bottom-color:${tab==='parts'?'var(--primary)':'transparent'}">
+          Spare Parts${partsAlertBadge}
+        </button>
       </div>
 
-      <!-- Section 2: Maintenance Tracking -->
-      <div class="detail-section">
-        <div class="detail-section-label">Maintenance Tracking</div>
-        <div class="detail-grid">
-          <div class="detail-field">
-            <div class="detail-field-label">Total Planned</div>
-            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem">${stats.total}</div>
+      <!-- Overview Tab -->
+      <div id="cdPanel_overview" style="display:${tab==='overview'?'block':'none'}">
+        <div class="detail-section">
+          <div class="detail-section-label">Contract Details</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-field-label">Client</div>
+              <div class="detail-field-value">${Utils.escapeHtml(client ? client.name : '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Region</div>
+              <div class="detail-field-value" style="${!client?.region ? 'color:var(--gray-400)' : ''}">${Utils.escapeHtml(client?.region || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Machine</div>
+              <div class="detail-field-value">${Utils.escapeHtml(machine ? machine.model : '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Machine Type</div>
+              <div class="detail-field-value" style="${!machine?.type ? 'color:var(--gray-400)' : ''}">${Utils.escapeHtml(machine?.type || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Job Number</div>
+              <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.jobNumber || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Serial Number</div>
+              <div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(contract.serialNumber || machine?.serialNumber || '—')}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Status</div>
+              <div class="detail-field-value">${this._statusBadge(status)}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Start Date</div>
+              <div class="detail-field-value">${Utils.formatDate(contract.startDate)}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">End Date</div>
+              <div class="detail-field-value">${Utils.formatDate(contract.endDate)}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Maintenances / Year</div>
+              <div class="detail-field-value">${contract.visitsPerYear}×/yr</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Maintenance Interval</div>
+              <div class="detail-field-value">${intervalLabel}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Created By</div>
+              <div class="detail-field-value">${contract.createdBy
+                ? `${Utils.escapeHtml(contract.createdBy)}${creatorRole ? `<span class="creator-role-tag">${Utils.escapeHtml(creatorRole)}</span>` : ''}`
+                : '<span style="color:var(--gray-400)">—</span>'}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Created</div>
+              <div class="detail-field-value">${Utils.formatDateTime(contract.createdAt)}</div>
+            </div>
           </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Completed</div>
-            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem;color:#059669">${stats.completed}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Remaining</div>
-            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem">${stats.remaining}</div>
-          </div>
-          <div class="detail-field">
-            <div class="detail-field-label">Overdue</div>
-            <div class="detail-field-value" style="font-weight:700;font-size:1.1rem;${stats.overdue > 0 ? 'color:var(--red)' : 'color:var(--gray-400)'}">${stats.overdue || '—'}</div>
-          </div>
-          <div class="detail-field detail-field-full">
-            <div class="detail-field-label">Next Scheduled Visit</div>
-            <div class="detail-field-value" style="${!nextV ? 'color:var(--gray-400)' : 'font-weight:600'}">${nextV ? Utils.formatDate(nextV) : '—'}</div>
-          </div>
+          ${contract.notes ? `
+          <div class="detail-field detail-field-full" style="margin-top:10px">
+            <div class="detail-field-label">Notes / Special Conditions</div>
+            <div class="detail-field-value" style="white-space:pre-wrap;line-height:1.6">${Utils.escapeHtml(contract.notes)}</div>
+          </div>` : ''}
         </div>
 
-        <!-- Progress bar -->
-        <div style="margin-top:14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <span style="font-size:0.8rem;font-weight:600;color:var(--gray-600)">Completion Progress</span>
-            <span style="font-size:0.8rem;color:var(--gray-500)">${stats.completed} / ${stats.total} (${progPct}%)</span>
+        <div class="detail-section">
+          <div class="detail-section-label">Maintenance Tracking</div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <div class="detail-field-label">Total Planned</div>
+              <div class="detail-field-value" style="font-weight:700;font-size:1.1rem">${stats.total}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Completed</div>
+              <div class="detail-field-value" style="font-weight:700;font-size:1.1rem;color:#059669">${stats.completed}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Remaining</div>
+              <div class="detail-field-value" style="font-weight:700;font-size:1.1rem">${stats.remaining}</div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Overdue</div>
+              <div class="detail-field-value" style="font-weight:700;font-size:1.1rem;${stats.overdue > 0 ? 'color:var(--red)' : 'color:var(--gray-400)'}">${stats.overdue || '—'}</div>
+            </div>
+            <div class="detail-field detail-field-full">
+              <div class="detail-field-label">Next Scheduled Visit</div>
+              <div class="detail-field-value" style="${!nextV ? 'color:var(--gray-400)' : 'font-weight:600'}">${nextV ? Utils.formatDate(nextV) : '—'}</div>
+            </div>
           </div>
-          <div style="background:var(--gray-200);border-radius:6px;height:8px">
-            <div style="width:${progPct}%;background:${progColor};height:8px;border-radius:6px;transition:width 0.3s"></div>
+          <div style="margin-top:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <span style="font-size:0.8rem;font-weight:600;color:var(--gray-600)">Completion Progress</span>
+              <span style="font-size:0.8rem;color:var(--gray-500)">${stats.completed} / ${stats.total} (${progPct}%)</span>
+            </div>
+            <div style="background:var(--gray-200);border-radius:6px;height:8px">
+              <div style="width:${progPct}%;background:${progColor};height:8px;border-radius:6px;transition:width 0.3s"></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Section 3: Maintenance Schedule -->
-      <div class="detail-section">
-        <div class="detail-section-label">Maintenance Schedule</div>
-        <div class="table-wrapper" style="max-height:300px;overflow-y:auto">
-          <table class="data-table" id="scheduleTable_${contractId}">
-            <thead>
-              <tr>
-                <th>Visit</th>
-                <th>Scheduled Date</th>
-                <th>Status</th>
-                <th>Technician</th>
-                <th>Intervention</th>
-                ${isAdmin ? '<th>Action</th>' : ''}
-              </tr>
-            </thead>
-            <tbody>${scheduleRows || `<tr><td colspan="${isAdmin ? 6 : 5}" style="text-align:center;color:var(--gray-400)">No schedule generated</td></tr>`}</tbody>
-          </table>
+      <!-- Visit Schedule Tab -->
+      <div id="cdPanel_schedule" style="display:${tab==='schedule'?'block':'none'}">
+        <div class="detail-section">
+          <div class="detail-section-label">Maintenance Schedule</div>
+          <div class="table-wrapper" style="max-height:360px;overflow-y:auto">
+            <table class="data-table" id="scheduleTable_${contractId}">
+              <thead>
+                <tr>
+                  <th>Visit</th>
+                  <th>Scheduled Date</th>
+                  <th>Status</th>
+                  <th>Technician</th>
+                  <th>Parts Used</th>
+                  <th>Intervention</th>
+                  ${isAdmin ? '<th>Action</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>${scheduleRows || `<tr><td colspan="${isAdmin ? 7 : 6}" style="text-align:center;color:var(--gray-400)">No schedule generated</td></tr>`}</tbody>
+            </table>
+          </div>
         </div>
+      </div>
+
+      <!-- Spare Parts Tab -->
+      <div id="cdPanel_parts" style="display:${tab==='parts'?'block':'none'}">
+        ${sparePartsContent}
       </div>
     `;
 
@@ -1109,6 +1153,416 @@ Views.MaintenanceContracts = {
     `;
 
     Modals.open(`Contract — ${client ? Utils.escapeHtml(client.name) : ''}`, body, footer, { size: 'lg' });
+  },
+
+  _switchDetailTab(contractId, tab) {
+    ['overview','schedule','parts'].forEach(t => {
+      const panel = document.getElementById(`cdPanel_${t}`);
+      const btn   = document.getElementById(`cdTab_${t}`);
+      if (!panel || !btn) return;
+      const active = t === tab;
+      panel.style.display = active ? 'block' : 'none';
+      btn.style.color = active ? 'var(--primary)' : 'var(--gray-500)';
+      btn.style.borderBottomColor = active ? 'var(--primary)' : 'transparent';
+    });
+  },
+
+  /* ── SPARE PARTS — CONSUMPTION CALCULATION ───────────────── */
+  _computePartsConsumption(contract) {
+    const contractParts   = contract.contractParts || [];
+    const allInterventions = appState.interventions;
+    const schedule        = contract.schedule || [];
+
+    // Collect all parts consumed across all linked PMC interventions
+    const consumedMap = {}; // reference → total qty consumed
+    const consumedByVisit = {}; // visitIndex → [{reference, description, qty}]
+
+    schedule.forEach((date, idx) => {
+      const linked = allInterventions.find(i =>
+        i.type === 'pmc' &&
+        i.maintenanceContractId === contract.id &&
+        i.maintenanceVisitIndex === idx &&
+        !['cancelled'].includes(i.status)
+      ) || allInterventions.find(i =>
+        i.type === 'pmc' &&
+        i.machineId === contract.machineId &&
+        i.scheduledDate === date &&
+        !['cancelled'].includes(i.status)
+      );
+
+      const parts = linked ? (linked.parts || []) : [];
+      consumedByVisit[idx] = parts;
+      parts.forEach(p => {
+        const ref = (p.reference || '').trim().toUpperCase();
+        consumedMap[ref] = (consumedMap[ref] || 0) + (Number(p.quantity) || 1);
+      });
+    });
+
+    // Build enriched parts list
+    let alerts = 0;
+    const parts = contractParts.map(p => {
+      const ref       = (p.reference || '').trim().toUpperCase();
+      const allocated = Number(p.quantity) || 0;
+      const consumed  = consumedMap[ref] || 0;
+      const remaining = Math.max(0, allocated - consumed);
+      const pct       = allocated > 0 ? Math.round((consumed / allocated) * 100) : 0;
+      let stockStatus, stockColor, stockBg;
+      if (allocated === 0) {
+        stockStatus = 'N/A'; stockColor = 'var(--gray-500)'; stockBg = 'var(--gray-100)';
+      } else if (remaining === 0) {
+        stockStatus = 'Depleted'; stockColor = '#991B1B'; stockBg = '#FEE2E2'; alerts++;
+      } else if (pct >= 75) {
+        stockStatus = 'Low Stock'; stockColor = '#92400E'; stockBg = '#FEF3C7'; alerts++;
+      } else {
+        stockStatus = 'OK'; stockColor = '#065F46'; stockBg = '#D1FAE5';
+      }
+      return { ...p, ref, allocated, consumed, remaining, pct, stockStatus, stockColor, stockBg };
+    });
+
+    // Also find parts consumed in visits that are NOT in the catalog
+    const uncataloged = [];
+    Object.values(consumedByVisit).flat().forEach(p => {
+      const ref = (p.reference || '').trim().toUpperCase();
+      const inCatalog = contractParts.some(cp => (cp.reference || '').trim().toUpperCase() === ref);
+      if (!inCatalog && ref) {
+        const existing = uncataloged.find(u => u.ref === ref);
+        if (existing) { existing.consumed += (Number(p.quantity) || 1); }
+        else uncataloged.push({ ref, description: p.description || '', consumed: Number(p.quantity) || 1 });
+      }
+    });
+
+    return { parts, uncataloged, consumedByVisit, alerts };
+  },
+
+  _buildSparePartsTabContent(contract, contractId, isAdmin) {
+    const { parts, uncataloged } = this._computePartsConsumption(contract);
+    const totalAllocated  = parts.reduce((s, p) => s + p.allocated, 0);
+    const totalConsumed   = parts.reduce((s, p) => s + p.consumed, 0);
+    const depleted        = parts.filter(p => p.stockStatus === 'Depleted').length;
+    const lowStock        = parts.filter(p => p.stockStatus === 'Low Stock').length;
+
+    // KPI strip
+    const kpiStrip = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:14px 16px;text-align:center">
+          <div style="font-size:1.4rem;font-weight:700;color:var(--text)">${parts.length}</div>
+          <div style="font-size:0.75rem;color:var(--gray-500);margin-top:2px">Part Types</div>
+        </div>
+        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:14px 16px;text-align:center">
+          <div style="font-size:1.4rem;font-weight:700;color:#1D4ED8">${totalConsumed}<span style="font-size:0.9rem;color:var(--gray-400);font-weight:400"> / ${totalAllocated}</span></div>
+          <div style="font-size:0.75rem;color:var(--gray-500);margin-top:2px">Units Consumed</div>
+        </div>
+        <div style="background:${lowStock > 0 ? '#FFFBEB' : 'var(--gray-50)'};border:1px solid ${lowStock > 0 ? '#FCD34D' : 'var(--gray-200)'};border-radius:8px;padding:14px 16px;text-align:center">
+          <div style="font-size:1.4rem;font-weight:700;color:${lowStock > 0 ? '#B45309' : 'var(--gray-400)'}">${lowStock}</div>
+          <div style="font-size:0.75rem;color:var(--gray-500);margin-top:2px">Low Stock</div>
+        </div>
+        <div style="background:${depleted > 0 ? '#FEF2F2' : 'var(--gray-50)'};border:1px solid ${depleted > 0 ? '#FECACA' : 'var(--gray-200)'};border-radius:8px;padding:14px 16px;text-align:center">
+          <div style="font-size:1.4rem;font-weight:700;color:${depleted > 0 ? '#991B1B' : 'var(--gray-400)'}">${depleted}</div>
+          <div style="font-size:0.75rem;color:var(--gray-500);margin-top:2px">Depleted</div>
+        </div>
+      </div>`;
+
+    // Parts catalog table
+    let catalogRows = '';
+    if (parts.length === 0) {
+      catalogRows = `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--gray-400)">
+        <div style="font-size:0.857rem">No spare parts allocated to this contract yet.</div>
+        ${isAdmin ? `<div style="margin-top:8px"><button class="btn btn-primary btn-sm" onclick="Views.MaintenanceContracts._openManagePartsModal('${contractId}')">Add Parts</button></div>` : ''}
+      </td></tr>`;
+    } else {
+      catalogRows = parts.map((p, i) => {
+        const barColor = p.stockStatus === 'Depleted' ? '#EF4444' : p.stockStatus === 'Low Stock' ? '#F59E0B' : '#10B981';
+        return `<tr>
+          <td style="font-family:monospace;font-size:0.8rem;font-weight:600;color:var(--gray-600)">${Utils.escapeHtml(p.reference || '—')}</td>
+          <td style="font-size:0.857rem">${Utils.escapeHtml(p.description || '—')}</td>
+          <td style="text-align:center;font-size:0.857rem;color:var(--gray-600)">${Utils.escapeHtml(p.unit || 'pcs')}</td>
+          <td style="text-align:center;font-weight:600">${p.allocated}</td>
+          <td style="text-align:center;color:#1D4ED8;font-weight:600">${p.consumed}</td>
+          <td style="text-align:center;font-weight:700;color:${p.remaining === 0 ? '#991B1B' : 'var(--text)'}">${p.remaining}</td>
+          <td style="min-width:160px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="flex:1;background:var(--gray-200);border-radius:4px;height:6px">
+                <div style="width:${Math.min(p.pct,100)}%;background:${barColor};height:6px;border-radius:4px;transition:width 0.3s"></div>
+              </div>
+              <span style="min-width:64px;text-align:right">
+                <span style="padding:2px 8px;border-radius:999px;font-size:0.72rem;font-weight:700;background:${p.stockBg};color:${p.stockColor}">${p.stockStatus}</span>
+              </span>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Uncataloged parts alert
+    const uncatalogedSection = uncataloged.length > 0 ? `
+      <div style="margin-top:16px;padding:12px 16px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px">
+        <div style="font-size:0.8rem;font-weight:700;color:#92400E;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Parts used in visits but not in the contract catalog
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${uncataloged.map(u => `<span style="display:inline-flex;align-items:center;gap:4px;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:6px;padding:3px 10px;font-size:0.786rem">
+            <strong>${Utils.escapeHtml(u.ref)}</strong> — ${Utils.escapeHtml(u.description)} × ${u.consumed}
+          </span>`).join('')}
+        </div>
+      </div>` : '';
+
+    // Consumption by visit breakdown (collapsible)
+    const visitBreakdown = this._buildVisitConsumptionBreakdown(contract, contractId);
+
+    return `
+      ${kpiStrip}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:0.857rem;font-weight:700;color:var(--text)">Contract Parts Catalog</div>
+        ${isAdmin ? `<button class="btn btn-primary btn-sm" onclick="Views.MaintenanceContracts._openManagePartsModal('${contractId}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Manage Parts
+        </button>` : ''}
+      </div>
+      <div class="table-wrapper" style="margin-bottom:4px">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Description</th>
+              <th style="text-align:center">Unit</th>
+              <th style="text-align:center">Allocated</th>
+              <th style="text-align:center">Consumed</th>
+              <th style="text-align:center">Remaining</th>
+              <th>Stock Status</th>
+            </tr>
+          </thead>
+          <tbody>${catalogRows}</tbody>
+        </table>
+      </div>
+      ${uncatalogedSection}
+      ${visitBreakdown}
+    `;
+  },
+
+  _buildVisitConsumptionBreakdown(contract, contractId) {
+    const { consumedByVisit } = this._computePartsConsumption(contract);
+    const schedule  = contract.schedule || [];
+    const ordinals  = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'];
+
+    const hasAnyParts = Object.values(consumedByVisit).some(p => p.length > 0);
+    if (!hasAnyParts) return '';
+
+    const rows = schedule.map((date, idx) => {
+      const parts = consumedByVisit[idx] || [];
+      if (!parts.length) return '';
+      const label = ordinals[idx] || `${idx+1}th`;
+      return `<tr>
+        <td style="font-weight:600;font-size:0.8rem;white-space:nowrap">${label} Visit<br><span style="font-weight:400;color:var(--gray-400)">${Utils.formatDate(date)}</span></td>
+        <td>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            ${parts.map(p => `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:6px;padding:2px 8px;font-size:0.75rem">
+              <strong>${Utils.escapeHtml(p.reference || '?')}</strong>
+              ${Utils.escapeHtml(p.description ? '— ' + Utils.truncate(p.description, 30) : '')}
+              <span style="color:var(--gray-400)">×${p.quantity || 1}</span>
+            </span>`).join('')}
+          </div>
+        </td>
+      </tr>`;
+    }).filter(Boolean).join('');
+
+    if (!rows) return '';
+
+    return `
+      <div style="margin-top:20px">
+        <div style="font-size:0.857rem;font-weight:700;color:var(--text);margin-bottom:10px">Parts Consumption by Visit</div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead><tr><th style="width:130px">Visit</th><th>Parts Used</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  /* ── VISIT PARTS DETAIL POPUP ────────────────────────────── */
+  _showVisitPartsDetail(contractId, visitIdx) {
+    const contract = appState.maintenanceContracts.find(c => c.id === contractId);
+    if (!contract) return;
+    const schedule = contract.schedule || [];
+    const ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'];
+    const visitLabel = ordinals[visitIdx] || `${visitIdx+1}th`;
+    const date = schedule[visitIdx] || '';
+
+    const linked = appState.interventions.find(i =>
+      i.type === 'pmc' && i.maintenanceContractId === contractId &&
+      i.maintenanceVisitIndex === visitIdx && !['cancelled'].includes(i.status)
+    );
+    const parts = linked ? (linked.parts || []) : [];
+
+    const rows = parts.length
+      ? parts.map(p => `<tr>
+          <td style="font-family:monospace;font-size:0.8rem">${Utils.escapeHtml(p.reference || '—')}</td>
+          <td>${Utils.escapeHtml(p.description || '—')}</td>
+          <td style="text-align:center">${p.quantity || 1}</td>
+          <td style="text-align:center;color:var(--gray-500)">${Utils.escapeHtml(p.unit || 'pcs')}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No parts recorded</td></tr>`;
+
+    Modals.open(`${visitLabel} Visit — Parts Used (${Utils.formatDate(date)})`, `
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Reference</th><th>Description</th><th style="text-align:center">Qty</th><th style="text-align:center">Unit</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `, `<button class="btn btn-ghost" onclick="Modals.close()">Close</button>`);
+  },
+
+  /* ── MANAGE PARTS MODAL ──────────────────────────────────── */
+  _openManagePartsModal(contractId) {
+    const contract = appState.maintenanceContracts.find(c => c.id === contractId);
+    if (!contract) return;
+    const clients  = appState.clients;
+    const machines = appState.machines;
+    const client   = clients.find(c => c.id === contract.clientId);
+    const machine  = machines.find(m => m.id === contract.machineId);
+
+    this._manageParts_contractId = contractId;
+    this._manageParts_rows = JSON.parse(JSON.stringify(contract.contractParts || []));
+
+    Modals.open(
+      `Spare Parts Catalog — ${client ? Utils.escapeHtml(client.name) : ''} / ${machine ? Utils.escapeHtml(machine.model) : ''}`,
+      this._renderManagePartsBody(),
+      `<button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+       <button class="btn btn-primary" onclick="Views.MaintenanceContracts._submitManageParts()">Save Parts Catalog</button>`,
+      { size: 'lg' }
+    );
+  },
+
+  _renderManagePartsBody() {
+    const rows = this._manageParts_rows;
+
+    const tableRows = rows.length === 0
+      ? `<tr id="mpEmptyRow"><td colspan="5" style="text-align:center;padding:20px;color:var(--gray-400);font-size:0.857rem">No parts added yet. Use the form below to add parts.</td></tr>`
+      : rows.map((p, i) => `
+        <tr id="mpRow_${i}">
+          <td><input type="text" value="${Utils.escapeHtml(p.reference || '')}" oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'reference',this.value)"
+            style="width:100%;padding:5px 8px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;font-family:monospace;background:var(--surface);color:var(--text)"></td>
+          <td><input type="text" value="${Utils.escapeHtml(p.description || '')}" oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'description',this.value)"
+            style="width:100%;padding:5px 8px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text)"></td>
+          <td style="width:80px"><input type="number" value="${p.quantity || 1}" min="1" oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'quantity',this.value)"
+            style="width:100%;padding:5px 8px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;text-align:center;background:var(--surface);color:var(--text)"></td>
+          <td style="width:80px">
+            <select oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'unit',this.value)"
+              style="width:100%;padding:5px 6px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+              ${['pcs','set','litre','kg','m','box'].map(u => `<option value="${u}" ${(p.unit||'pcs')===u?'selected':''}>${u}</option>`).join('')}
+            </select>
+          </td>
+          <td style="text-align:center;width:48px">
+            <button class="btn btn-ghost btn-sm btn-icon" title="Remove" style="color:var(--red)" onclick="Views.MaintenanceContracts._mpRemoveRow(${i})">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </button>
+          </td>
+        </tr>`).join('');
+
+    return `
+      <div style="margin-bottom:4px;font-size:0.8rem;color:var(--gray-500)">
+        Define the spare parts allocated for the entire contract period. Consumption is tracked automatically from each visit's recorded parts.
+      </div>
+      <div class="table-wrapper" style="margin-bottom:16px;max-height:320px;overflow-y:auto">
+        <table class="data-table" id="mpTable">
+          <thead>
+            <tr>
+              <th>Part Reference</th>
+              <th>Description</th>
+              <th style="text-align:center">Qty Allocated</th>
+              <th style="text-align:center">Unit</th>
+              <th style="text-align:center"></th>
+            </tr>
+          </thead>
+          <tbody id="mpTableBody">${tableRows}</tbody>
+        </table>
+      </div>
+
+      <!-- Add Row Form -->
+      <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:14px 16px">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--gray-700);margin-bottom:10px">Add New Part</div>
+        <div style="display:grid;grid-template-columns:1fr 2fr 80px 80px auto;gap:8px;align-items:end">
+          <div>
+            <label style="font-size:0.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px">Reference <span style="color:var(--red)">*</span></label>
+            <input id="mpNewRef" type="text" placeholder="e.g. BLD-001" class="form-input" style="font-family:monospace">
+          </div>
+          <div>
+            <label style="font-size:0.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px">Description</label>
+            <input id="mpNewDesc" type="text" placeholder="e.g. Blade assembly" class="form-input">
+          </div>
+          <div>
+            <label style="font-size:0.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px">Qty</label>
+            <input id="mpNewQty" type="number" value="1" min="1" class="form-input" style="text-align:center">
+          </div>
+          <div>
+            <label style="font-size:0.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px">Unit</label>
+            <select id="mpNewUnit" class="form-select">
+              ${['pcs','set','litre','kg','m','box'].map(u => `<option value="${u}">${u}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" style="align-self:end" onclick="Views.MaintenanceContracts._mpAddRow()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add
+          </button>
+        </div>
+        <div id="mpAddError" style="color:var(--red);font-size:0.786rem;margin-top:6px;display:none"></div>
+      </div>
+    `;
+  },
+
+  _mpUpdateRow(idx, field, value) {
+    if (this._manageParts_rows[idx]) {
+      this._manageParts_rows[idx][field] = field === 'quantity' ? Math.max(1, parseInt(value) || 1) : value;
+    }
+  },
+
+  _mpRemoveRow(idx) {
+    this._manageParts_rows.splice(idx, 1);
+    const body = document.getElementById('modalBody');
+    if (body) body.innerHTML = this._renderManagePartsBody();
+  },
+
+  _mpAddRow() {
+    const ref    = (document.getElementById('mpNewRef')?.value || '').trim();
+    const desc   = (document.getElementById('mpNewDesc')?.value || '').trim();
+    const qty    = Math.max(1, parseInt(document.getElementById('mpNewQty')?.value) || 1);
+    const unit   = document.getElementById('mpNewUnit')?.value || 'pcs';
+    const errEl  = document.getElementById('mpAddError');
+
+    if (!ref) {
+      if (errEl) { errEl.textContent = 'Part reference is required.'; errEl.style.display = 'block'; }
+      return;
+    }
+    // Duplicate check
+    const dup = this._manageParts_rows.some(p => (p.reference || '').trim().toUpperCase() === ref.toUpperCase());
+    if (dup) {
+      if (errEl) { errEl.textContent = `Reference "${ref}" already exists in the catalog.`; errEl.style.display = 'block'; }
+      return;
+    }
+    if (errEl) errEl.style.display = 'none';
+
+    this._manageParts_rows.push({ id: Utils.generateId(), reference: ref, description: desc, quantity: qty, unit });
+    const body = document.getElementById('modalBody');
+    if (body) body.innerHTML = this._renderManagePartsBody();
+  },
+
+  async _submitManageParts() {
+    const contractId = this._manageParts_contractId;
+    if (!contractId) return;
+    const parts = this._manageParts_rows.map(p => ({
+      id:          p.id || Utils.generateId(),
+      reference:   (p.reference || '').trim(),
+      description: (p.description || '').trim(),
+      quantity:    Math.max(1, parseInt(p.quantity) || 1),
+      unit:        p.unit || 'pcs'
+    })).filter(p => p.reference);
+
+    await Storage.updateContractParts(contractId, parts);
+    Toast.success('Spare parts catalog saved successfully.');
+    Modals.close();
+    setTimeout(() => this.openDetailModal(contractId, 'parts'), 80);
   },
 
   /* ── PLAN VISIT MODAL ───────────────────────────────────── */

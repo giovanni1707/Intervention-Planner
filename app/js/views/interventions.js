@@ -145,7 +145,7 @@ Views.Interventions = {
           <select id="intDistrict" class="toolbar-select">${districtOptions}</select>
           <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._resetFilters()">Clear</button>
         </div>
-        <span id="intCount" class="text-sm text-muted"></span>
+        <span id="intCount"></span>
       </div>
 
       <div id="interventionContent"></div>
@@ -199,7 +199,7 @@ Views.Interventions = {
     const subtitle  = document.getElementById('interventionSubtitle');
     if (!container) return;
 
-    if (countEl) countEl.textContent = `${interventions.length} result${interventions.length !== 1 ? 's' : ''}`;
+    if (countEl) countEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--primary-50,#EFF6FF);color:var(--primary-700,#1D4ED8);border:1px solid var(--primary-200,#BFDBFE);border-radius:999px;padding:2px 10px;font-size:0.78rem;font-weight:600">${interventions.length} <span style="font-weight:400;opacity:.75">result${interventions.length !== 1 ? 's' : ''}</span></span>`;
     if (subtitle) subtitle.textContent = `${interventions.length} intervention${interventions.length !== 1 ? 's' : ''} found`;
 
     if (interventions.length === 0) {
@@ -348,7 +348,7 @@ Views.Interventions = {
     const container = document.getElementById('interventionContent');
     const countEl   = document.getElementById('intCount');
     if (!container) return;
-    if (countEl) countEl.textContent = `${interventions.length} result${interventions.length !== 1 ? 's' : ''}`;
+    if (countEl) countEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--primary-50,#EFF6FF);color:var(--primary-700,#1D4ED8);border:1px solid var(--primary-200,#BFDBFE);border-radius:999px;padding:2px 10px;font-size:0.78rem;font-weight:600">${interventions.length} <span style="font-weight:400;opacity:.75">result${interventions.length !== 1 ? 's' : ''}</span></span>`;
 
     const grouped = Utils.groupBy(interventions, 'status');
 
