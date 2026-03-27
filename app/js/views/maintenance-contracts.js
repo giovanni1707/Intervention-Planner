@@ -10,6 +10,7 @@ Views.MaintenanceContracts = {
   _sortDir: 'asc',
   _manageParts_contractId: null,
   _manageParts_rows: [],
+  _manageParts_pendingLog: [],
 
   /* ── SORT HELPERS ────────────────────────────────────────── */
   _thHTML(col, label) {
@@ -1425,6 +1426,7 @@ Views.MaintenanceContracts = {
 
     this._manageParts_contractId = contractId;
     this._manageParts_rows = JSON.parse(JSON.stringify(contract.contractParts || []));
+    this._manageParts_pendingLog = [];
 
     Modals.open(
       `Spare Parts Catalog — ${client ? Utils.escapeHtml(client.name) : ''} / ${machine ? Utils.escapeHtml(machine.model) : ''}`,
@@ -1446,12 +1448,16 @@ Views.MaintenanceContracts = {
             style="width:100%;padding:5px 8px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;font-family:monospace;background:var(--surface);color:var(--text)"></td>
           <td><input type="text" value="${Utils.escapeHtml(p.description || '')}" oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'description',this.value)"
             style="width:100%;padding:5px 8px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text)"></td>
-          <td style="width:80px"><input type="number" value="${p.quantity || 1}" min="1" oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'quantity',this.value)"
+          <td style="width:90px"><input type="number" value="${p.quantity || 1}"
+            min="${['litre','m'].includes(p.unit||'pcs') ? '0.01' : '1'}"
+            step="${['litre','m'].includes(p.unit||'pcs') ? '0.01' : '1'}"
+            oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'quantity',this.value)"
+            id="mpQtyInput_${i}"
             style="width:100%;padding:5px 8px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;text-align:center;background:var(--surface);color:var(--text)"></td>
           <td style="width:80px">
-            <select oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'unit',this.value)"
+            <select oninput="Views.MaintenanceContracts._mpUpdateRow(${i},'unit',this.value);Views.MaintenanceContracts._mpSyncQtyInput(${i},this.value)"
               style="width:100%;padding:5px 6px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
-              ${['pcs','set','litre','kg','m','box'].map(u => `<option value="${u}" ${(p.unit||'pcs')===u?'selected':''}>${u}</option>`).join('')}
+              ${['pcs','litre','m'].map(u => `<option value="${u}" ${(p.unit||'pcs')===u?'selected':''}>${u}</option>`).join('')}
             </select>
           </td>
           <td style="text-align:center;width:48px">
@@ -1493,14 +1499,14 @@ Views.MaintenanceContracts = {
             <input id="mpNewDesc" type="text" placeholder="e.g. Blade assembly" class="form-input">
           </div>
           <div>
-            <label style="font-size:0.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px">Qty</label>
-            <input id="mpNewQty" type="number" value="1" min="1" class="form-input" style="text-align:center">
+            <label style="font-size:0.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px">Unit</label>
+            <select id="mpNewUnit" class="form-select" onchange="Views.MaintenanceContracts._mpSyncNewQtyInput()">
+              ${['pcs','litre','m'].map(u => `<option value="${u}">${u}</option>`).join('')}
+            </select>
           </div>
           <div>
-            <label style="font-size:0.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px">Unit</label>
-            <select id="mpNewUnit" class="form-select">
-              ${['pcs','set','litre','kg','m','box'].map(u => `<option value="${u}">${u}</option>`).join('')}
-            </select>
+            <label style="font-size:0.75rem;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px">Qty</label>
+            <input id="mpNewQty" type="number" value="1" min="1" step="1" class="form-input" style="text-align:center">
           </div>
           <button class="btn btn-primary btn-sm" style="align-self:end" onclick="Views.MaintenanceContracts._mpAddRow()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1512,14 +1518,53 @@ Views.MaintenanceContracts = {
     `;
   },
 
+  _mpParseQty(value, unit) {
+    const decimal = ['litre','m'].includes(unit);
+    const parsed  = decimal ? parseFloat(value) : parseInt(value);
+    const min     = decimal ? 0.01 : 1;
+    return isNaN(parsed) || parsed < min ? min : parsed;
+  },
+
+  _mpSyncQtyInput(idx, unit) {
+    const input = document.getElementById(`mpQtyInput_${idx}`);
+    if (!input) return;
+    const decimal = ['litre','m'].includes(unit);
+    input.min  = decimal ? '0.01' : '1';
+    input.step = decimal ? '0.01' : '1';
+    // Re-parse current value with new unit rules
+    const current = parseFloat(input.value) || 1;
+    input.value = decimal ? current : Math.max(1, Math.round(current));
+    this._manageParts_rows[idx].quantity = parseFloat(input.value);
+  },
+
+  _mpSyncNewQtyInput() {
+    const unit  = document.getElementById('mpNewUnit')?.value || 'pcs';
+    const input = document.getElementById('mpNewQty');
+    if (!input) return;
+    const decimal = ['litre','m'].includes(unit);
+    input.min  = decimal ? '0.01' : '1';
+    input.step = decimal ? '0.01' : '1';
+    const current = parseFloat(input.value) || 1;
+    input.value = decimal ? current : Math.max(1, Math.round(current));
+  },
+
   _mpUpdateRow(idx, field, value) {
     if (this._manageParts_rows[idx]) {
-      this._manageParts_rows[idx][field] = field === 'quantity' ? Math.max(1, parseInt(value) || 1) : value;
+      if (field === 'quantity') {
+        const unit = this._manageParts_rows[idx].unit || 'pcs';
+        this._manageParts_rows[idx][field] = this._mpParseQty(value, unit);
+      } else {
+        this._manageParts_rows[idx][field] = value;
+      }
     }
   },
 
   _mpRemoveRow(idx) {
-    this._manageParts_rows.splice(idx, 1);
+    const removed = this._manageParts_rows.splice(idx, 1)[0];
+    this._manageParts_pendingLog = this._manageParts_pendingLog || [];
+    if (removed?.reference) {
+      this._manageParts_pendingLog.push({ action: 'DELETE_CONTRACT_PART', before: removed, after: null });
+    }
     const body = document.getElementById('modalBody');
     if (body) body.innerHTML = this._renderManagePartsBody();
   },
@@ -1527,8 +1572,8 @@ Views.MaintenanceContracts = {
   _mpAddRow() {
     const ref    = (document.getElementById('mpNewRef')?.value || '').trim();
     const desc   = (document.getElementById('mpNewDesc')?.value || '').trim();
-    const qty    = Math.max(1, parseInt(document.getElementById('mpNewQty')?.value) || 1);
     const unit   = document.getElementById('mpNewUnit')?.value || 'pcs';
+    const qty    = this._mpParseQty(document.getElementById('mpNewQty')?.value, unit);
     const errEl  = document.getElementById('mpAddError');
 
     if (!ref) {
@@ -1543,7 +1588,10 @@ Views.MaintenanceContracts = {
     }
     if (errEl) errEl.style.display = 'none';
 
-    this._manageParts_rows.push({ id: Utils.generateId(), reference: ref, description: desc, quantity: qty, unit });
+    const newPart = { id: Utils.generateId(), reference: ref, description: desc, quantity: qty, unit };
+    this._manageParts_rows.push(newPart);
+    this._manageParts_pendingLog = this._manageParts_pendingLog || [];
+    this._manageParts_pendingLog.push({ action: 'ADD_CONTRACT_PART', before: null, after: newPart });
     const body = document.getElementById('modalBody');
     if (body) body.innerHTML = this._renderManagePartsBody();
   },
@@ -1551,15 +1599,73 @@ Views.MaintenanceContracts = {
   async _submitManageParts() {
     const contractId = this._manageParts_contractId;
     if (!contractId) return;
+
+    const originalParts = appState.maintenanceContracts.find(c => c.id === contractId)?.contractParts || [];
+
     const parts = this._manageParts_rows.map(p => ({
       id:          p.id || Utils.generateId(),
       reference:   (p.reference || '').trim(),
       description: (p.description || '').trim(),
-      quantity:    Math.max(1, parseInt(p.quantity) || 1),
+      quantity:    this._mpParseQty(p.quantity, p.unit || 'pcs'),
       unit:        p.unit || 'pcs'
     })).filter(p => p.reference);
 
+    // Detect edits (rows that existed before and have changed)
+    const editLogs = [];
+    parts.forEach(newP => {
+      const orig = originalParts.find(o => o.id === newP.id);
+      if (orig) {
+        const changed = orig.reference !== newP.reference ||
+          orig.description !== newP.description ||
+          String(orig.quantity) !== String(newP.quantity) ||
+          orig.unit !== newP.unit;
+        if (changed) editLogs.push({ action: 'EDIT_CONTRACT_PART', before: orig, after: newP });
+      }
+    });
+
     await Storage.updateContractParts(contractId, parts);
+
+    // Write audit log entries
+    const user       = appState.currentUser;
+    const contract   = appState.maintenanceContracts.find(c => c.id === contractId);
+    const clients    = appState.clients;
+    const machines   = appState.machines;
+    const client     = clients.find(c => c.id === contract?.clientId);
+    const machine    = machines.find(m => m.id === contract?.machineId);
+    const targetLabel = `${client?.name || '?'} / ${machine?.model || '?'} (Contract)`;
+
+    const pendingLog = this._manageParts_pendingLog || [];
+    const allLogs    = [...pendingLog, ...editLogs];
+
+    for (const entry of allLogs) {
+      let details = '';
+      if (entry.action === 'ADD_CONTRACT_PART') {
+        details = `Added: ${entry.after.reference} — ${entry.after.description || 'no description'} | Qty: ${entry.after.quantity} ${entry.after.unit}`;
+      } else if (entry.action === 'EDIT_CONTRACT_PART') {
+        const b = entry.before, a = entry.after;
+        const diffs = [];
+        if (b.reference   !== a.reference)   diffs.push(`Reference: "${b.reference}" → "${a.reference}"`);
+        if (b.description !== a.description) diffs.push(`Description: "${b.description}" → "${a.description}"`);
+        if (String(b.quantity) !== String(a.quantity) || b.unit !== a.unit)
+          diffs.push(`Qty: ${b.quantity} ${b.unit} → ${a.quantity} ${a.unit}`);
+        details = diffs.join(' | ');
+      } else if (entry.action === 'DELETE_CONTRACT_PART') {
+        details = `Deleted: ${entry.before.reference} — ${entry.before.description || 'no description'} | Qty: ${entry.before.quantity} ${entry.before.unit}`;
+      }
+
+      if (details) {
+        await Storage.logAction({
+          action:    entry.action,
+          actor:     user?.name || 'Admin',
+          role:      user?.role || 'admin',
+          target:    targetLabel,
+          targetId:  contractId,
+          details
+        });
+      }
+    }
+
+    this._manageParts_pendingLog = [];
     Toast.success('Spare parts catalog saved successfully.');
     Modals.close();
     setTimeout(() => this.openDetailModal(contractId, 'parts'), 80);

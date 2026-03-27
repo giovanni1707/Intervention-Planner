@@ -20,7 +20,10 @@ Views.ActionLog = {
       DELETE_USER:           { label: 'User Deleted',           color: '#EF4444' },
       PURGE_JOB:             { label: 'Job Purged',             color: '#7C3AED' },
       CHANGE_PASSWORD:       { label: 'Password Changed',       color: '#F59E0B' },
-      VIEW_FORECAST_DETAILS: { label: 'Forecast Details Viewed', color: '#0EA5E9' }
+      VIEW_FORECAST_DETAILS: { label: 'Forecast Details Viewed', color: '#0EA5E9' },
+      ADD_CONTRACT_PART:     { label: 'Part Added to Contract', color: '#059669' },
+      EDIT_CONTRACT_PART:    { label: 'Contract Part Edited',   color: '#2563EB' },
+      DELETE_CONTRACT_PART:  { label: 'Contract Part Removed',  color: '#DC2626' }
     };
 
     const users = appState.users;

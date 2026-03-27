@@ -1468,23 +1468,75 @@ Views.Interventions = {
   _openAddPartModal(interventionId, context = 'detail') {
     if (context === 'edit') this._captureEditDraft();
     this._pendingParts = [];
+    this._addPartsMode = 'registered'; // default to registered parts mode
+
+    // Look up the linked maintenance contract to get its registered parts catalog
+    const intervention = appState.interventions.find(i => i.id === interventionId);
+    const contractParts = intervention?.maintenanceContractId
+      ? (appState.maintenanceContracts.find(c => c.id === intervention.maintenanceContractId)?.contractParts || [])
+      : [];
+    this._addPartsCatalog = contractParts;
+
     Modals.open('Add Parts Used', this._addPartModalBody(), `
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._commitParts('${interventionId}','${context}')" id="btnCommitParts" disabled>
         Save Parts
       </button>
     `);
-    // Focus the first field
     setTimeout(() => document.getElementById('fPartRef')?.focus(), 50);
   },
 
+  _addPartsMode: 'registered',
+  _addPartsCatalog: [],
+
+  _switchAddPartsMode(mode) {
+    this._addPartsMode = mode;
+    const bodyEl = document.getElementById('modalBody');
+    if (bodyEl) bodyEl.innerHTML = this._addPartModalBody();
+    setTimeout(() => {
+      if (mode === 'manual') document.getElementById('fPartRef')?.focus();
+    }, 30);
+  },
+
+  _selectRegisteredPart(idx) {
+    const part = this._addPartsCatalog[idx];
+    if (!part) return;
+    document.getElementById('fPartRef').value  = part.reference  || '';
+    document.getElementById('fPartDesc').value = part.description || '';
+    document.getElementById('fPartUnit').value = part.unit        || 'pcs';
+    Views.Interventions._syncPartQtyInput();
+    document.getElementById('fPartQty')?.focus();
+    document.getElementById('fPartQty')?.select();
+    // Highlight selected row
+    document.querySelectorAll('.reg-part-row').forEach((r, i) => {
+      r.style.background = i === idx ? 'var(--primary-50,#EFF6FF)' : '';
+      r.style.borderColor = i === idx ? 'var(--primary-200,#BFDBFE)' : 'var(--gray-200)';
+    });
+  },
+
+  _syncPartQtyInput() {
+    const unit  = document.getElementById('fPartUnit')?.value || 'pcs';
+    const input = document.getElementById('fPartQty');
+    if (!input) return;
+    const decimal = ['litre','m'].includes(unit);
+    input.min  = decimal ? '0.01' : '1';
+    input.step = decimal ? '0.01' : '1';
+    if (!decimal) {
+      const v = parseFloat(input.value);
+      if (!isNaN(v)) input.value = Math.max(1, Math.round(v));
+    }
+  },
+
   _addPartModalBody() {
+    const catalog = this._addPartsCatalog || [];
+    const mode    = this._addPartsMode || 'registered';
+    const hasCatalog = catalog.length > 0;
+
+    // Shared pending queue table
     const queueHTML = this._pendingParts.length === 0
-      ? `<p class="add-part-empty">No parts added yet. Fill in the fields above and click <strong>+ Add to list</strong>.</p>`
+      ? `<p class="add-part-empty">No parts added yet. ${hasCatalog && mode === 'registered' ? 'Select a part above, enter quantity and click <strong>Add to list</strong>.' : 'Fill in the fields and click <strong>Add to list</strong>.'}</p>`
       : `<table class="parts-table add-part-queue-table">
-          <thead>
-            <tr><th>Reference</th><th>Description</th><th>Qty</th><th></th></tr>
-          </thead>
+          <thead><tr><th>Reference</th><th>Description</th><th>Qty</th><th></th></tr></thead>
           <tbody>
             ${this._pendingParts.map((p, idx) => `
               <tr>
@@ -1500,31 +1552,93 @@ Views.Interventions = {
           </tbody>
         </table>`;
 
-    return `
-      <div class="add-part-form">
-        <div class="form-row">
+    // Mode switcher tabs (only show if a catalog exists)
+    const tabBar = hasCatalog ? `
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--gray-200);margin-bottom:16px">
+        <button onclick="Views.Interventions._switchAddPartsMode('registered')"
+          style="padding:7px 16px;border:none;background:none;cursor:pointer;font-size:0.8rem;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;
+                 color:${mode==='registered'?'var(--primary)':'var(--gray-500)'};border-bottom-color:${mode==='registered'?'var(--primary)':'transparent'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="margin-right:4px;vertical-align:-2px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Registered Parts
+        </button>
+        <button onclick="Views.Interventions._switchAddPartsMode('manual')"
+          style="padding:7px 16px;border:none;background:none;cursor:pointer;font-size:0.8rem;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;
+                 color:${mode==='manual'?'var(--primary)':'var(--gray-500)'};border-bottom-color:${mode==='manual'?'var(--primary)':'transparent'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="margin-right:4px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Manual Entry
+        </button>
+      </div>` : '';
+
+    // Registered parts panel — scrollable catalog list + quick qty entry
+    const registeredPanel = (hasCatalog && mode === 'registered') ? `
+      <div style="margin-bottom:14px">
+        <div style="font-size:0.75rem;color:var(--gray-500);margin-bottom:8px">Click a part to select it, then enter quantity and click <strong>Add to list</strong>.</div>
+        <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px">
+          ${catalog.map((p, i) => `
+            <div class="reg-part-row" onclick="Views.Interventions._selectRegisteredPart(${i})"
+              style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:6px;cursor:pointer;transition:background 0.1s,border-color 0.1s"
+              onmouseover="if(!this.style.background||this.style.background==='')this.style.background='var(--gray-50)'"
+              onmouseout="if(this.style.background==='var(--gray-50)')this.style.background=''">
+              <div style="flex:1;min-width:0">
+                <span style="font-family:monospace;font-size:0.8rem;font-weight:700;color:var(--text)">${Utils.escapeHtml(p.reference)}</span>
+                ${p.description ? `<span style="font-size:0.8rem;color:var(--gray-500);margin-left:8px">${Utils.escapeHtml(p.description)}</span>` : ''}
+              </div>
+              <span style="font-size:0.75rem;color:var(--gray-400);white-space:nowrap">${p.unit || 'pcs'}</span>
+            </div>`).join('')}
+        </div>
+        <div class="form-row" style="margin-top:12px;align-items:flex-end">
           <div class="form-group" style="flex:2">
             <label class="form-label">Part Reference <span class="required">*</span></label>
-            <input type="text" id="fPartRef" class="form-input" placeholder="e.g. HE-R230-001"
+            <input type="text" id="fPartRef" class="form-input" placeholder="Select above or type" style="font-family:monospace"
               onkeydown="if(event.key==='Enter'){event.preventDefault();Views.Interventions._queuePart();}">
           </div>
           <div class="form-group" style="flex:1">
-            <label class="form-label">Quantity</label>
-            <input type="number" id="fPartQty" class="form-input" value="1" min="0.01" step="0.01"
+            <label class="form-label">Description</label>
+            <input type="text" id="fPartDesc" class="form-input" placeholder="Auto-filled"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();Views.Interventions._queuePart();}">
+          </div>
+          <div class="form-group" style="flex:0;min-width:80px">
+            <label class="form-label">Unit</label>
+            <select id="fPartUnit" class="form-select" onchange="Views.Interventions._syncPartQtyInput()">
+              ${['pcs','litre','m'].map(u => `<option value="${u}">${u}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="flex:0;min-width:80px">
+            <label class="form-label">Qty <span class="required">*</span></label>
+            <input type="number" id="fPartQty" class="form-input" value="1" min="1" step="1" style="text-align:center"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();Views.Interventions._queuePart();}">
+          </div>
+          <div class="form-group" style="flex:0;align-self:flex-end">
+            <button class="btn btn-secondary" onclick="Views.Interventions._queuePart()" style="white-space:nowrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add to list
+            </button>
+          </div>
+        </div>
+      </div>` : '';
+
+    // Manual entry panel (original form, kept intact for unregistered parts, units restricted to pcs/litre/m)
+    const manualPanel = (!hasCatalog || mode === 'manual') ? `
+      <div class="add-part-form">
+        ${!hasCatalog ? '' : `<div style="padding:8px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;font-size:0.786rem;color:#1E40AF;margin-bottom:12px">
+          Use this form to add parts not listed in the contract catalog.
+        </div>`}
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label class="form-label">Part Reference <span class="required">*</span></label>
+            <input type="text" id="fPartRef" class="form-input" placeholder="e.g. HE-R230-001" style="font-family:monospace"
               onkeydown="if(event.key==='Enter'){event.preventDefault();Views.Interventions._queuePart();}">
           </div>
           <div class="form-group" style="flex:1">
             <label class="form-label">Unit</label>
-            <select id="fPartUnit" class="form-select">
-              <option value="pcs">pcs</option>
-              <option value="m">m</option>
-              <option value="L">L</option>
-              <option value="kg">kg</option>
-              <option value="box">box</option>
-              <option value="roll">roll</option>
-              <option value="pair">pair</option>
-              <option value="set">set</option>
+            <select id="fPartUnit" class="form-select" onchange="Views.Interventions._syncPartQtyInput()">
+              ${['pcs','litre','m'].map(u => `<option value="${u}">${u}</option>`).join('')}
             </select>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Quantity <span class="required">*</span></label>
+            <input type="number" id="fPartQty" class="form-input" value="1" min="1" step="1" style="text-align:center"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();Views.Interventions._queuePart();}">
           </div>
         </div>
         <div class="form-row">
@@ -1535,12 +1649,17 @@ Views.Interventions = {
           </div>
           <div class="form-group" style="flex:0;align-self:flex-end">
             <button class="btn btn-secondary" onclick="Views.Interventions._queuePart()" style="white-space:nowrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add to list
             </button>
           </div>
         </div>
-      </div>
+      </div>` : '';
+
+    return `
+      ${tabBar}
+      ${registeredPanel}
+      ${manualPanel}
       <div class="add-part-queue">
         <div class="add-part-queue-label">
           Parts to save
@@ -1551,10 +1670,13 @@ Views.Interventions = {
   },
 
   _queuePart() {
-    const ref  = document.getElementById('fPartRef')?.value.trim();
-    const desc = document.getElementById('fPartDesc')?.value.trim() || '';
-    const qty  = parseFloat(document.getElementById('fPartQty')?.value) || 1;
-    const unit = document.getElementById('fPartUnit')?.value || 'pcs';
+    const ref  = (document.getElementById('fPartRef')?.value  || '').trim();
+    const desc = (document.getElementById('fPartDesc')?.value || '').trim();
+    const unit = document.getElementById('fPartUnit')?.value  || 'pcs';
+    const decimal = ['litre','m'].includes(unit);
+    const raw  = parseFloat(document.getElementById('fPartQty')?.value);
+    const qty  = isNaN(raw) || raw <= 0 ? (decimal ? 0.01 : 1) : (decimal ? raw : Math.max(1, Math.round(raw)));
+
     if (!ref) { Toast.error('Part reference is required'); document.getElementById('fPartRef')?.focus(); return; }
 
     this._pendingParts.push({ reference: ref, description: desc, quantity: qty, unit });
