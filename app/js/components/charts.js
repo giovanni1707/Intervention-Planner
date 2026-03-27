@@ -426,10 +426,36 @@ const Charts = {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
-    const types  = Object.keys(CONFIG.CONTRACT_TYPES);
-    const labels = Object.values(CONFIG.CONTRACT_TYPES);
-    const data   = types.map(t => (machines || []).filter(m => m.contractType === t).length);
-    const colors = ['#94A3B8', '#D97706', '#CBD5E1', '#F59E0B'];
+    const contracts  = appState.maintenanceContracts || [];
+    const now        = new Date();
+    const allMachines = machines || [];
+
+    // For each machine, find its most relevant contract (prefer active > expiring > expired)
+    const covered = { active: 0, expiring: 0, expired: 0, none: 0 };
+
+    allMachines.forEach(m => {
+      const machineContracts = contracts.filter(c => c.machineId === m.id);
+      if (!machineContracts.length) { covered.none++; return; }
+
+      // Pick the best status among all contracts for this machine
+      let best = 'expired';
+      machineContracts.forEach(c => {
+        const end     = new Date(c.endDate);
+        const diffDay = Math.ceil((end - now) / 86400000);
+        if (diffDay > 30)  best = 'active';
+        else if (diffDay >= 0 && best !== 'active') best = 'expiring';
+      });
+      covered[best]++;
+    });
+
+    const labels = ['Active', 'Expiring Soon', 'Expired', 'No Contract'];
+    const data   = [covered.active, covered.expiring, covered.expired, covered.none];
+    const colors = ['#10B981', '#F59E0B', '#EF4444', '#94A3B8'];
+
+    if (!allMachines.length) {
+      canvas.parentElement.innerHTML = '<p style="text-align:center;color:var(--gray-400);padding:40px 0;font-size:0.857rem">No machines registered</p>';
+      return;
+    }
 
     this._instances[canvasId] = new Chart(canvas, {
       type: 'doughnut',
@@ -439,7 +465,7 @@ const Charts = {
         cutout: '60%',
         plugins: {
           legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 11 } } },
-          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}` } }
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} machine${ctx.raw !== 1 ? 's' : ''}` } }
         }
       }
     });

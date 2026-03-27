@@ -17,6 +17,7 @@ const ROUTES = {
   'maintenance-forecast':    () => Views.MaintenanceForecast.mount(),
   'pmc':                     () => Views.PMC.mount(),
   analytics:                 () => Views.Analytics.mount(),
+  notifications:             () => Views.Notifications.mount(),
   settings:                  () => Views.Settings.mount()
 };
 

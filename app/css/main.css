@@ -2842,3 +2842,243 @@ th.sort-desc .sort-icon svg:first-child {
   font-size: 0.786rem;
   color: var(--gray-400);
 }
+
+/* ============================================================
+   NOTIFICATION CENTER
+   ============================================================ */
+
+/* ── Tab bar ── */
+.nc-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--gray-200);
+  padding-bottom: 0;
+}
+
+.nc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 0.857rem;
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.nc-tab:hover { color: var(--gray-900); }
+.nc-tab.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+  font-weight: 600;
+}
+
+.nc-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.nc-tab-badge-critical { background: #FEE2E2; color: #DC2626; }
+.nc-tab-badge-high     { background: #FFEDD5; color: #EA580C; }
+.nc-tab-badge-warning  { background: #FEF3C7; color: #D97706; }
+.nc-tab-badge-info     { background: #DBEAFE; color: #2563EB; }
+
+/* ── Notification card list ── */
+.nc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* ── Individual notification card ── */
+.nc-card {
+  display: flex;
+  gap: 16px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.15s;
+}
+.nc-card:hover { box-shadow: var(--shadow-md); }
+
+.nc-card-critical { border-left: 4px solid #EF4444; }
+.nc-card-high     { border-left: 4px solid #F97316; }
+.nc-card-warning  { border-left: 4px solid #F59E0B; }
+.nc-card-info     { border-left: 4px solid #3B82F6; }
+
+.nc-card-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nc-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.nc-card-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.nc-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nc-sev-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.714rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nc-cat-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.714rem;
+  font-weight: 600;
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.nc-job-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.714rem;
+  font-weight: 600;
+  background: #EFF6FF;
+  color: #2563EB;
+  font-family: monospace;
+}
+
+.nc-dismiss-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--gray-400);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.nc-dismiss-btn:hover { color: var(--gray-700); background: var(--gray-100); }
+
+.nc-card-title {
+  font-size: 0.929rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 2px;
+}
+
+.nc-card-subject {
+  font-size: 0.857rem;
+  font-weight: 500;
+  color: var(--gray-700);
+  margin-bottom: 4px;
+}
+
+.nc-card-detail {
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.nc-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Empty state ── */
+.nc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  color: var(--gray-400);
+  text-align: center;
+  gap: 8px;
+}
+.nc-empty-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-600);
+}
+.nc-empty-sub {
+  font-size: 0.857rem;
+  color: var(--gray-400);
+}
+
+/* ── Dismissed hint ── */
+.nc-dismissed-hint {
+  font-size: 0.786rem;
+  color: var(--gray-400);
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* ── Inline link button ── */
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--blue);
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.btn-link:hover { color: var(--blue-hover); }
+
+/* ── Sidebar notification badge (nav item) ── */
+.nc-sidebar-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #EF4444;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: auto;
+  line-height: 1;
+}
+.nc-sidebar-badge.hidden { display: none; }

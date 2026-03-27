@@ -61,6 +61,11 @@ const Scheduler = {
 
     // Always refresh the bell/panel UI
     this._updateBell(alerts.filter(a => !this._isDismissed(a.id)));
+
+    // Keep notification center sidebar badge in sync
+    if (typeof NotificationCenter !== 'undefined') {
+      NotificationCenter.updateBadge();
+    }
   },
 
   _buildAlerts(now) {

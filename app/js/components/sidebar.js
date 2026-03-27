@@ -64,6 +64,10 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-4"/></svg>`
     },
     {
+      route: 'notifications', label: 'Notifications', adminOnly: false, hasBadge: true,
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>`
+    },
+    {
       route: 'job-tracker', label: 'Job Tracker', adminOnly: false,
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`
     },
@@ -95,6 +99,7 @@ const Sidebar = {
       <div class="sidebar-nav-item" data-route="${item.route}" title="${item.label}">
         ${item.icon}
         <span>${item.label}</span>
+        ${item.hasBadge ? `<span class="nc-sidebar-badge hidden" id="ncSidebarBadge">0</span>` : ''}
       </div>
     `).join('');
 
@@ -141,6 +146,10 @@ const Sidebar = {
 
     this.bindEvents();
     this.setActive(appState.currentRoute);
+    // Refresh notification badge after sidebar re-renders
+    if (typeof NotificationCenter !== 'undefined') {
+      NotificationCenter.updateBadge();
+    }
   },
 
   setActive(route) {

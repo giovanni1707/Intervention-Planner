@@ -852,11 +852,16 @@ Views.Interventions = {
     const isTechOnNew = user?.role === 'technician' && (!intervention.status || intervention.status === 'new');
 
     const queuedCount = this._queuedNotes.length + this._queuedParts.length;
+    const noteLabel  = this._queuedNotes.length > 0 ? `${this._queuedNotes.length} note${this._queuedNotes.length > 1 ? 's' : ''}` : '';
+    const partLabel  = this._queuedParts.length > 0 ? `${this._queuedParts.length} part${this._queuedParts.length > 1 ? 's' : ''}` : '';
+    const joinLabel  = noteLabel && partLabel ? ' &amp; ' : '';
     const queuedBadge = queuedCount > 0
-      ? `<span style="font-size:0.786rem;color:#065F46;background:#D1FAE5;border:1px solid #6EE7B7;border-radius:var(--radius-sm);padding:5px 10px;display:flex;align-items:center;gap:6px">
+      ? `<button onclick="Views.Interventions._openQueueReviewModal('${interventionId}')"
+           style="font-size:0.786rem;color:#065F46;background:#D1FAE5;border:1px solid #6EE7B7;border-radius:var(--radius-sm);padding:5px 10px;display:flex;align-items:center;gap:6px;cursor:pointer">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
-          ${this._queuedNotes.length > 0 ? `${this._queuedNotes.length} note${this._queuedNotes.length > 1 ? 's' : ''}` : ''}${this._queuedNotes.length > 0 && this._queuedParts.length > 0 ? ' &amp; ' : ''}${this._queuedParts.length > 0 ? `${this._queuedParts.length} part${this._queuedParts.length > 1 ? 's' : ''}` : ''} pending save
-        </span>`
+          ${noteLabel}${joinLabel}${partLabel} pending
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11" style="opacity:0.6"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>`
       : '';
 
     Modals.open(`Edit Intervention`, this._interventionFormHTML(intervention), `
@@ -878,6 +883,83 @@ Views.Interventions = {
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitEdit('${interventionId}')" ${isTechOnNew ? 'disabled title="This intervention must first be scheduled or assigned by an Administrator."' : ''}>Save Changes</button>
     `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); this._restoreEditDraft(); } });
+  },
+
+  _openQueueReviewModal(interventionId) {
+    this._captureEditDraft();
+
+    const notesHTML = this._queuedNotes.length === 0
+      ? `<p style="color:var(--gray-400);font-size:0.857rem;padding:10px 0">No notes queued.</p>`
+      : this._queuedNotes.map((n, i) => `
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:6px">
+            <div style="flex:1;font-size:0.857rem;line-height:1.5;white-space:pre-wrap">${Utils.escapeHtml(n.text)}</div>
+            <button class="btn btn-ghost btn-sm btn-icon" title="Remove note" style="color:var(--red);flex-shrink:0"
+              onclick="Views.Interventions._removeQueuedNote(${i},'${interventionId}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </button>
+          </div>`).join('');
+
+    const partsHTML = this._queuedParts.length === 0
+      ? `<p style="color:var(--gray-400);font-size:0.857rem;padding:10px 0">No parts queued.</p>`
+      : `<table class="data-table" style="margin-top:4px">
+          <thead>
+            <tr><th>Reference</th><th>Description</th><th style="text-align:center">Qty</th><th style="text-align:center">Unit</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${this._queuedParts.map((p, i) => `
+              <tr>
+                <td style="font-family:monospace;font-size:0.857rem;font-weight:600">${Utils.escapeHtml(p.reference)}</td>
+                <td style="font-size:0.857rem">${Utils.escapeHtml(p.description || '—')}</td>
+                <td style="text-align:center;font-weight:600">${p.quantity}</td>
+                <td style="text-align:center"><span class="part-unit-tag">${Utils.escapeHtml(p.unit || 'pcs')}</span></td>
+                <td style="text-align:right">
+                  <button class="btn btn-ghost btn-sm btn-icon" title="Remove part" style="color:var(--red)"
+                    onclick="Views.Interventions._removeQueuedPart(${i},'${interventionId}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                  </button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+    const body = `
+      <div style="font-size:0.786rem;color:var(--gray-500);margin-bottom:16px;padding:8px 12px;background:#FEF9C3;border:1px solid #FDE68A;border-radius:6px">
+        These notes and parts are <strong>queued</strong> and will be saved when you click <strong>Save Changes</strong> in the edit form. You can remove any item here before saving.
+      </div>
+
+      <div style="margin-bottom:20px">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Notes
+          <span style="background:var(--gray-200);color:var(--gray-600);border-radius:999px;padding:1px 8px;font-size:0.75rem">${this._queuedNotes.length}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">${notesHTML}</div>
+      </div>
+
+      <div>
+        <div style="font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          Parts
+          <span style="background:var(--gray-200);color:var(--gray-600);border-radius:999px;padding:1px 8px;font-size:0.75rem">${this._queuedParts.length}</span>
+        </div>
+        ${partsHTML}
+      </div>`;
+
+    Modals.open('Pending Notes &amp; Parts', body, `
+      <button class="btn btn-ghost" onclick="Modals.close();setTimeout(()=>Views.Interventions._openEditModal('${interventionId}'),80)">Back to Edit</button>
+    `);
+  },
+
+  _removeQueuedNote(idx, interventionId) {
+    this._queuedNotes.splice(idx, 1);
+    Modals.close();
+    setTimeout(() => this._openQueueReviewModal(interventionId), 80);
+  },
+
+  _removeQueuedPart(idx, interventionId) {
+    this._queuedParts.splice(idx, 1);
+    Modals.close();
+    setTimeout(() => this._openQueueReviewModal(interventionId), 80);
   },
 
   async _submitEdit(interventionId) {
