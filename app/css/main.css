@@ -2448,9 +2448,11 @@ input, select, textarea {
 /* ── MOBILE (≤ 768px) ── */
 @media (max-width: 768px) {
 
-  /* ── App shell: stack vertically, sidebar off-canvas ── */
+  /* App shell: stack topbar + main-wrapper vertically */
   .app-shell {
     flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
   }
 
   /* Mobile top bar */
@@ -2528,18 +2530,37 @@ input, select, textarea {
     display: block;
   }
 
-  /* Allow body to adapt on mobile */
-  body { overflow: auto; }
-
-  /* Main wrapper fills the viewport below the top bar */
-  .main-wrapper {
-    height: calc(100vh - 48px);
+  /* ── Scroll model reset for mobile ──────────────────────────
+     Keep html/body locked at viewport size (same as desktop).
+     All vertical scrolling happens inside .main-content only.
+     Horizontal scrolling is self-contained in .table-wrapper.
+  ─────────────────────────────────────────────────────────── */
+  html, body {
+    height: 100%;
     overflow: hidden;
   }
 
+  /* Main wrapper: fill space below top bar, clip so only
+     main-content scrolls — not the whole page */
+  .main-wrapper {
+    flex: 1;
+    height: calc(100% - 48px); /* 48px = topbar height */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The actual scroll container on mobile.
+     overflow-x must NOT be hidden — that would clip .table-wrapper's
+     own horizontal scroll. Body/app-shell already prevent page-level
+     horizontal shifting. */
   .main-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: visible;
+    -webkit-overflow-scrolling: touch;
     padding: 16px;
-    overflow-x: hidden;
+    min-height: 0;  /* critical: allows flex child to shrink & scroll */
   }
 
   /* Grids */
@@ -2555,10 +2576,19 @@ input, select, textarea {
   }
   .page-actions { width: 100%; }
 
-  /* Tables: horizontal scroll only, never clip content */
+  /* Tables: self-contained horizontal scroll.
+     overflow-x: hidden on .main-content would clip these, so we
+     reset the containing block by giving .table-wrapper its own
+     scroll context — works because .table-wrapper has display:block. */
   .table-wrapper {
     overflow-x: auto;
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
+    /* Ensure tables don't collapse narrower than their content */
+    max-width: 100%;
+  }
+  .data-table {
+    min-width: 480px; /* prevents columns crushing on small screens */
   }
 
   /* Modals: full-width on mobile */
@@ -2827,6 +2857,50 @@ body.dark-mode .alert-banner {
   font-weight: 600;
 }
 
+/* Brightness slider */
+.brightness-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--gray-200);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.brightness-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--blue);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.brightness-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.brightness-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0,102,255,0.35);
+}
+
+.brightness-slider:focus {
+  background: var(--gray-300);
+}
+
 /* Toggle switch */
 .toggle-row {
   display: flex;
@@ -3090,6 +3164,74 @@ th.sort-desc .sort-icon svg:first-child {
   font-size: 0.786rem;
   color: var(--gray-400);
 }
+
+/* ============================================================
+   MAINTENANCE CONTRACTS — Visit Schedule & Spare Parts badges
+   ============================================================ */
+
+/* Visit schedule row tints */
+tr.mc-visit-row-completed { background: #F0FDF4; }
+tr.mc-visit-row-overdue   { background: #FEF2F2; }
+
+/* Completed status text */
+.mc-visit-status-completed {
+  color: #065F46;
+  font-weight: 600;
+  font-size: 0.857rem;
+}
+
+/* Spare Parts KPI strip cards */
+.mc-parts-kpi {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.mc-parts-kpi-warn   { background: #FFFBEB; border-color: #FCD34D; }
+.mc-parts-kpi-danger { background: #FEF2F2; border-color: #FECACA; }
+
+.mc-parts-kpi-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.mc-parts-kpi-warn   .mc-parts-kpi-value { color: #B45309; }
+.mc-parts-kpi-danger .mc-parts-kpi-value { color: #991B1B; }
+
+.mc-parts-kpi-label {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+/* Stock status badges */
+.mc-stock-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.mc-stock-ok       { background: #D1FAE5; color: #065F46; }
+.mc-stock-low      { background: #FEF3C7; color: #92400E; }
+.mc-stock-depleted { background: #FEE2E2; color: #991B1B; }
+.mc-stock-na       { background: var(--gray-100); color: var(--gray-500); }
+
+/* ── Dark mode overrides ── */
+body.dark-mode tr.mc-visit-row-completed { background: rgba(16,185,129,0.10); }
+body.dark-mode tr.mc-visit-row-overdue   { background: rgba(239,68,68,0.10);  }
+
+body.dark-mode .mc-visit-status-completed { color: #6EE7B7; }
+
+body.dark-mode .mc-parts-kpi             { background: var(--gray-100); border-color: var(--gray-200); }
+body.dark-mode .mc-parts-kpi-warn        { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); }
+body.dark-mode .mc-parts-kpi-danger      { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.35);  }
+body.dark-mode .mc-parts-kpi-warn   .mc-parts-kpi-value { color: #FCD34D; }
+body.dark-mode .mc-parts-kpi-danger .mc-parts-kpi-value { color: #FCA5A5; }
+
+body.dark-mode .mc-stock-ok       { background: rgba(16,185,129,0.18);  color: #6EE7B7; }
+body.dark-mode .mc-stock-low      { background: rgba(245,158,11,0.18);  color: #FCD34D; }
+body.dark-mode .mc-stock-depleted { background: rgba(239,68,68,0.18);   color: #FCA5A5; }
+body.dark-mode .mc-stock-na       { background: var(--gray-200);        color: var(--gray-500); }
 
 /* ============================================================
    PMC — theme-aware status & progress badge styles

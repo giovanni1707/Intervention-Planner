@@ -915,7 +915,7 @@ Views.MaintenanceContracts = {
       const isCompleted = (contract.completedVisits || []).includes(date);
       const isPast      = new Date(date) < new Date();
       const isOverdue   = isPast && !isCompleted;
-      const rowBg       = isCompleted ? '#F0FDF4' : isOverdue ? '#FEF2F2' : '';
+      const rowClass    = isCompleted ? 'mc-visit-row-completed' : isOverdue ? 'mc-visit-row-overdue' : '';
       const visitLabel  = ordinals[idx] || `${idx + 1}th`;
       const linkedIntervention = allInterventions.find(i =>
         i.type === 'pmc' &&
@@ -953,12 +953,12 @@ Views.MaintenanceContracts = {
       }
 
       return `
-        <tr style="background:${rowBg}">
+        <tr class="${rowClass}">
           <td style="font-weight:500">${visitLabel} Visit</td>
           <td>${Utils.formatDate(date)}</td>
           <td>
             ${isCompleted
-              ? `<span style="color:#065F46;font-weight:600;font-size:0.857rem">&#10003; Completed</span>`
+              ? `<span class="mc-visit-status-completed">&#10003; Completed</span>`
               : isOverdue
               ? `<span style="color:var(--red);font-size:0.857rem">Overdue</span>`
               : `<span style="color:var(--gray-500);font-size:0.857rem">Scheduled</span>`
@@ -1207,17 +1207,17 @@ Views.MaintenanceContracts = {
       const consumed  = consumedMap[ref] || 0;
       const remaining = Math.max(0, allocated - consumed);
       const pct       = allocated > 0 ? Math.round((consumed / allocated) * 100) : 0;
-      let stockStatus, stockColor, stockBg;
+      let stockStatus, stockClass;
       if (allocated === 0) {
-        stockStatus = 'N/A'; stockColor = 'var(--gray-500)'; stockBg = 'var(--gray-100)';
+        stockStatus = 'N/A';       stockClass = 'mc-stock-na';
       } else if (remaining === 0) {
-        stockStatus = 'Depleted'; stockColor = '#991B1B'; stockBg = '#FEE2E2'; alerts++;
+        stockStatus = 'Depleted';  stockClass = 'mc-stock-depleted'; alerts++;
       } else if (pct >= 75) {
-        stockStatus = 'Low Stock'; stockColor = '#92400E'; stockBg = '#FEF3C7'; alerts++;
+        stockStatus = 'Low Stock'; stockClass = 'mc-stock-low'; alerts++;
       } else {
-        stockStatus = 'OK'; stockColor = '#065F46'; stockBg = '#D1FAE5';
+        stockStatus = 'OK';        stockClass = 'mc-stock-ok';
       }
-      return { ...p, ref, allocated, consumed, remaining, pct, stockStatus, stockColor, stockBg };
+      return { ...p, ref, allocated, consumed, remaining, pct, stockStatus, stockClass };
     });
 
     // Also find parts consumed in visits that are NOT in the catalog
@@ -1253,13 +1253,13 @@ Views.MaintenanceContracts = {
           <div style="font-size:1.4rem;font-weight:700;color:#1D4ED8">${totalConsumed}<span style="font-size:0.9rem;color:var(--gray-400);font-weight:400"> / ${totalAllocated}</span></div>
           <div style="font-size:0.75rem;color:var(--gray-500);margin-top:2px">Units Consumed</div>
         </div>
-        <div style="background:${lowStock > 0 ? '#FFFBEB' : 'var(--gray-50)'};border:1px solid ${lowStock > 0 ? '#FCD34D' : 'var(--gray-200)'};border-radius:8px;padding:14px 16px;text-align:center">
-          <div style="font-size:1.4rem;font-weight:700;color:${lowStock > 0 ? '#B45309' : 'var(--gray-400)'}">${lowStock}</div>
-          <div style="font-size:0.75rem;color:var(--gray-500);margin-top:2px">Low Stock</div>
+        <div class="mc-parts-kpi ${lowStock > 0 ? 'mc-parts-kpi-warn' : ''}">
+          <div class="mc-parts-kpi-value" style="color:${lowStock > 0 ? '' : 'var(--gray-400)'}">${lowStock}</div>
+          <div class="mc-parts-kpi-label">Low Stock</div>
         </div>
-        <div style="background:${depleted > 0 ? '#FEF2F2' : 'var(--gray-50)'};border:1px solid ${depleted > 0 ? '#FECACA' : 'var(--gray-200)'};border-radius:8px;padding:14px 16px;text-align:center">
-          <div style="font-size:1.4rem;font-weight:700;color:${depleted > 0 ? '#991B1B' : 'var(--gray-400)'}">${depleted}</div>
-          <div style="font-size:0.75rem;color:var(--gray-500);margin-top:2px">Depleted</div>
+        <div class="mc-parts-kpi ${depleted > 0 ? 'mc-parts-kpi-danger' : ''}">
+          <div class="mc-parts-kpi-value" style="color:${depleted > 0 ? '' : 'var(--gray-400)'}">${depleted}</div>
+          <div class="mc-parts-kpi-label">Depleted</div>
         </div>
       </div>`;
 
@@ -1286,7 +1286,7 @@ Views.MaintenanceContracts = {
                 <div style="width:${Math.min(p.pct,100)}%;background:${barColor};height:6px;border-radius:4px;transition:width 0.3s"></div>
               </div>
               <span style="min-width:64px;text-align:right">
-                <span style="padding:2px 8px;border-radius:999px;font-size:0.72rem;font-weight:700;background:${p.stockBg};color:${p.stockColor}">${p.stockStatus}</span>
+                <span class="mc-stock-badge ${p.stockClass}">${p.stockStatus}</span>
               </span>
             </div>
           </td>

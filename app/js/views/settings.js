@@ -13,7 +13,8 @@ const Settings = {
     accentColor: '#0066FF',
     sidebarTheme: 'navy',
     pageSize: 20,
-    autoRefresh: false
+    autoRefresh: false,
+    brightness: 100
   },
 
   _pageSizeOptions: [10, 20, 50, 100],
@@ -87,6 +88,13 @@ const Settings = {
     const theme = this._sidebarThemes[s.sidebarTheme];
     const sidebarColor = theme ? theme.color : this._sidebarThemes.navy.color;
     document.documentElement.style.setProperty('--sidebar-bg', sidebarColor);
+
+    // Brightness — applied to the app shell so login screen is unaffected
+    const brightness = (s.brightness !== undefined) ? Math.max(30, Math.min(100, s.brightness)) : 100;
+    const shell = document.getElementById('appShell');
+    if (shell) {
+      shell.style.filter = brightness < 100 ? `brightness(${brightness}%)` : '';
+    }
   },
 
   /* ── COLOR HELPERS ───────────────────────────────────────── */
@@ -161,7 +169,37 @@ const Settings = {
           </div>
         </div>
 
-        <!-- Card 3: Accent Color -->
+        <!-- Card 3: Brightness -->
+        <div class="setting-card">
+          <div class="setting-card-title">Brightness</div>
+          <div class="setting-card-desc">Reduce the overall brightness of the interface to suit your environment</div>
+          <div style="margin-top:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div style="display:flex;align-items:center;gap:8px;font-size:0.857rem;color:var(--gray-600)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                Brightness
+              </div>
+              <span id="brightnessValue" style="font-size:0.929rem;font-weight:700;color:var(--blue);min-width:42px;text-align:right">${s.brightness !== undefined ? s.brightness : 100}%</span>
+            </div>
+            <input type="range" id="brightnessSlider"
+              min="30" max="100" step="1"
+              value="${s.brightness !== undefined ? s.brightness : 100}"
+              class="brightness-slider"
+              oninput="Settings._setBrightness(this.value)">
+            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:0.714rem;color:var(--gray-400)">
+              <span>30% — Dim</span>
+              <span>100% — Full</span>
+            </div>
+          </div>
+          ${(s.brightness !== undefined && s.brightness < 100) ? `
+          <div style="margin-top:12px">
+            <button class="btn btn-ghost btn-sm" onclick="Settings._setBrightness(100)">
+              Reset to Full Brightness
+            </button>
+          </div>` : ''}
+        </div>
+
+        <!-- Card 4: Accent Color -->
         <div class="setting-card">
           <div class="setting-card-title">Accent Color</div>
           <div class="setting-card-desc">Color used for buttons, links, and highlights</div>
@@ -358,6 +396,34 @@ const Settings = {
     document.querySelectorAll('.size-btn[data-pagesize]').forEach(btn => {
       btn.classList.toggle('active', Number(btn.dataset.pagesize) === n);
     });
+  },
+
+  _setBrightness(value) {
+    const level = Math.max(30, Math.min(100, parseInt(value, 10)));
+    this.save({ brightness: level });
+
+    // Update slider display without full re-mount
+    const display = document.getElementById('brightnessValue');
+    if (display) display.textContent = level + '%';
+
+    const slider = document.getElementById('brightnessSlider');
+    if (slider) slider.value = level;
+
+    // Show / hide the reset button
+    const card = slider?.closest('.setting-card');
+    if (card) {
+      let resetBtn = card.querySelector('.brightness-reset-btn');
+      if (level < 100) {
+        if (!resetBtn) {
+          const div = document.createElement('div');
+          div.style.marginTop = '12px';
+          div.innerHTML = `<button class="btn btn-ghost btn-sm brightness-reset-btn" onclick="Settings._setBrightness(100)">Reset to Full Brightness</button>`;
+          card.appendChild(div);
+        }
+      } else {
+        resetBtn?.parentElement?.remove();
+      }
+    }
   },
 
   _setAutoRefresh(enabled) {
