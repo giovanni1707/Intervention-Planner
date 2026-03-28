@@ -65,8 +65,6 @@ const CONFIG = {
   // Statuses considered "open" (not finished)
   OPEN_STATUSES: ['new', 'tentative', 'assigned', 'ongoing', 'pending', 'waiting_parts'],
 
-  // Workload threshold per technician
-  MAX_WORKLOAD: 8,
 
   DISTRICTS: [
     'Black River District',

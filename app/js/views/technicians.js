@@ -43,6 +43,7 @@ Views.Technicians = {
         Utils.getTechIds(i).includes(u.id) && CONFIG.OPEN_STATUSES.includes(i.status)
       ).length
     }));
+    const maxWorkload = Math.max(10, ...techData.map(t => t.activeJobs));
 
     // Render workload chart
     Charts.renderTechnicianWorkload('workloadChart', techData.map(t => ({
@@ -59,10 +60,10 @@ Views.Technicians = {
       return;
     }
 
-    grid.innerHTML = techData.map(tech => this._techCardHTML(tech)).join('');
+    grid.innerHTML = techData.map(tech => this._techCardHTML(tech, maxWorkload)).join('');
   },
 
-  _techCardHTML(tech) {
+  _techCardHTML(tech, maxWorkload = 10) {
     const activeJobs = appState.interventions.filter(i =>
       Utils.getTechIds(i).includes(tech.id) && CONFIG.OPEN_STATUSES.includes(i.status)
     );
@@ -70,8 +71,8 @@ Views.Technicians = {
       Utils.getTechIds(i).includes(tech.id) && i.status === 'completed'
     );
 
-    const workloadPct = Math.min(100, Math.round((activeJobs.length / CONFIG.MAX_WORKLOAD) * 100));
-    const workloadClass = activeJobs.length >= 6 ? 'workload-high' : activeJobs.length >= 3 ? 'workload-medium' : 'workload-low';
+    const workloadPct = Math.round((activeJobs.length / maxWorkload) * 100);
+    const workloadClass = workloadPct >= 80 ? 'workload-high' : workloadPct >= 40 ? 'workload-medium' : 'workload-low';
 
     const jobsHTML = activeJobs.length === 0
       ? '<p class="text-sm text-muted">No active jobs</p>'
@@ -134,7 +135,7 @@ Views.Technicians = {
         <div class="workload-bar-container ${workloadClass}">
           <div class="workload-bar-label">
             <span>Active workload</span>
-            <span><strong>${activeJobs.length}</strong> / ${CONFIG.MAX_WORKLOAD} jobs</span>
+            <span><strong>${activeJobs.length}</strong> active job${activeJobs.length !== 1 ? 's' : ''}</span>
           </div>
           <div class="workload-bar-track">
             <div class="workload-bar-fill" style="width:${workloadPct}%"></div>

@@ -4,14 +4,47 @@
 
 Views.Planning = {
   _currentMonth: null,
+  _tableFilters: { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all' },
 
   mount() {
     if (!this._currentMonth) this._currentMonth = new Date();
+    this._tableFilters = { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all' };
     const content = document.getElementById('mainContent');
     content.innerHTML = this._template();
     this._renderQueue(appState.interventions);
     this._renderCalendar(appState.interventions, this._currentMonth);
+    this._renderMonthTable(appState.interventions, this._currentMonth);
     this._bindMonthNav();
+  },
+
+  _busiestMonthBadge() {
+    const CALENDAR_STATUSES = ['tentative', 'assigned', 'ongoing', 'pending', 'waiting_parts', 'completed'];
+    const counts = {};
+    appState.interventions.forEach(i => {
+      if (!i.scheduledDate) return;
+      if (i.type === 'pmc') {
+        if (!Utils.getTechIds(i).length || !['tentative', 'assigned'].includes(i.status)) return;
+      } else {
+        if (!CALENDAR_STATUSES.includes(i.status)) return;
+      }
+      const d = new Date(i.scheduledDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) return '';
+
+    const [topKey, topCount] = entries[0];
+    const [year, month] = topKey.split('-');
+    const label = new Date(parseInt(year), parseInt(month) - 1, 1)
+      .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+    return `
+      <div style="display:inline-flex;align-items:center;gap:8px;padding:7px 14px;background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);font-size:0.857rem;color:var(--blue);margin-bottom:16px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>Busiest month: <strong>${label}</strong> — ${topCount} intervention${topCount !== 1 ? 's' : ''}</span>
+      </div>`;
   },
 
   _template() {
@@ -22,6 +55,7 @@ Views.Planning = {
           <p class="page-subtitle">Schedule unplanned requests and track the calendar</p>
         </div>
       </div>
+      ${this._busiestMonthBadge()}
 
       <div class="planning-layout">
         <!-- LEFT: Unplanned queue -->
@@ -47,6 +81,7 @@ Views.Planning = {
             <button class="btn btn-ghost btn-sm btn-icon" id="nextMonth">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
+            <button class="btn btn-ghost btn-sm" id="goToToday" style="display:none;margin-left:6px;font-size:0.786rem">Today</button>
           </div>
           <div style="margin-bottom:12px">
             <select id="calDistrictFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer;width:100%">
@@ -58,6 +93,74 @@ Views.Planning = {
             ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="calendar-day-label">${d}</div>`).join('')}
           </div>
           <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+      </div>
+
+      <!-- Monthly schedule table -->
+      <div class="card" style="margin-top:20px">
+        <div class="card-header">
+          <span class="card-title" id="monthTableTitle">Monthly Schedule</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span id="monthTableCount" class="text-sm text-muted"></span>
+            <div style="display:flex;align-items:center;gap:2px;margin-left:8px">
+              <button class="btn btn-ghost btn-sm btn-icon" id="prevMonthTable" title="Previous month">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span id="monthTableLabel" style="font-size:0.857rem;font-weight:500;color:var(--text);min-width:120px;text-align:center"></span>
+              <button class="btn btn-ghost btn-sm btn-icon" id="nextMonthTable" title="Next month">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div style="padding:10px 16px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;flex-wrap:wrap;gap:8px" id="monthTableFilters">
+          <select id="mtClientFilter" class="toolbar-select"><option value="all">All Clients</option></select>
+          <select id="mtTypeFilter" class="toolbar-select">
+            <option value="all">All Types</option>
+            ${Object.entries(CONFIG.INTERVENTION_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+          </select>
+          <select id="mtPriorityFilter" class="toolbar-select">
+            <option value="all">All Priorities</option>
+            ${Object.entries(CONFIG.PRIORITIES).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}
+          </select>
+          <select id="mtStatusFilter" class="toolbar-select">
+            <option value="all">All Statuses</option>
+            ${Object.entries(CONFIG.STATUSES).filter(([k]) => k !== 'new').map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}
+          </select>
+          <select id="mtTechFilter" class="toolbar-select">
+            <option value="all">All Technicians</option>
+            ${appState.users.filter(u => u.role === 'technician').map(u => `<option value="${u.id}">${Utils.escapeHtml(u.name)}</option>`).join('')}
+          </select>
+          <select id="mtDistrictFilter" class="toolbar-select">
+            <option value="all">All Districts</option>
+            ${CONFIG.DISTRICTS.map(d => `<option value="${d}">${d}</option>`).join('')}
+          </select>
+          <button id="mtFilterClear" class="btn btn-ghost btn-sm" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Clear
+          </button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="table-wrapper">
+            <table class="data-table" id="monthTable">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Client</th>
+                  <th>Machine / Serial</th>
+                  <th>Type</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Technician</th>
+                  <th>District</th>
+                  <th>Location</th>
+                  <th style="width:60px"></th>
+                </tr>
+              </thead>
+              <tbody id="monthTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
@@ -208,24 +311,183 @@ Views.Planning = {
     }).join('');
   },
 
-  _bindMonthNav() {
-    const prevBtn = document.getElementById('prevMonth');
-    const nextBtn = document.getElementById('nextMonth');
-    const districtSelect = document.getElementById('calDistrictFilter');
+  _renderMonthTable(interventions, month) {
+    const titleEl    = document.getElementById('monthTableTitle');
+    const countEl    = document.getElementById('monthTableCount');
+    const navLabelEl = document.getElementById('monthTableLabel');
+    const tbody      = document.getElementById('monthTableBody');
+    if (!tbody) return;
 
-    if (prevBtn) prevBtn.addEventListener('click', () => {
-      this._currentMonth = new Date(this._currentMonth.getFullYear(), this._currentMonth.getMonth() - 1, 1);
-      this._renderCalendar(appState.interventions, this._currentMonth);
+    const year     = month.getFullYear();
+    const monthIdx = month.getMonth();
+    const label    = month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    if (titleEl)    titleEl.textContent   = `Schedule — ${label}`;
+    if (navLabelEl) navLabelEl.textContent = label;
+
+    const districtFilter = (document.getElementById('calDistrictFilter')?.value || '').toLowerCase();
+    const CALENDAR_STATUSES = ['tentative', 'assigned', 'ongoing', 'pending', 'waiting_parts', 'completed'];
+
+    const allItems = interventions.filter(i => {
+      if (!i.scheduledDate) return false;
+      const d = new Date(i.scheduledDate);
+      if (d.getFullYear() !== year || d.getMonth() !== monthIdx) return false;
+      if (i.type === 'pmc') {
+        if (!Utils.getTechIds(i).length) return false;
+        if (!['tentative', 'assigned'].includes(i.status)) return false;
+      } else {
+        if (!CALENDAR_STATUSES.includes(i.status)) return false;
+      }
+      if (districtFilter) {
+        const machine = appState.machines.find(m => m.id === i.machineId);
+        if (!machine || (machine.district || '').toLowerCase() !== districtFilter) return false;
+      }
+      return true;
+    }).sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+
+    // Populate client dropdown from items in this month
+    const clientSel = document.getElementById('mtClientFilter');
+    if (clientSel) {
+      const prevClient = clientSel.value;
+      const uniqueClients = [...new Map(allItems.map(i => {
+        const c = appState.clients.find(c => c.id === i.clientId);
+        return c ? [c.id, c] : null;
+      }).filter(Boolean)).values()].sort((a, b) => a.name.localeCompare(b.name));
+      clientSel.innerHTML = `<option value="all">All Clients</option>` +
+        uniqueClients.map(c => `<option value="${c.id}"${prevClient === c.id ? ' selected' : ''}>${Utils.escapeHtml(c.name)}</option>`).join('');
+    }
+
+    // Apply table filters
+    const tf = this._tableFilters;
+    const items = allItems.filter(i => {
+      if (tf.client   !== 'all' && i.clientId !== tf.client) return false;
+      if (tf.type     !== 'all' && i.type !== tf.type) return false;
+      if (tf.priority !== 'all' && i.priority !== tf.priority) return false;
+      if (tf.status   !== 'all' && i.status !== tf.status) return false;
+      if (tf.district !== 'all') {
+        const machine = appState.machines.find(m => m.id === i.machineId);
+        if (!machine || machine.district !== tf.district) return false;
+      }
+      if (tf.tech !== 'all' && !Utils.getTechIds(i).includes(tf.tech)) return false;
+      return true;
     });
 
-    if (nextBtn) nextBtn.addEventListener('click', () => {
-      this._currentMonth = new Date(this._currentMonth.getFullYear(), this._currentMonth.getMonth() + 1, 1);
+    // Show/hide clear button
+    const clearBtn = document.getElementById('mtFilterClear');
+    const hasFilter = Object.values(tf).some(v => v !== 'all');
+    if (clearBtn) clearBtn.style.display = hasFilter ? '' : 'none';
+
+    if (countEl) countEl.textContent = `${items.length} of ${allItems.length} intervention${allItems.length !== 1 ? 's' : ''}`;
+
+    if (items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="11"><div class="table-empty"><p class="table-empty-text">${allItems.length === 0 ? `No interventions scheduled for ${label}` : 'No interventions match the current filters'}</p></div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = items.map(i => {
+      const machine  = appState.machines.find(m => m.id === i.machineId);
+      const scheduled = new Date(i.scheduledDate);
+      const dateStr  = scheduled.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      const timeStr  = scheduled.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const isOverdue = ['tentative','assigned','ongoing','pending','waiting_parts'].includes(i.status) && Utils.isPast(i.scheduledDate);
+      return `
+        <tr ${isOverdue ? 'style="background:var(--red-light)"' : ''}>
+          <td style="white-space:nowrap;font-size:0.857rem;font-weight:500">${dateStr}</td>
+          <td style="white-space:nowrap;font-size:0.857rem;color:var(--gray-500)">${timeStr}</td>
+          <td class="td-primary">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
+          <td>
+            <div style="font-weight:500;font-size:0.857rem">${Utils.escapeHtml(Utils.getMachineModel(i.machineId))}</div>
+            <div style="font-size:0.786rem;color:var(--gray-400)">${Utils.escapeHtml(machine?.serialNumber || '—')}</div>
+          </td>
+          <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
+          <td>${Utils.getPriorityBadge(i.priority)}</td>
+          <td>${Utils.getStatusBadge(i.status, i)}</td>
+          <td style="font-size:0.786rem;color:${Utils.getTechIds(i).length ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(Utils.getTechnicianNames(i))}</td>
+          <td style="font-size:0.786rem;color:${machine?.district ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(machine?.district || '—')}</td>
+          <td style="font-size:0.786rem;color:${machine?.location ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(machine?.location || '—')}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm btn-icon" title="View Detail" onclick="Views.Interventions.openDetailModal('${i.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  _updateTodayBtn() {
+    const btn = document.getElementById('goToToday');
+    if (!btn) return;
+    const now = new Date();
+    const isCurrentMonth = this._currentMonth.getFullYear() === now.getFullYear() &&
+                           this._currentMonth.getMonth()    === now.getMonth();
+    btn.style.display = isCurrentMonth ? 'none' : '';
+  },
+
+  _bindMonthNav() {
+    const prevBtn        = document.getElementById('prevMonth');
+    const nextBtn        = document.getElementById('nextMonth');
+    const todayBtn       = document.getElementById('goToToday');
+    const prevBtnTable   = document.getElementById('prevMonthTable');
+    const nextBtnTable   = document.getElementById('nextMonthTable');
+    const districtSelect = document.getElementById('calDistrictFilter');
+
+    const rerender = () => {
       this._renderCalendar(appState.interventions, this._currentMonth);
+      this._renderMonthTable(appState.interventions, this._currentMonth);
+      this._updateTodayBtn();
+    };
+
+    const goToPrev = () => {
+      this._currentMonth = new Date(this._currentMonth.getFullYear(), this._currentMonth.getMonth() - 1, 1);
+      rerender();
+    };
+
+    const goToNext = () => {
+      this._currentMonth = new Date(this._currentMonth.getFullYear(), this._currentMonth.getMonth() + 1, 1);
+      rerender();
+    };
+
+    if (prevBtn)      prevBtn.addEventListener('click', goToPrev);
+    if (nextBtn)      nextBtn.addEventListener('click', goToNext);
+    if (prevBtnTable) prevBtnTable.addEventListener('click', goToPrev);
+    if (nextBtnTable) nextBtnTable.addEventListener('click', goToNext);
+
+    if (todayBtn) todayBtn.addEventListener('click', () => {
+      this._currentMonth = new Date();
+      rerender();
     });
 
     if (districtSelect) districtSelect.addEventListener('change', () => {
       this._renderCalendar(appState.interventions, this._currentMonth);
+      this._renderMonthTable(appState.interventions, this._currentMonth);
     });
+
+    // Table-level filters
+    const bindTableFilter = (id, key) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = this._tableFilters[key];
+      el.addEventListener('change', () => {
+        this._tableFilters[key] = el.value;
+        this._renderMonthTable(appState.interventions, this._currentMonth);
+      });
+    };
+    bindTableFilter('mtClientFilter',   'client');
+    bindTableFilter('mtTypeFilter',     'type');
+    bindTableFilter('mtPriorityFilter', 'priority');
+    bindTableFilter('mtStatusFilter',   'status');
+    bindTableFilter('mtTechFilter',     'tech');
+    bindTableFilter('mtDistrictFilter', 'district');
+
+    const clearBtn = document.getElementById('mtFilterClear');
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      this._tableFilters = { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all' };
+      ['mtClientFilter','mtTypeFilter','mtPriorityFilter','mtStatusFilter','mtTechFilter','mtDistrictFilter']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = 'all'; });
+      this._renderMonthTable(appState.interventions, this._currentMonth);
+    });
+
+    this._updateTodayBtn();
   },
 
   _openDayModal(dateStr) {

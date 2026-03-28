@@ -10,6 +10,7 @@ Views.PMC = {
   _allRows: [],
   _sortCol: null,
   _sortDir: 'asc',
+  _selectedYear: 'all',
 
   /* ── SORT HELPERS ────────────────────────────────────────── */
   _thHTML(col, label) {
@@ -217,17 +218,48 @@ Views.PMC = {
   },
 
   _refreshTable() {
-    const filtered = this._sortRows(this._applyFilters(this._allRows));
+    const yearRows = this._filterByYear(this._allRows);
+    const filtered = this._sortRows(this._applyFilters(yearRows));
     const tbody = document.querySelector('#pmcTable tbody');
     if (tbody) tbody.innerHTML = this._buildRows(filtered);
 
     this._updateSortHeader();
 
     const counter = document.getElementById('pmcRowCount');
-    if (counter) counter.textContent = `${filtered.length} of ${this._allRows.length} visit${this._allRows.length !== 1 ? 's' : ''}`;
+    if (counter) counter.textContent = `${filtered.length} of ${yearRows.length} visit${yearRows.length !== 1 ? 's' : ''}`;
 
     const clearBtn = document.getElementById('pmcClearFilters');
     if (clearBtn) clearBtn.style.display = this._hasActiveFilters() ? '' : 'none';
+  },
+
+  _refreshYear() {
+    const yearRows  = this._filterByYear(this._allRows);
+    const analytics = this._buildAnalytics(yearRows);
+
+    // Update KPI values
+    const completionRate = yearRows.length > 0 ? Math.round((analytics.completedCount / yearRows.length) * 100) : 0;
+    const kpis = {
+      pmcKpiTotalVisits:    yearRows.length,
+      pmcKpiCompleted:      analytics.completedCount,
+      pmcKpiOverdue:        analytics.overdueCount,
+      pmcKpiCompletion:     completionRate + '%',
+    };
+    Object.entries(kpis).forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    });
+
+    // Rebuild table rows (clear other filters too when year changes)
+    this._refreshTable();
+
+    // Rebuild charts
+    this._destroyCharts();
+    this._renderCharts(analytics);
+  },
+
+  _filterByYear(rows) {
+    if (this._selectedYear === 'all') return rows;
+    return rows.filter(r => r.visitDate.startsWith(this._selectedYear));
   },
 
   /* ── MOUNT ───────────────────────────────────────────────── */
@@ -235,11 +267,14 @@ Views.PMC = {
     this._destroyCharts();
     this._sortCol = null;
     this._sortDir = 'asc';
+    this._selectedYear = 'all';
     const { rows, contracts } = await this._buildData();
     this._allRows = rows;
-    const analytics = this._buildAnalytics(rows);
+    const years = [...new Set(rows.map(r => r.visitDate.substring(0, 4)))].sort();
+    const yearRows = this._filterByYear(rows);
+    const analytics = this._buildAnalytics(yearRows);
     const content = document.getElementById('mainContent');
-    content.innerHTML = this._template(rows, analytics, contracts.length);
+    content.innerHTML = this._template(yearRows, analytics, contracts.length, years);
     this._renderCharts(analytics);
     this._bindEvents();
   },
@@ -250,9 +285,10 @@ Views.PMC = {
   },
 
   /* ── TEMPLATE ────────────────────────────────────────────── */
-  _template(rows, analytics, contractCount) {
+  _template(rows, analytics, contractCount, years = []) {
     const { totalVisits, completedCount, overdueCount, pendingCount } = analytics;
     const completionRate = totalVisits > 0 ? Math.round((completedCount / totalVisits) * 100) : 0;
+    const yearOpts = years.map(y => `<option value="${y}" ${this._selectedYear === y ? 'selected' : ''}>${y}</option>`).join('');
 
     // Build unique option lists
     const clients  = [...new Set(rows.map(r => r.clientName))].filter(v => v !== '—').sort();
@@ -277,25 +313,39 @@ Views.PMC = {
           <h1 class="page-title">PMC – Preventive Maintenance</h1>
           <p class="page-subtitle">Monitor and track all preventive maintenance contract visits</p>
         </div>
+        <div class="page-actions">
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.857rem;color:var(--gray-500)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>Year:</span>
+            <select id="pmcYearFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.857rem;background:var(--surface);color:var(--text);cursor:pointer;font-weight:600">
+              <option value="all" ${this._selectedYear === 'all' ? 'selected' : ''}>All Years</option>
+              ${yearOpts}
+            </select>
+          </div>
+        </div>
       </div>
 
       <!-- KPI Cards -->
-      <div class="grid-4" style="margin-bottom:20px">
+      <div class="grid-5" style="margin-bottom:20px">
         <div class="kpi-card">
           <div class="kpi-label">Total Contracts</div>
           <div class="kpi-value">${contractCount}</div>
         </div>
         <div class="kpi-card">
+          <div class="kpi-label">Total Visits</div>
+          <div class="kpi-value" id="pmcKpiTotalVisits">${totalVisits}</div>
+        </div>
+        <div class="kpi-card">
           <div class="kpi-label">Visits Completed</div>
-          <div class="kpi-value" style="color:#059669">${completedCount}</div>
+          <div class="kpi-value" id="pmcKpiCompleted" style="color:#059669">${completedCount}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Overdue</div>
-          <div class="kpi-value" style="color:var(--red)">${overdueCount}</div>
+          <div class="kpi-value" id="pmcKpiOverdue" style="color:var(--red)">${overdueCount}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Completion Rate</div>
-          <div class="kpi-value">${completionRate}%</div>
+          <div class="kpi-value" id="pmcKpiCompletion">${completionRate}%</div>
         </div>
       </div>
 
@@ -477,6 +527,14 @@ Views.PMC = {
 
   /* ── EVENTS ──────────────────────────────────────────────── */
   _bindEvents() {
+    const yearSel = document.getElementById('pmcYearFilter');
+    if (yearSel) {
+      yearSel.addEventListener('change', () => {
+        this._selectedYear = yearSel.value;
+        this._refreshYear();
+      });
+    }
+
     const filterIds = ['pmcFJob','pmcFClient','pmcFMachine','pmcFVisit',
                        'pmcFTech','pmcFDateFrom','pmcFDateTo','pmcFProgress','pmcFStatus','pmcFDistrict'];
 

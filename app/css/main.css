@@ -113,6 +113,7 @@ input, select, textarea {
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
 
 /* ── LOGIN SCREEN ───────────────────────────────────────────── */
 .login-screen {
@@ -2428,6 +2429,7 @@ input, select, textarea {
   /* Grids */
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .grid-4   { grid-template-columns: repeat(2, 1fr); }
+  .grid-5   { grid-template-columns: repeat(3, 1fr); }
   .grid-3   { grid-template-columns: 1fr 1fr; }
 
   /* Analytics / PMC / forecast multi-col chart rows → stack */
@@ -2564,7 +2566,7 @@ input, select, textarea {
   }
 
   /* Grids */
-  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
 
