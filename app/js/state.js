@@ -120,6 +120,7 @@ function resetFilters() {
     dateTo:      '',
     search:      '',
     jobNumber:   '',
-    district:    'all'
+    district:    'all',
+    location:    'all'
   };
 }

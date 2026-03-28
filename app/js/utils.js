@@ -167,6 +167,11 @@ const Utils = {
         if (!machine || machine.district !== filters.district) return false;
       }
 
+      if (filters.location && filters.location !== 'all') {
+        const machine = appState.machines.find(m => m.id === i.machineId);
+        if (!machine || machine.location !== filters.location) return false;
+      }
+
       if (filters.search) {
         const q = filters.search.toLowerCase();
         const client = appState.clients.find(c => c.id === i.clientId);

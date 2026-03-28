@@ -42,6 +42,7 @@ Views.MaintenanceContracts = {
       case 'client':   return (client?.name || '').toLowerCase();
       case 'machine':  return (machine?.model || '').toLowerCase();
       case 'district': return (machine?.district || '').toLowerCase();
+      case 'location': return (machine?.location || '').toLowerCase();
       case 'freq':     return contract.visitsPerYear || 0;
       case 'assigned': {
         const schedule = contract.schedule || [];
@@ -106,12 +107,22 @@ Views.MaintenanceContracts = {
         const assignedStyle = assigned >= total && total > 0
           ? 'background:#D1FAE5;color:#065F46'
           : assigned > 0 ? 'background:#DBEAFE;color:#1E40AF' : 'background:var(--gray-100);color:var(--gray-500)';
+        const progBucket = progPct >= 80 ? 'high' : progPct >= 40 ? 'mid' : 'low';
+        const assignedBucket = assigned >= total && total > 0 ? 'full' : assigned > 0 ? 'partial' : 'none';
 
-        return `<tr data-job="${Utils.escapeHtml((machine?.jobNumber || '').toLowerCase())}" data-district="${Utils.escapeHtml((machine?.district || '').toLowerCase())}">
+        return `<tr data-job="${Utils.escapeHtml((machine?.jobNumber || '').toLowerCase())}"
+                    data-district="${Utils.escapeHtml((machine?.district || '').toLowerCase())}"
+                    data-client="${Utils.escapeHtml((client?.id || '').toLowerCase())}"
+                    data-location="${Utils.escapeHtml((machine?.location || '').toLowerCase())}"
+                    data-freq="${contract.visitsPerYear || ''}"
+                    data-assigned="${assignedBucket}"
+                    data-total="${total}"
+                    data-progress="${progBucket}">
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
           <td><div style="font-weight:600">${Utils.escapeHtml(client?.name || '—')}</div><div style="font-size:0.8rem;color:var(--gray-500)">${Utils.escapeHtml(client?.region || '')}</div></td>
           <td><div style="font-weight:500">${Utils.escapeHtml(machine?.model || '—')}</div><div style="font-size:0.8rem;color:var(--gray-500)">${Utils.escapeHtml(contract.serialNumber || machine?.serialNumber || '—')}</div></td>
           <td style="font-size:0.786rem;color:${machine?.district ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(machine?.district || '—')}</td>
+          <td style="font-size:0.786rem;color:${machine?.location ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(machine?.location || '—')}</td>
           <td style="text-align:center;font-weight:600">${contract.visitsPerYear}×/yr</td>
           <td><span style="padding:2px 10px;border-radius:12px;font-size:0.786rem;font-weight:600;${assignedStyle}">${assigned} / ${total}</span></td>
           <td>
@@ -146,6 +157,7 @@ Views.MaintenanceContracts = {
         ${this._thHTML('client',   'Client')}
         ${this._thHTML('machine',  'Machine / Serial')}
         ${this._thHTML('district', 'District')}
+        ${this._thHTML('location', 'Location')}
         ${this._thHTML('freq',     'Freq.')}
         ${this._thHTML('assigned', 'Assigned')}
         ${this._thHTML('progress', 'Progress')}
@@ -157,15 +169,30 @@ Views.MaintenanceContracts = {
     }
 
     // Re-apply DOM filters so hidden rows stay hidden after sort
-    const jobInput   = document.getElementById('mcJobFilter');
-    const distSelect = document.getElementById('mcDistrictFilter');
-    const jobTerm  = (jobInput?.value || '').trim().toLowerCase();
-    const distTerm = (distSelect?.value || '').toLowerCase();
-    if (jobTerm || distTerm) {
+    const jobInput    = document.getElementById('mcJobFilter');
+    const distSelect  = document.getElementById('mcDistrictFilter');
+    const clientSel   = document.getElementById('mcClientFilter');
+    const locationSel = document.getElementById('mcLocationFilter');
+    const freqSel     = document.getElementById('mcFreqFilter');
+    const assignedSel = document.getElementById('mcAssignedFilter');
+    const progressSel = document.getElementById('mcProgressFilter');
+    const jobTerm      = (jobInput?.value || '').trim().toLowerCase();
+    const distTerm     = (distSelect?.value  || '').toLowerCase();
+    const clientTerm   = (clientSel?.value   || '').toLowerCase();
+    const locationTerm = (locationSel?.value || '').toLowerCase();
+    const freqTerm     = (freqSel?.value     || '');
+    const assignedTerm = (assignedSel?.value || '');
+    const progressTerm = (progressSel?.value || '');
+    if (jobTerm || distTerm || clientTerm || locationTerm || freqTerm || assignedTerm || progressTerm) {
       Array.from(document.querySelectorAll('#mcTableBody tr[data-job]')).forEach(row => {
-        const jobMatch  = !jobTerm  || row.dataset.job.includes(jobTerm);
-        const distMatch = !distTerm || row.dataset.district.toLowerCase().includes(distTerm);
-        row.style.display = (jobMatch && distMatch) ? '' : 'none';
+        const jobMatch      = !jobTerm      || row.dataset.job.includes(jobTerm);
+        const distMatch     = !distTerm     || row.dataset.district.toLowerCase().includes(distTerm);
+        const clientMatch   = !clientTerm   || row.dataset.client === clientTerm;
+        const locationMatch = !locationTerm || row.dataset.location === locationTerm;
+        const freqMatch     = !freqTerm     || row.dataset.freq === freqTerm;
+        const assignedMatch = !assignedTerm || row.dataset.assigned === assignedTerm;
+        const progressMatch = !progressTerm || row.dataset.progress === progressTerm;
+        row.style.display = (jobMatch && distMatch && clientMatch && locationMatch && freqMatch && assignedMatch && progressMatch) ? '' : 'none';
       });
     }
   },
@@ -308,8 +335,18 @@ Views.MaintenanceContracts = {
           ? 'background:#DBEAFE;color:#1E40AF'
           : 'background:var(--gray-100);color:var(--gray-500)';
 
+      const progBucket = progPct >= 80 ? 'high' : progPct >= 40 ? 'mid' : 'low';
+      const assignedBucket = assigned >= total && total > 0 ? 'full' : assigned > 0 ? 'partial' : 'none';
+
       return `
-        <tr data-job="${Utils.escapeHtml((machine?.jobNumber || '').toLowerCase())}" data-district="${Utils.escapeHtml((machine?.district || '').toLowerCase())}">
+        <tr data-job="${Utils.escapeHtml((machine?.jobNumber || '').toLowerCase())}"
+            data-district="${Utils.escapeHtml((machine?.district || '').toLowerCase())}"
+            data-client="${Utils.escapeHtml((client?.id || '').toLowerCase())}"
+            data-location="${Utils.escapeHtml((machine?.location || '').toLowerCase())}"
+            data-freq="${contract.visitsPerYear || ''}"
+            data-assigned="${assignedBucket}"
+            data-total="${total}"
+            data-progress="${progBucket}">
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
           <td>
             <div style="font-weight:600">${Utils.escapeHtml(client ? client.name : '—')}</div>
@@ -321,6 +358,9 @@ Views.MaintenanceContracts = {
           </td>
           <td style="font-size:0.786rem;color:${machine?.district ? 'inherit' : 'var(--gray-400)'}">
             ${Utils.escapeHtml(machine?.district || '—')}
+          </td>
+          <td style="font-size:0.786rem;color:${machine?.location ? 'inherit' : 'var(--gray-400)'}">
+            ${Utils.escapeHtml(machine?.location || '—')}
           </td>
           <td style="text-align:center;font-weight:600">${contract.visitsPerYear}×/yr</td>
           <td>
@@ -356,7 +396,7 @@ Views.MaintenanceContracts = {
     };
 
     const rows = contracts.length === 0 ? `
-      <tr><td colspan="11">
+      <tr><td colspan="12">
         <div class="table-empty">
           <p class="table-empty-text">No maintenance contracts found</p>
           ${isAdmin ? `<p style="font-size:0.8rem;color:var(--gray-400);margin-top:4px">Click "Add Contract" to register the first one.</p>` : ''}
@@ -408,11 +448,41 @@ Views.MaintenanceContracts = {
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <input id="mcJobFilter" type="text" placeholder="Job Number…"
-                   style="padding:5px 10px 5px 28px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);width:160px">
+                   style="padding:5px 10px 5px 28px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);width:140px">
           </div>
+          <select id="mcClientFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+            <option value="">All Clients</option>
+            ${[...new Map(contracts.filter(c => clients.find(cl => cl.id === c.clientId)).map(c => {
+              const cl = clients.find(cl => cl.id === c.clientId);
+              return [cl.id, cl];
+            })).values()].sort((a,b) => a.name.localeCompare(b.name)).map(cl => `<option value="${Utils.escapeHtml(cl.id.toLowerCase())}">${Utils.escapeHtml(cl.name)}</option>`).join('')}
+          </select>
           <select id="mcDistrictFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
             <option value="">All Districts</option>
             ${CONFIG.DISTRICTS.map(d => `<option value="${d.toLowerCase()}">${d}</option>`).join('')}
+          </select>
+          <select id="mcLocationFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+            <option value="">All Locations</option>
+            ${[...new Set(contracts.map(c => machines.find(m => m.id === c.machineId)?.location).filter(Boolean))].sort().map(l => `<option value="${Utils.escapeHtml(l.toLowerCase())}">${Utils.escapeHtml(l)}</option>`).join('')}
+          </select>
+          <select id="mcFreqFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+            <option value="">All Frequencies</option>
+            <option value="1">1×/yr</option>
+            <option value="2">2×/yr</option>
+            <option value="3">3×/yr</option>
+            <option value="4">4×/yr</option>
+          </select>
+          <select id="mcAssignedFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+            <option value="">All Assigned</option>
+            <option value="full">Fully Assigned</option>
+            <option value="partial">Partially Assigned</option>
+            <option value="none">Not Assigned</option>
+          </select>
+          <select id="mcProgressFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+            <option value="">All Progress</option>
+            <option value="high">High (≥80%)</option>
+            <option value="mid">Mid (40–79%)</option>
+            <option value="low">Low (&lt;40%)</option>
           </select>
           <button id="mcFilterClear" class="btn btn-ghost btn-sm" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -428,6 +498,7 @@ Views.MaintenanceContracts = {
                   ${this._thHTML('client',   'Client')}
                   ${this._thHTML('machine',  'Machine / Serial')}
                   ${this._thHTML('district', 'District')}
+                  ${this._thHTML('location', 'Location')}
                   ${this._thHTML('freq',     'Freq.')}
                   ${this._thHTML('assigned', 'Assigned')}
                   ${this._thHTML('progress', 'Progress')}
@@ -449,28 +520,53 @@ Views.MaintenanceContracts = {
   _bindEvents() {
     const jobInput    = document.getElementById('mcJobFilter');
     const distSelect  = document.getElementById('mcDistrictFilter');
+    const clientSel   = document.getElementById('mcClientFilter');
+    const locationSel = document.getElementById('mcLocationFilter');
+    const freqSel     = document.getElementById('mcFreqFilter');
+    const assignedSel = document.getElementById('mcAssignedFilter');
+    const progressSel = document.getElementById('mcProgressFilter');
     const clearBtn    = document.getElementById('mcFilterClear');
     const tbody       = document.getElementById('mcTableBody');
     if (!tbody) return;
 
     const applyFilters = () => {
-      const jobTerm  = (jobInput?.value || '').trim().toLowerCase();
-      const distTerm = (distSelect?.value || '').toLowerCase();
-      const active   = jobTerm || distTerm;
+      const jobTerm      = (jobInput?.value    || '').trim().toLowerCase();
+      const distTerm     = (distSelect?.value  || '').toLowerCase();
+      const clientTerm   = (clientSel?.value   || '').toLowerCase();
+      const locationTerm = (locationSel?.value || '').toLowerCase();
+      const freqTerm     = (freqSel?.value     || '');
+      const assignedTerm = (assignedSel?.value || '');
+      const progressTerm = (progressSel?.value || '');
+      const active = jobTerm || distTerm || clientTerm || locationTerm || freqTerm || assignedTerm || progressTerm;
       if (clearBtn) clearBtn.style.display = active ? '' : 'none';
       Array.from(tbody.querySelectorAll('tr[data-job]')).forEach(row => {
-        const jobMatch  = !jobTerm  || row.dataset.job.includes(jobTerm);
-        const distMatch = !distTerm || row.dataset.district.toLowerCase().includes(distTerm);
-        row.style.display = (jobMatch && distMatch) ? '' : 'none';
+        const jobMatch      = !jobTerm      || row.dataset.job.includes(jobTerm);
+        const distMatch     = !distTerm     || row.dataset.district.toLowerCase().includes(distTerm);
+        const clientMatch   = !clientTerm   || row.dataset.client === clientTerm;
+        const locationMatch = !locationTerm || row.dataset.location === locationTerm;
+        const freqMatch     = !freqTerm     || row.dataset.freq === freqTerm;
+        const assignedMatch = !assignedTerm || row.dataset.assigned === assignedTerm;
+        const progressMatch = !progressTerm || row.dataset.progress === progressTerm;
+        row.style.display = (jobMatch && distMatch && clientMatch && locationMatch && freqMatch && assignedMatch && progressMatch) ? '' : 'none';
       });
     };
 
-    if (jobInput)   jobInput.addEventListener('input', applyFilters);
-    if (distSelect) distSelect.addEventListener('change', applyFilters);
+    if (jobInput)    jobInput.addEventListener('input', applyFilters);
+    if (distSelect)  distSelect.addEventListener('change', applyFilters);
+    if (clientSel)   clientSel.addEventListener('change', applyFilters);
+    if (locationSel) locationSel.addEventListener('change', applyFilters);
+    if (freqSel)     freqSel.addEventListener('change', applyFilters);
+    if (assignedSel) assignedSel.addEventListener('change', applyFilters);
+    if (progressSel) progressSel.addEventListener('change', applyFilters);
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
-        if (jobInput)   jobInput.value = '';
-        if (distSelect) distSelect.value = '';
+        if (jobInput)    jobInput.value = '';
+        if (distSelect)  distSelect.value = '';
+        if (clientSel)   clientSel.value = '';
+        if (locationSel) locationSel.value = '';
+        if (freqSel)     freqSel.value = '';
+        if (assignedSel) assignedSel.value = '';
+        if (progressSel) progressSel.value = '';
         applyFilters();
       });
     }

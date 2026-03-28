@@ -103,6 +103,17 @@ Views.Interventions = {
         `<option value="${d}" ${appState.filters.district === d ? 'selected' : ''}>${d}</option>`)
     ].join('');
 
+    const locationValues = [...new Set(
+      appState.interventions
+        .map(i => appState.machines.find(m => m.id === i.machineId)?.location)
+        .filter(Boolean)
+    )].sort();
+    const locationOptions = [
+      '<option value="all">All Locations</option>',
+      ...locationValues.map(l =>
+        `<option value="${Utils.escapeHtml(l)}" ${appState.filters.location === l ? 'selected' : ''}>${Utils.escapeHtml(l)}</option>`)
+    ].join('');
+
     return `
       <div class="page-header">
         <div>
@@ -143,6 +154,7 @@ Views.Interventions = {
           <input type="date" id="intDateFrom" class="toolbar-select" value="${appState.filters.dateFrom}" title="From date" style="min-width:120px">
           <input type="date" id="intDateTo" class="toolbar-select" value="${appState.filters.dateTo}" title="To date" style="min-width:120px">
           <select id="intDistrict" class="toolbar-select">${districtOptions}</select>
+          <select id="intLocation" class="toolbar-select">${locationOptions}</select>
           <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._resetFilters()">Clear</button>
         </div>
         <span id="intCount"></span>
@@ -171,6 +183,7 @@ Views.Interventions = {
     bind('intDateFrom', 'dateFrom');
     bind('intDateTo', 'dateTo');
     bind('intDistrict', 'district');
+    bind('intLocation', 'location');
 
     const viewTableBtn  = document.getElementById('viewTable');
     const viewKanbanBtn = document.getElementById('viewKanban');
@@ -245,6 +258,11 @@ Views.Interventions = {
       } else if (this._sortKey === '_techName') {
         va = Utils.getTechnicianNames(a).toLowerCase();
         vb = Utils.getTechnicianNames(b).toLowerCase();
+      } else if (this._sortKey === '_location') {
+        const ma = appState.machines.find(m => m.id === a.machineId);
+        const mb = appState.machines.find(m => m.id === b.machineId);
+        va = (ma?.location || '').toLowerCase();
+        vb = (mb?.location || '').toLowerCase();
       } else {
         va = (a[this._sortKey] || '').toString().toLowerCase();
         vb = (b[this._sortKey] || '').toString().toLowerCase();
@@ -287,6 +305,7 @@ Views.Interventions = {
           <td style="white-space:nowrap;font-size:0.786rem;color:${i.statusUpdatedAt ? 'inherit' : 'var(--gray-400)'}">${i.statusUpdatedAt ? Utils.formatDateTime(i.statusUpdatedAt) : '—'}</td>
           <td style="white-space:nowrap;font-size:0.786rem">${Utils.formatDateTime(i.createdAt)}</td>
           <td style="font-size:0.786rem;color:${machine?.district ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(machine?.district || '—')}</td>
+          <td style="font-size:0.786rem;color:${machine?.location ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(machine?.location || '—')}</td>
           <td>
             <div class="td-actions">
               <button class="btn btn-ghost btn-sm btn-icon" title="View Detail" onclick="Views.Interventions.openDetailModal('${i.id}')">
@@ -334,6 +353,7 @@ Views.Interventions = {
               <th class="${this._thClass('statusUpdatedAt')}" onclick="Views.Interventions._setSort('statusUpdatedAt')">Status Updated${si}</th>
               <th class="${this._thClass('createdAt')}" onclick="Views.Interventions._setSort('createdAt')">Created${si}</th>
               <th>District</th>
+              <th class="${this._thClass('_location')}" onclick="Views.Interventions._setSort('_location')">Location${si}</th>
               <th style="width:100px"></th>
             </tr>
           </thead>
@@ -558,7 +578,10 @@ Views.Interventions = {
             ${CONFIG.DISTRICTS.map(d => `<option value="${d}" ${dDistrict === d ? 'selected' : ''}>${d}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group"></div>
+        <div class="form-group">
+          <label class="form-label">Location Address <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
+          <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="e.g. Zone Industrielle, Riche Terre">
+        </div>
       </div>
       <hr style="border:none;border-top:1px solid var(--gray-200);margin:8px 0 12px">
     `;})();
@@ -631,6 +654,14 @@ Views.Interventions = {
           <select id="fIntStatus" class="form-select">${statusOptions}</select>`}
         </div>` : '<div class="form-group"></div>'}
       </div>
+      ${isEdit ? `
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Location Address <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
+          <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="e.g. Zone Industrielle, Riche Terre">
+        </div>
+        <div class="form-group"></div>
+      </div>` : ''}
       ${isEdit ? `
       <div class="form-group">
         <label class="form-label">Status Note <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional — explain this status change)</span></label>
@@ -719,6 +750,7 @@ Views.Interventions = {
       clientId:         get('fNewMachineClient'),
       machineLocation:  get('fNewMachineLocation'),
       machineDistrict:  get('fNewMachineDistrict'),
+      locationAddress:  get('fIntLocationAddress'),
       type:            get('fIntType'),
       priority:        get('fIntPriority'),
       location:        get('fIntLocation'),
@@ -804,13 +836,14 @@ Views.Interventions = {
 
     await Storage.createIntervention({
       clientId, machineId, type,
-      priority:     document.getElementById('fIntPriority')?.value || 'medium',
-      status:       'new',
-      technicianId: null,
-      location:     document.getElementById('fIntLocation')?.value || 'client',
-      scheduledDate: pmcStartDate ? new Date(`${pmcStartDate}T08:00`).toISOString() : null,
+      priority:        document.getElementById('fIntPriority')?.value || 'medium',
+      status:          'new',
+      technicianId:    null,
+      location:        document.getElementById('fIntLocation')?.value || 'client',
+      locationAddress: document.getElementById('fIntLocationAddress')?.value.trim() || '',
+      scheduledDate:   pmcStartDate ? new Date(`${pmcStartDate}T08:00`).toISOString() : null,
       description,
-      createdBy:    user?.name || 'Admin',
+      createdBy:       user?.name || 'Admin',
       ...(pmcContractId ? { maintenanceContractId: pmcContractId, maintenanceVisitIndex: 0 } : {})
     });
 
@@ -1120,7 +1153,8 @@ Views.Interventions = {
       technicianId: userIsAdmin
         ? (Array.from(document.querySelectorAll('.fIntTechCheck:checked')).map(cb => cb.value)[0] || null)
         : original.technicianId,
-      location:     userIsAdmin ? (document.getElementById('fIntLocation')?.value || 'client') : original.location,
+      location:        userIsAdmin ? (document.getElementById('fIntLocation')?.value || 'client') : original.location,
+      locationAddress: document.getElementById('fIntLocationAddress')?.value.trim() ?? original.locationAddress ?? '',
       scheduledDate,
       ...(pmcProgress !== null ? { pmcProgress } : {})
     }, auditEntry);
@@ -1414,6 +1448,7 @@ Views.Interventions = {
           <div class="detail-field"><div class="detail-field-label">Machine</div><div class="detail-field-value">${Utils.escapeHtml(machine?.model || '—')}</div></div>
           <div class="detail-field"><div class="detail-field-label">Type</div><div class="detail-field-value">${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</div></div>
           <div class="detail-field"><div class="detail-field-label">Location</div><div class="detail-field-value">${i.location === 'workshop' ? 'Workshop' : 'Client Premises'}</div></div>
+          ${i.locationAddress ? `<div class="detail-field detail-field-full"><div class="detail-field-label">Location Address</div><div class="detail-field-value">${Utils.escapeHtml(i.locationAddress)}</div></div>` : ''}
           <div class="detail-field"><div class="detail-field-label">Technician</div><div class="detail-field-value" style="${!Utils.getTechIds(i).length ? 'color:var(--gray-400)' : ''}">${Utils.escapeHtml(Utils.getTechnicianNames(i))}</div></div>
           <div class="detail-field"><div class="detail-field-label">Status</div><div class="detail-field-value">${Utils.getStatusBadge(i.status, i)}</div></div>
           <div class="detail-field"><div class="detail-field-label">Priority</div><div class="detail-field-value">${Utils.getPriorityBadge(i.priority)}</div></div>
@@ -1513,8 +1548,9 @@ Views.Interventions = {
       machineId:   get('fIntMachine'),
       type:        get('fIntType'),
       priority:    get('fIntPriority'),
-      location:    get('fIntLocation'),
-      status:      get('fIntStatus'),
+      location:        get('fIntLocation'),
+      locationAddress: get('fIntLocationAddress'),
+      status:          get('fIntStatus'),
       statusNote:  get('fIntStatusNote'),
       technicianIds: Array.from(document.querySelectorAll('.fIntTechCheck:checked')).map(cb => cb.value),
       scheduledDate: get('fIntDate'),
@@ -1531,6 +1567,7 @@ Views.Interventions = {
     set('fIntType', d.type);
     set('fIntPriority', d.priority);
     set('fIntLocation', d.location);
+    set('fIntLocationAddress', d.locationAddress);
     set('fIntStatus', d.status);
     set('fIntStatusNote', d.statusNote);
     if (d.technicianIds) {
