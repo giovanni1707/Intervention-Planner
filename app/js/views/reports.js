@@ -649,6 +649,31 @@ Views.Reports = {
           const machine = appState.machines.find(m => m.id === machineId);
           const sorted  = Utils.sortBy(items, 'createdAt', 'desc');
           const locationAddress = sorted[0]?.locationAddress || '—';
+
+          // Find all contracts for this machine
+          const contracts = appState.maintenanceContracts.filter(c => c.machineId === machineId);
+          let coverageCell;
+          if (!contracts.length) {
+            coverageCell = `<span style="color:var(--gray-400);font-size:0.786rem">No contract</span>`;
+          } else {
+            const today = new Date(); today.setHours(0,0,0,0);
+            coverageCell = contracts.map(c => {
+              const start   = new Date(c.startDate + 'T00:00:00');
+              const end     = new Date(c.endDate   + 'T23:59:59');
+              const active  = today >= start && today <= end;
+              const total   = (c.schedule || []).length;
+              const done    = (c.completedVisits || []).length;
+              const color   = active ? '#059669' : 'var(--gray-400)';
+              const bg      = active ? '#ECFDF5' : 'var(--gray-100)';
+              const border  = active ? '#6EE7B7' : 'var(--gray-200)';
+              return `<div style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:${bg};border:1px solid ${border};font-size:0.75rem;font-weight:600;color:${color};white-space:nowrap;margin-bottom:2px">
+                ${active ? '● Active' : '○ Expired'}
+                <span style="font-weight:400;opacity:0.8">${Utils.formatDate(c.startDate)} → ${Utils.formatDate(c.endDate)}</span>
+                <span style="opacity:0.7">${done}/${total}</span>
+              </div>`;
+            }).join('<br>');
+          }
+
           return `
             <tr>
               <td style="padding-left:24px">${Utils.escapeHtml(machine?.model || 'Unknown')}</td>
@@ -656,7 +681,7 @@ Views.Reports = {
               <td style="font-family:monospace;font-size:0.786rem">${Utils.escapeHtml(machine?.serialNumber || '—')}</td>
               <td style="font-size:0.786rem;color:${locationAddress === '—' ? 'var(--gray-400)' : 'inherit'}">${Utils.escapeHtml(locationAddress)}</td>
               <td>${items.length}</td>
-              <td>${Utils.getContractBadge(machine?.contractType || 'none')}</td>
+              <td>${coverageCell}</td>
               <td>${Utils.formatDate(sorted[0]?.createdAt)}</td>
               <td>${Utils.getStatusBadge(sorted[0]?.status)}</td>
             </tr>
@@ -678,7 +703,7 @@ Views.Reports = {
           <table class="data-table">
             <thead>
               <tr>
-                <th>Machine</th><th>Job Number</th><th>Serial</th><th>Location Address</th><th>Interventions</th><th>Contract</th><th>Last Service</th><th>Last Status</th>
+                <th>Machine</th><th>Job Number</th><th>Serial</th><th>Location Address</th><th>Interventions</th><th>PMC Coverage</th><th>Last Service</th><th>Last Status</th>
               </tr>
             </thead>
             <tbody>
