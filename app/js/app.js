@@ -89,6 +89,7 @@ function showApp() {
   if (appShell)    appShell.classList.remove('hidden');
 
   Sidebar.render();
+  GlobalSearch.init();
   Scheduler.start();
   AutoRefresh.start();
 

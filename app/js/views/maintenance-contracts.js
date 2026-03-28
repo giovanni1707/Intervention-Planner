@@ -438,7 +438,13 @@ Views.MaintenanceContracts = {
       <div class="card">
         <div class="card-header">
           <span class="card-title">Contracts</span>
-          <span class="text-sm text-muted">${contracts.length} total &bull; ${expired.length} expired</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="text-sm text-muted">${contracts.length} total &bull; ${expired.length} expired</span>
+            <button class="btn btn-ghost btn-sm" onclick="Views.MaintenanceContracts._exportCsv()" title="Export current filtered view to CSV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export CSV
+            </button>
+          </div>
         </div>
         <!-- Filters bar -->
         <div style="padding:10px 16px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;flex-wrap:wrap;gap:8px">
@@ -570,6 +576,63 @@ Views.MaintenanceContracts = {
         applyFilters();
       });
     }
+  },
+
+  /* ── EXPORT CSV ──────────────────────────────────────────── */
+  _exportCsv() {
+    // Collect visible rows — rows hidden by filters have display:none
+    const visibleRows = [...document.querySelectorAll('#mcTableBody tr[data-job]')]
+      .filter(r => r.style.display !== 'none');
+
+    const contracts = appState.maintenanceContracts;
+    const machines  = appState.machines;
+    const clients   = appState.clients;
+
+    // Build a set of job numbers visible to use as export filter
+    const visibleJobs = new Set(visibleRows.map(r => r.dataset.job));
+
+    const data = contracts.map(c => {
+      const machine = machines.find(m => m.id === c.machineId) || {};
+      const client  = clients.find(cl => cl.id === c.clientId) || {};
+      if (!visibleJobs.has((machine.jobNumber || '').toLowerCase())) return null;
+
+      const visits    = c.visits || [];
+      const total     = c.totalVisits || 0;
+      const completed = visits.filter(v => v.status === 'completed').length;
+      const assigned  = visits.length;
+      return [
+        client.name          || '',
+        machine.model        || '',
+        machine.serialNumber || '',
+        machine.jobNumber    || '',
+        machine.district     || '',
+        machine.location     || '',
+        c.visitsPerYear      || '',
+        total,
+        assigned,
+        completed,
+        total - completed,
+        Utils.percent(completed, total) + '%',
+        Utils.formatDate(c.startDate),
+        Utils.formatDate(c.endDate)
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    }).filter(Boolean);
+
+    if (data.length === 0) {
+      Toast.show('Nothing to export', 'warning');
+      return;
+    }
+
+    const header = ['Client','Machine Model','Serial No.','Job No.','District','Location','Freq/yr','Total Visits','Assigned','Completed','Remaining','Progress','Start Date','End Date'].map(h => `"${h}"`).join(',');
+    const csv    = [header, ...data].join('\r\n');
+    const blob   = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href       = url;
+    a.download   = `maintenance_contracts_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    Toast.show(`Exported ${data.length} contract${data.length !== 1 ? 's' : ''} to CSV`, 'success');
   },
 
   /* ── NOTIFICATIONS ───────────────────────────────────────── */

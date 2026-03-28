@@ -20,6 +20,10 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`
     },
     {
+      route: 'my-jobs', label: 'My Jobs', adminOnly: false, technicianOnly: true,
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`
+    },
+    {
       route: 'clients', label: 'Clients', adminOnly: false,
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>`
     },
@@ -90,8 +94,9 @@ const Sidebar = {
     const isSuperAdmin = role === 'superadmin';
     const isAdminOrAbove = role === 'admin' || role === 'superadmin';
     const visibleItems = this._navItems.filter(item => {
-      if (item.superAdminOnly) return isSuperAdmin;
-      if (item.adminOnly) return isAdminOrAbove;
+      if (item.superAdminOnly)  return isSuperAdmin;
+      if (item.adminOnly)       return isAdminOrAbove;
+      if (item.technicianOnly)  return role === 'technician';
       return true;
     });
 
@@ -123,6 +128,11 @@ const Sidebar = {
 
       <nav class="sidebar-nav">
         <div class="sidebar-section-label">Navigation</div>
+        <div class="sidebar-search-btn" id="sidebarSearchBtn" title="Global Search (Ctrl+K)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span>Search…</span>
+          <kbd class="sidebar-search-kbd">K</kbd>
+        </div>
         ${navHTML}
       </nav>
 
@@ -196,6 +206,12 @@ const Sidebar = {
     const overlay = document.getElementById('sidebarOverlay');
     if (overlay) {
       overlay.onclick = () => this.closeMobile();
+    }
+
+    // Global search button in sidebar
+    const searchBtn = document.getElementById('sidebarSearchBtn');
+    if (searchBtn) {
+      searchBtn.addEventListener('click', () => GlobalSearch.open());
     }
 
     // Toggle collapse

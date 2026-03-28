@@ -131,6 +131,10 @@ Views.Interventions = {
               Kanban
             </button>
           </div>
+          <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._exportCsv()" title="Export current filtered view to CSV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export CSV
+          </button>
           ${isAdmin ? `<button class="btn btn-primary" onclick="Views.Interventions._openCreateModal()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Machine
@@ -204,6 +208,40 @@ Views.Interventions = {
   _resetFilters() {
     resetFilters();
     this.mount();
+  },
+
+  _exportCsv() {
+    const filtered = Utils.filterInterventions(appState.interventions, appState.filters);
+    const rows = filtered.map(i => {
+      const machine = appState.machines.find(m => m.id === i.machineId) || {};
+      const client  = appState.clients.find(c => c.id === i.clientId)  || {};
+      return [
+        machine.jobNumber  || '',
+        client.name        || '',
+        machine.model      || '',
+        machine.serialNumber || '',
+        Utils.getInterventionTypeLabel(i.type),
+        i.priority         || '',
+        i.status           || '',
+        Utils.getTechnicianNames(i),
+        Utils.formatDate(i.scheduledDate),
+        Utils.formatDate(i.createdAt),
+        machine.district   || '',
+        machine.location   || '',
+        i.locationAddress  || '',
+        (i.description     || '').replace(/\n/g, ' ')
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    });
+    const header = ['Job No.','Client','Machine Model','Serial No.','Type','Priority','Status','Technician(s)','Scheduled Date','Created Date','District','Location','Location Address','Description'].map(h => `"${h}"`).join(',');
+    const csv    = [header, ...rows].join('\r\n');
+    const blob   = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href       = url;
+    a.download   = `interventions_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    Toast.show(`Exported ${filtered.length} intervention${filtered.length !== 1 ? 's' : ''} to CSV`, 'success');
   },
 
   _renderTable(interventions) {

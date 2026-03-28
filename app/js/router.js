@@ -18,7 +18,8 @@ const ROUTES = {
   'pmc':                     () => Views.PMC.mount(),
   analytics:                 () => Views.Analytics.mount(),
   notifications:             () => Views.Notifications.mount(),
-  settings:                  () => Views.Settings.mount()
+  settings:                  () => Views.Settings.mount(),
+  'my-jobs':                 () => Views.MyJobs.mount()
 };
 
 const Router = {
