@@ -254,7 +254,7 @@ Views.Reports = {
 
     return `
       <div class="report-section">
-        <div class="report-section-title">Technician Performance</div>
+        <div class="report-section-title">Technician Overview</div>
         <div class="table-wrapper">
           <table class="data-table">
             <thead>

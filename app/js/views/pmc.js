@@ -62,15 +62,16 @@ Views.PMC = {
     const thead = document.querySelector('#pmcTable thead tr');
     if (!thead) return;
     thead.innerHTML = `
-      ${this._thHTML('jobNumber',   'Job Number')}
-      ${this._thHTML('clientName',  'Client')}
-      ${this._thHTML('machineName', 'Machine')}
-      ${this._thHTML('district',    'District')}
-      ${this._thHTML('visit',       'Visit #')}
-      ${this._thHTML('techName',    'Technician')}
-      ${this._thHTML('date',        'Scheduled Date')}
-      ${this._thHTML('progress',    'Progress')}
-      ${this._thHTML('status',      'Status')}
+      ${this._thHTML('jobNumber',       'Job Number')}
+      ${this._thHTML('clientName',      'Client')}
+      ${this._thHTML('machineName',     'Machine')}
+      ${this._thHTML('district',        'District')}
+      ${this._thHTML('locationAddress', 'Location Address')}
+      ${this._thHTML('visit',           'Visit #')}
+      ${this._thHTML('techName',        'Technician')}
+      ${this._thHTML('date',            'Scheduled Date')}
+      ${this._thHTML('progress',        'Progress')}
+      ${this._thHTML('status',          'Status')}
       <th>Action</th>
     `;
   },
@@ -126,17 +127,18 @@ Views.PMC = {
         else                                                    statusKey = 'planned';
 
         rows.push({
-          contractId:    contract.id,
-          interventionId: intervention?.id || null,
-          jobNumber:     machine?.jobNumber || '—',
-          clientName:    client?.name || '—',
-          machineName:   machine?.model || '—',
-          machineType:   machine?.type  || '—',
-          serialNumber:  contract.serialNumber || machine?.serialNumber || '—',
-          district:      machine?.district || '—',
-          visitNumber:   ordinals[idx] || `${idx + 1}th`,
-          visitIndex:    idx,
-          visitDate:     date,
+          contractId:      contract.id,
+          interventionId:  intervention?.id || null,
+          jobNumber:       machine?.jobNumber || '—',
+          clientName:      client?.name || '—',
+          machineName:     machine?.model || '—',
+          machineType:     machine?.type  || '—',
+          serialNumber:    contract.serialNumber || machine?.serialNumber || '—',
+          district:        machine?.district || '—',
+          locationAddress: intervention?.locationAddress || '—',
+          visitNumber:     ordinals[idx] || `${idx + 1}th`,
+          visitIndex:      idx,
+          visitDate:       date,
           techName,
           progress,
           doneCount,
@@ -144,8 +146,8 @@ Views.PMC = {
           isCompleted,
           isOverdue,
           statusKey,
-          contractStart: contract.startDate,
-          contractEnd:   contract.endDate,
+          contractStart:   contract.startDate,
+          contractEnd:     contract.endDate,
         });
       });
     });
@@ -193,7 +195,8 @@ Views.PMC = {
     const fDateTo   = get('pmcFDateTo');
     const fProgress = get('pmcFProgress');
     const fStatus   = get('pmcFStatus');
-    const fDistrict = get('pmcFDistrict');
+    const fDistrict  = get('pmcFDistrict');
+    const fLocation  = get('pmcFLocation');
 
     return rows.filter(r => {
       if (fJob      && !r.jobNumber.toLowerCase().includes(fJob))          return false;
@@ -207,13 +210,14 @@ Views.PMC = {
       if (fProgress && !r.progress.toLowerCase().includes(fProgress))       return false;
       if (fStatus   && r.statusKey !== fStatus)                             return false;
       if (fDistrict && r.district.toLowerCase() !== fDistrict)              return false;
+      if (fLocation && !r.locationAddress.toLowerCase().includes(fLocation)) return false;
       return true;
     });
   },
 
   _hasActiveFilters() {
     const ids = ['pmcFJob','pmcFClient','pmcFMachine','pmcFVisit',
-                 'pmcFTech','pmcFDateFrom','pmcFDateTo','pmcFProgress','pmcFStatus','pmcFDistrict'];
+                 'pmcFTech','pmcFDateFrom','pmcFDateTo','pmcFProgress','pmcFStatus','pmcFDistrict','pmcFLocation'];
     return ids.some(id => (document.getElementById(id)?.value || '') !== '');
   },
 
@@ -397,6 +401,10 @@ Views.PMC = {
               <option value="">All Districts</option>
               ${CONFIG.DISTRICTS.map(d => `<option value="${d.toLowerCase()}">${d}</option>`).join('')}
             </select>
+            <select id="pmcFLocation" style="${selectStyle}width:180px">
+              <option value="">All Locations</option>
+              ${[...new Set(rows.map(r => r.locationAddress).filter(v => v && v !== '—'))].sort().map(v => `<option value="${Utils.escapeHtml(v.toLowerCase())}">${Utils.escapeHtml(v)}</option>`).join('')}
+            </select>
             <button id="pmcClearFilters" class="btn btn-ghost btn-sm" style="display:none;white-space:nowrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               Clear
@@ -409,15 +417,16 @@ Views.PMC = {
             <table class="data-table" id="pmcTable">
               <thead>
                 <tr>
-                  ${this._thHTML('jobNumber',   'Job Number')}
-                  ${this._thHTML('clientName',  'Client')}
-                  ${this._thHTML('machineName', 'Machine')}
-                  ${this._thHTML('district',    'District')}
-                  ${this._thHTML('visit',       'Visit #')}
-                  ${this._thHTML('techName',    'Technician')}
-                  ${this._thHTML('date',        'Scheduled Date')}
-                  ${this._thHTML('progress',    'Progress')}
-                  ${this._thHTML('status',      'Status')}
+                  ${this._thHTML('jobNumber',       'Job Number')}
+                  ${this._thHTML('clientName',      'Client')}
+                  ${this._thHTML('machineName',     'Machine')}
+                  ${this._thHTML('district',        'District')}
+                  ${this._thHTML('locationAddress', 'Location Address')}
+                  ${this._thHTML('visit',           'Visit #')}
+                  ${this._thHTML('techName',        'Technician')}
+                  ${this._thHTML('date',            'Scheduled Date')}
+                  ${this._thHTML('progress',        'Progress')}
+                  ${this._thHTML('status',          'Status')}
                   <th>Action</th>
                 </tr>
               </thead>
@@ -432,7 +441,7 @@ Views.PMC = {
   /* ── TABLE ROWS ──────────────────────────────────────────── */
   _buildRows(rows) {
     if (!rows.length) {
-      return `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--gray-400)">No PMC visits match the current filters.</td></tr>`;
+      return `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--gray-400)">No PMC visits match the current filters.</td></tr>`;
     }
 
     return rows.map(r => {
@@ -468,6 +477,7 @@ Views.PMC = {
           <div style="font-size:0.786rem;color:var(--gray-400)">${Utils.escapeHtml(r.machineType)}</div>
         </td>
         <td style="font-size:0.786rem;color:${r.district === '—' ? 'var(--gray-400)' : 'inherit'}">${Utils.escapeHtml(r.district)}</td>
+        <td style="font-size:0.786rem;color:${r.locationAddress === '—' ? 'var(--gray-400)' : 'inherit'}">${Utils.escapeHtml(r.locationAddress)}</td>
         <td><span style="font-weight:600">${r.visitNumber}</span></td>
         <td style="color:${r.techName === '—' ? 'var(--gray-400)' : 'inherit'}">${Utils.escapeHtml(r.techName)}</td>
         <td style="${dateStyle}">${Utils.formatDate(r.visitDate)}</td>
@@ -536,7 +546,7 @@ Views.PMC = {
     }
 
     const filterIds = ['pmcFJob','pmcFClient','pmcFMachine','pmcFVisit',
-                       'pmcFTech','pmcFDateFrom','pmcFDateTo','pmcFProgress','pmcFStatus','pmcFDistrict'];
+                       'pmcFTech','pmcFDateFrom','pmcFDateTo','pmcFProgress','pmcFStatus','pmcFDistrict','pmcFLocation'];
 
     filterIds.forEach(id => {
       const el = document.getElementById(id);
