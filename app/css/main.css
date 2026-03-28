@@ -4350,18 +4350,33 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
 .loc-ac-dropdown.hidden { display: none; }
 
 .loc-ac-item {
-  padding: 8px 12px;
-  font-size: 0.857rem;
-  color: var(--gray-700);
+  padding: 7px 12px;
   cursor: pointer;
   border-bottom: 1px solid var(--gray-100);
   transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .loc-ac-item:last-child { border-bottom: none; }
 .loc-ac-item:hover,
 .loc-ac-item-active {
   background: var(--primary-50, #EFF6FF);
-  color: var(--blue);
+}
+.loc-ac-item:hover .loc-ac-name,
+.loc-ac-item-active .loc-ac-name { color: var(--blue); }
+
+.loc-ac-name {
+  font-size: 0.857rem;
+  color: var(--gray-700);
+  font-weight: 500;
+}
+.loc-ac-district {
+  font-size: 0.75rem;
+  color: var(--gray-400);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .dark-mode .loc-ac-dropdown {
@@ -4369,12 +4384,12 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
   border-color: var(--gray-200);
 }
 .dark-mode .loc-ac-item {
-  color: var(--gray-700);
   border-bottom-color: var(--gray-100);
 }
 .dark-mode .loc-ac-item:hover,
 .dark-mode .loc-ac-item-active {
   background: var(--primary-50, #EFF6FF);
-  color: var(--blue);
 }
+.dark-mode .loc-ac-name { color: var(--gray-700); }
+.dark-mode .loc-ac-district { color: var(--gray-400); }
 

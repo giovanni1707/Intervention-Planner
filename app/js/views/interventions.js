@@ -738,54 +738,76 @@ Views.Interventions = {
   },
 
   // ── LOCATION ADDRESS AUTOCOMPLETE ────────────────────────────
-  // districtSelectId: id of the district <select> (create form)
-  // interventionId:   if set, reads district from the intervention's machine (edit form)
+  // districtSelectId: id of the district <select> (create form, may be null)
+  // interventionId:   present on edit form (district is read-only from machine)
   _initLocationAutocomplete(districtSelectId, interventionId) {
     const input    = document.getElementById('fIntLocationAddress');
     const dropdown = document.getElementById('fIntLocationAddressDropdown');
     if (!input || !dropdown) return;
 
-    // Determine the current district — from the select (create) or the machine (edit)
-    const getDistrict = () => {
-      if (districtSelectId) {
-        return document.getElementById(districtSelectId)?.value || '';
-      }
-      if (interventionId) {
-        const iv = appState.interventions.find(x => x.id === interventionId);
-        const m  = appState.machines.find(x => x.id === iv?.machineId);
-        return m?.district || '';
-      }
-      return '';
+    // Build a flat list of { location, district } from ALL districts in config
+    // plus any locationAddress values already saved in interventions
+    const buildAllLocations = () => {
+      const list = [];
+      Object.entries(CONFIG.DISTRICT_LOCATIONS).forEach(([district, locs]) => {
+        locs.forEach(loc => list.push({ location: loc, district }));
+      });
+      // Saved custom locations from existing interventions
+      appState.interventions.forEach(iv => {
+        if (!iv.locationAddress) return;
+        const loc = iv.locationAddress.trim();
+        if (!loc) return;
+        // Find the district for this intervention's machine
+        const m = appState.machines.find(x => x.id === iv.machineId);
+        const district = m?.district || '';
+        // Only add if not already in the list
+        if (!list.some(x => x.location.toLowerCase() === loc.toLowerCase())) {
+          list.push({ location: loc, district });
+        }
+      });
+      return list;
     };
 
-    const getSuggestions = (query, district) => {
-      const base    = (CONFIG.DISTRICT_LOCATIONS[district] || []);
-      // Also pull unique locations already saved across interventions for this district
-      const saved   = appState.interventions
-        .filter(iv => {
-          const m = appState.machines.find(x => x.id === iv.machineId);
-          return m?.district === district && iv.locationAddress;
-        })
-        .map(iv => iv.locationAddress.trim())
-        .filter(Boolean);
-      const combined = [...new Set([...base, ...saved])].sort((a, b) => a.localeCompare(b));
-      if (!query) return combined.slice(0, 8);
+    const getSuggestions = query => {
+      const all = buildAllLocations();
+      if (!query) return [];
       const q = query.toLowerCase();
-      return combined.filter(l => l.toLowerCase().includes(q)).slice(0, 8);
+      return all
+        .filter(x => x.location.toLowerCase().includes(q))
+        .sort((a, b) => {
+          // Exact prefix matches first
+          const aStarts = a.location.toLowerCase().startsWith(q);
+          const bStarts = b.location.toLowerCase().startsWith(q);
+          if (aStarts && !bStarts) return -1;
+          if (!aStarts && bStarts) return 1;
+          return a.location.localeCompare(b.location);
+        })
+        .slice(0, 10);
+    };
+
+    // Set district select value (create form only — edit form district is from machine)
+    const applyDistrict = district => {
+      if (!districtSelectId || !district) return;
+      const sel = document.getElementById(districtSelectId);
+      if (sel && sel.value !== district) sel.value = district;
     };
 
     const showDropdown = items => {
       if (items.length === 0) { hideDropdown(); return; }
       dropdown.innerHTML = items.map(item => `
-        <div class="loc-ac-item" data-value="${Utils.escapeHtml(item)}">${Utils.escapeHtml(item)}</div>
+        <div class="loc-ac-item" data-value="${Utils.escapeHtml(item.location)}" data-district="${Utils.escapeHtml(item.district)}">
+          <span class="loc-ac-name">${Utils.escapeHtml(item.location)}</span>
+          ${item.district ? `<span class="loc-ac-district">${Utils.escapeHtml(item.district)}</span>` : ''}
+        </div>
       `).join('');
       dropdown.classList.remove('hidden');
       dropdown.querySelectorAll('.loc-ac-item').forEach(el => {
         el.addEventListener('mousedown', e => {
-          e.preventDefault(); // prevent blur firing before click
+          e.preventDefault();
           input.value = el.dataset.value;
+          applyDistrict(el.dataset.district);
           hideDropdown();
-          input.dispatchEvent(new Event('change'));
+          activeIdx = -1;
         });
       });
     };
@@ -795,57 +817,48 @@ Views.Interventions = {
       dropdown.innerHTML = '';
     };
 
+    const selectActive = () => {
+      const items = dropdown.querySelectorAll('.loc-ac-item');
+      if (activeIdx >= 0 && items[activeIdx]) {
+        input.value = items[activeIdx].dataset.value;
+        applyDistrict(items[activeIdx].dataset.district);
+        hideDropdown();
+        activeIdx = -1;
+      }
+    };
+
     // Keyboard navigation
     let activeIdx = -1;
     input.addEventListener('keydown', e => {
       const items = dropdown.querySelectorAll('.loc-ac-item');
-      if (!items.length) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         activeIdx = Math.min(activeIdx + 1, items.length - 1);
+        items.forEach((el, i) => el.classList.toggle('loc-ac-item-active', i === activeIdx));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         activeIdx = Math.max(activeIdx - 1, 0);
-      } else if (e.key === 'Enter' && activeIdx >= 0) {
-        e.preventDefault();
-        input.value = items[activeIdx].dataset.value;
-        hideDropdown();
-        activeIdx = -1;
-        return;
+        items.forEach((el, i) => el.classList.toggle('loc-ac-item-active', i === activeIdx));
+      } else if (e.key === 'Enter') {
+        if (activeIdx >= 0) { e.preventDefault(); selectActive(); }
       } else if (e.key === 'Escape') {
-        hideDropdown(); activeIdx = -1; return;
+        hideDropdown(); activeIdx = -1;
       } else {
         activeIdx = -1;
+        items.forEach(el => el.classList.remove('loc-ac-item-active'));
       }
-      items.forEach((el, i) => el.classList.toggle('loc-ac-item-active', i === activeIdx));
     });
 
-    // Show suggestions on input
     input.addEventListener('input', () => {
       activeIdx = -1;
-      const district = getDistrict();
-      const items = getSuggestions(input.value.trim(), district);
-      showDropdown(items);
+      showDropdown(getSuggestions(input.value.trim()));
     });
 
-    // Show on focus if district is selected
     input.addEventListener('focus', () => {
-      const district = getDistrict();
-      if (!district) return;
-      const items = getSuggestions(input.value.trim(), district);
-      showDropdown(items);
+      if (input.value.trim()) showDropdown(getSuggestions(input.value.trim()));
     });
 
     input.addEventListener('blur', () => setTimeout(hideDropdown, 150));
-
-    // When district changes (create form only), refresh suggestions
-    if (districtSelectId) {
-      const distSel = document.getElementById(districtSelectId);
-      if (distSel) distSel.addEventListener('change', () => {
-        input.value = '';
-        hideDropdown();
-      });
-    }
   },
 
   _onTypeChange(type) {
