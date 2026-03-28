@@ -553,140 +553,77 @@ Views.Interventions = {
       <div id="fIntCoverageBanner" style="display:none;margin-bottom:12px;padding:10px 14px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--radius-sm)"></div>
     ` : (() => {
       const d = intervention; // draft values (may be empty {})
-      const dName     = d.machineName    ?? 'MULTIVAC';
-      const dModel    = d.model          ?? '';
-      const dSerial   = d.serial         ?? '';
-      const dMType    = d.machineType    ?? '';
-      const dClient   = d.clientId       ?? '';
-      const dExistingMachineId = d.existingMachineId ?? '';
-      const dLocation  = d.machineLocation ?? '';
-      const dDistrict  = d.machineDistrict ?? '';
-      const useExisting = d.machineMode === 'existing';
+      const dName    = d.machineName    ?? 'MULTIVAC';
+      const dModel   = d.model          ?? '';
+      const dSerial  = d.serial         ?? '';
+      const dMType   = d.machineType    ?? '';
+      const dClient  = d.clientId       ?? '';
+      const dLocation = d.machineLocation ?? '';
+      const dDistrict = d.machineDistrict ?? '';
 
       const draftClientOptions = appState.clients.map(c =>
         `<option value="${c.id}" ${dClient === c.id ? 'selected' : ''}>${Utils.escapeHtml(c.name)}</option>`
       ).join('');
 
-      // For existing machine mode — pre-filter machines by saved client
-      const existingMachines = dClient
-        ? appState.machines.filter(m => m.clientId === dClient)
-        : appState.machines;
-      const existingMachineOptions = existingMachines.map(m =>
-        `<option value="${m.id}" ${dExistingMachineId === m.id ? 'selected' : ''}>${Utils.escapeHtml(m.model)} — Job #${m.jobNumber} (${m.serialNumber})</option>`
-      ).join('');
-
       return `
-      <!-- Mode toggle -->
-      <div style="display:flex;gap:0;border:1px solid var(--gray-200);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:14px;font-size:0.8rem">
-        <button id="fMachineModeNew" type="button"
-          onclick="Views.Interventions._onCreateMachineMode('new')"
-          style="flex:1;padding:7px 12px;border:none;cursor:pointer;font-weight:600;transition:background 0.15s;
-                 background:${!useExisting ? 'var(--primary)' : 'var(--white)'};
-                 color:${!useExisting ? 'white' : 'var(--gray-600)'}">
-          + Register New Machine
-        </button>
-        <button id="fMachineModeExisting" type="button"
-          onclick="Views.Interventions._onCreateMachineMode('existing')"
-          style="flex:1;padding:7px 12px;border:none;border-left:1px solid var(--gray-200);cursor:pointer;font-weight:600;transition:background 0.15s;
-                 background:${useExisting ? 'var(--primary)' : 'var(--white)'};
-                 color:${useExisting ? 'white' : 'var(--gray-600)'}">
-          Select Existing Machine
-        </button>
+      <div style="background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:0.786rem;color:var(--blue)">
+        A new machine will be registered automatically with a unique Job # and status <strong>New</strong>.
       </div>
-
-      <!-- NEW MACHINE fields -->
-      <div id="fMachineSectionNew" style="display:${useExisting ? 'none' : ''}">
-        <div style="background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:0.786rem;color:var(--blue)">
-          A new machine will be registered automatically with a unique Job # and status <strong>New</strong>.
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Machine Name</label>
+          <input type="text" id="fNewMachineName" class="form-input" value="${Utils.escapeHtml(dName)}" placeholder="MULTIVAC">
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Machine Name</label>
-            <input type="text" id="fNewMachineName" class="form-input" value="${Utils.escapeHtml(dName)}" placeholder="MULTIVAC">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Model <span class="required">*</span></label>
-            <input type="text" id="fNewMachineModel" class="form-input" value="${Utils.escapeHtml(dModel)}" placeholder="e.g. R230">
-          </div>
+        <div class="form-group">
+          <label class="form-label">Model <span class="required">*</span></label>
+          <input type="text" id="fNewMachineModel" class="form-input" value="${Utils.escapeHtml(dModel)}" placeholder="e.g. R230">
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Serial Number <span class="required">*</span></label>
-            <input type="text" id="fNewMachineSerial" class="form-input" value="${Utils.escapeHtml(dSerial)}" placeholder="MV-XXXX-YYYY-NNN">
-          </div>
-          <div class="form-group"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Serial Number <span class="required">*</span></label>
+          <input type="text" id="fNewMachineSerial" class="form-input" value="${Utils.escapeHtml(dSerial)}" placeholder="MV-XXXX-YYYY-NNN"
+            oninput="Views.Interventions._checkSerialCoverage(this.value)">
+          <div id="fSerialCoverageBanner" style="display:none;margin-top:8px"></div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Machine Type</label>
-            <select id="fNewMachineType" class="form-select">
-              <option value="">— Select type —</option>
-              ${[
-                'Thermoforming','Vacuum Chamber Machines','Chamber Belt Machines',
-                'Tray Sealers','Labelling Machines','Shrink & Drying Units',
-                'Inspection Systems','Pouch Loading Systems','Slicer','Flowpack'
-              ].map(t => `<option value="${t}" ${dMType === t ? 'selected' : ''}>${t}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Client <span class="required">*</span></label>
-            <select id="fNewMachineClient" class="form-select">
-              <option value="">— Select client —</option>
-              ${draftClientOptions}
-            </select>
-          </div>
+        <div class="form-group"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Machine Type</label>
+          <select id="fNewMachineType" class="form-select">
+            <option value="">— Select type —</option>
+            ${[
+              'Thermoforming','Vacuum Chamber Machines','Chamber Belt Machines',
+              'Tray Sealers','Labelling Machines','Shrink & Drying Units',
+              'Inspection Systems','Pouch Loading Systems','Slicer','Flowpack'
+            ].map(t => `<option value="${t}" ${dMType === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">District</label>
-            <select id="fNewMachineDistrict" class="form-select">
-              <option value="">— Select district —</option>
-              ${CONFIG.DISTRICTS.map(d => `<option value="${d}" ${dDistrict === d ? 'selected' : ''}>${d}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Location Address <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
-            <div class="loc-ac-wrap" id="fIntLocationAddressWrap">
-              <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="Type to search locations…" autocomplete="off">
-              <div class="loc-ac-dropdown hidden" id="fIntLocationAddressDropdown"></div>
-            </div>
+        <div class="form-group">
+          <label class="form-label">Client <span class="required">*</span></label>
+          <select id="fNewMachineClient" class="form-select">
+            <option value="">— Select client —</option>
+            ${draftClientOptions}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">District</label>
+          <select id="fNewMachineDistrict" class="form-select">
+            <option value="">— Select district —</option>
+            ${CONFIG.DISTRICTS.map(d => `<option value="${d}" ${dDistrict === d ? 'selected' : ''}>${d}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location Address <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
+          <div class="loc-ac-wrap" id="fIntLocationAddressWrap">
+            <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="Type to search locations…" autocomplete="off">
+            <div class="loc-ac-dropdown hidden" id="fIntLocationAddressDropdown"></div>
           </div>
         </div>
       </div>
-
-      <!-- EXISTING MACHINE fields -->
-      <div id="fMachineSectionExisting" style="display:${useExisting ? '' : 'none'}">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Client <span class="required">*</span></label>
-            <select id="fExistingClient" class="form-select"
-              onchange="Views.Interventions._onExistingClientChange(this.value)">
-              <option value="">— Select client —</option>
-              ${draftClientOptions}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Machine <span class="required">*</span></label>
-            <select id="fExistingMachine" class="form-select"
-              onchange="Views.Interventions._updateCoverageBanner()">
-              <option value="">— Select machine —</option>
-              ${existingMachineOptions}
-            </select>
-          </div>
-        </div>
-        <div id="fIntCoverageBanner" style="display:none;margin-bottom:12px;padding:10px 14px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--radius-sm)"></div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Location Address <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
-            <div class="loc-ac-wrap" id="fIntLocationAddressWrap">
-              <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="Type to search locations…" autocomplete="off">
-              <div class="loc-ac-dropdown hidden" id="fIntLocationAddressDropdown"></div>
-            </div>
-          </div>
-          <div class="form-group"></div>
-        </div>
-      </div>
-
       <hr style="border:none;border-top:1px solid var(--gray-200);margin:8px 0 12px">
     `;})();
 
@@ -924,119 +861,181 @@ Views.Interventions = {
   },
 
   _onTypeChange(type) {
-    // Block PMC selection in existing machine mode — PMC always creates a new machine
-    const useExisting = document.getElementById('fMachineSectionExisting')?.style.display !== 'none';
-    if (useExisting && type === 'pmc') {
-      Toast.error('PMC type requires registering a new machine. Switch to "Register New Machine" mode.');
-      document.getElementById('fIntType').value = 'breakdown';
-      return;
-    }
     const pmcFields = document.getElementById('fPmcFields');
     if (pmcFields) pmcFields.style.display = type === 'pmc' ? '' : 'none';
-    this._updateCoverageBanner();
   },
 
-  // Returns all active maintenance contracts for a machine on a given date (default: today)
-  _getActiveCoverage(machineId, date) {
-    if (!machineId) return [];
-    const check = date ? new Date(date) : new Date();
-    check.setHours(0, 0, 0, 0);
-    return appState.maintenanceContracts.filter(c => {
-      if (c.machineId !== machineId) return false;
-      const start = new Date(c.startDate + 'T00:00:00');
-      const end   = new Date(c.endDate   + 'T23:59:59');
-      return check >= start && check <= end;
-    });
-  },
-
-  _updateCoverageBanner() {
-    const banner  = document.getElementById('fIntCoverageBanner');
+  // Serial number lookup — fires as admin types in the Serial Number field
+  _checkSerialCoverage(serial) {
+    const banner = document.getElementById('fSerialCoverageBanner');
     if (!banner) return;
 
-    const type      = document.getElementById('fIntType')?.value || '';
-    // Support both edit form (fIntMachine) and create-existing mode (fExistingMachine)
-    const machineId = (document.getElementById('fIntMachine') || document.getElementById('fExistingMachine'))?.value || '';
+    const s = (serial || '').trim().toLowerCase();
 
-    // Hide banner for PMC type (it IS the contract) or no machine selected
-    if (type === 'pmc' || !machineId) {
+    // Clear autofill & restore PMC option when field is empty or changed
+    if (!s) {
       banner.style.display = 'none';
+      this._clearSerialAutofill();
+      this._setPmcOptionDisabled(false);
       return;
     }
 
-    const contracts = this._getActiveCoverage(machineId);
-    if (!contracts.length) {
+    // Find all machines whose serialNumber matches (case-insensitive, exact)
+    const matchedMachines = appState.machines.filter(m =>
+      (m.serialNumber || '').toLowerCase() === s
+    );
+
+    if (!matchedMachines.length) {
       banner.style.display = 'none';
+      this._clearSerialAutofill();
+      this._setPmcOptionDisabled(false);
       return;
     }
 
-    const items = contracts.map(c => {
-      const total    = (c.schedule || []).length;
-      const done     = (c.completedVisits || []).length;
-      const remaining = total - done;
-      return `
-        <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #BBF7D0;font-size:0.8rem">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#065F46" stroke-width="2" width="14" height="14" style="flex-shrink:0">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    // Autofill from the first matched machine
+    const m = matchedMachines[0];
+    const client = appState.clients.find(c => c.id === m.clientId);
+    this._applySerialAutofill(m, client);
+
+    if (!matchedMachines.length) { banner.style.display = 'none'; return; }
+
+    // Find all contracts linked to those machines
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const results = [];
+
+    matchedMachines.forEach(machine => {
+      const contracts = appState.maintenanceContracts.filter(c => c.machineId === machine.id);
+      contracts.forEach(c => {
+        const start    = new Date(c.startDate + 'T00:00:00');
+        const end      = new Date(c.endDate   + 'T23:59:59');
+        const active   = today >= start && today <= end;
+        const upcoming = today < start;
+        const client   = appState.clients.find(cl => cl.id === machine.clientId);
+        const total    = (c.schedule || []).length;
+        const done     = (c.completedVisits || []).length;
+        results.push({ machine, contract: c, client, active, upcoming, total, done });
+      });
+    });
+
+    if (!results.length) { banner.style.display = 'none'; return; }
+
+    const activeResults   = results.filter(r => r.active);
+    const upcomingResults = results.filter(r => r.upcoming);
+    const expiredResults  = results.filter(r => !r.active && !r.upcoming);
+
+    let html = '';
+
+    if (activeResults.length) {
+      html += activeResults.map(r => `
+        <div data-banner="active" style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--radius-sm);margin-bottom:4px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" width="15" height="15" style="flex-shrink:0">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
-          <div style="flex:1">
-            <span style="font-weight:600;color:#065F46">Active PMC Contract</span>
-            <span style="color:#047857;margin-left:8px">${Utils.formatDate(c.startDate)} → ${Utils.formatDate(c.endDate)}</span>
+          <div style="flex:1;font-size:0.8rem">
+            <span style="font-weight:700;color:#065F46">Active PMC Contract</span>
+            <span style="color:#047857;margin-left:6px">${Utils.escapeHtml(r.client?.name || '—')}</span>
+            <span style="color:#6B7280;margin-left:6px;font-size:0.75rem">${Utils.escapeHtml(r.machine.model)}</span>
+            <div style="margin-top:2px;color:#047857;font-size:0.75rem">
+              ${Utils.formatDate(r.contract.startDate)} → ${Utils.formatDate(r.contract.endDate)}
+              &nbsp;·&nbsp; ${r.done}/${r.total} visits completed
+            </div>
           </div>
-          <span style="background:#BBF7D0;color:#065F46;border-radius:999px;padding:1px 8px;font-size:0.75rem;font-weight:600;white-space:nowrap">
-            ${done}/${total} visits done · ${remaining} remaining
-          </span>
-        </div>`;
-    }).join('');
-
-    banner.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:0.8rem;font-weight:600;color:#065F46">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" width="15" height="15">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        This machine is currently covered by a maintenance contract
-      </div>
-      ${items}
-    `;
-    banner.style.display = '';
-  },
-
-  _onCreateMachineMode(mode) {
-    const secNew      = document.getElementById('fMachineSectionNew');
-    const secExisting = document.getElementById('fMachineSectionExisting');
-    const btnNew      = document.getElementById('fMachineModeNew');
-    const btnExisting = document.getElementById('fMachineModeExisting');
-    if (!secNew || !secExisting) return;
-
-    const isExisting = mode === 'existing';
-    secNew.style.display      = isExisting ? 'none' : '';
-    secExisting.style.display = isExisting ? '' : 'none';
-    btnNew.style.background      = isExisting ? 'var(--white)' : 'var(--primary)';
-    btnNew.style.color           = isExisting ? 'var(--gray-600)' : 'white';
-    btnExisting.style.background = isExisting ? 'var(--primary)' : 'var(--white)';
-    btnExisting.style.color      = isExisting ? 'white' : 'var(--gray-600)';
-
-    // Hide PMC fields in existing mode (PMC always creates a new machine)
-    if (isExisting) {
-      const pmcFields = document.getElementById('fPmcFields');
-      if (pmcFields) pmcFields.style.display = 'none';
-      const typeEl = document.getElementById('fIntType');
-      if (typeEl && typeEl.value === 'pmc') typeEl.value = 'breakdown';
+          <span style="background:#BBF7D0;color:#065F46;border-radius:999px;padding:2px 10px;font-size:0.75rem;font-weight:700;white-space:nowrap">Covered</span>
+        </div>`).join('');
     }
 
-    this._updateCoverageBanner();
+    if (upcomingResults.length) {
+      html += upcomingResults.map(r => `
+        <div data-banner="upcoming" style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--radius-sm);margin-bottom:4px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" width="15" height="15" style="flex-shrink:0">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <div style="flex:1;font-size:0.8rem">
+            <span style="font-weight:700;color:#1D4ED8">Upcoming PMC Contract</span>
+            <span style="color:#2563EB;margin-left:6px">${Utils.escapeHtml(r.client?.name || '—')}</span>
+            <span style="color:#6B7280;margin-left:6px;font-size:0.75rem">${Utils.escapeHtml(r.machine.model)}</span>
+            <div style="margin-top:2px;color:#2563EB;font-size:0.75rem">
+              Starts ${Utils.formatDate(r.contract.startDate)} → ${Utils.formatDate(r.contract.endDate)}
+              &nbsp;·&nbsp; ${r.total} visits planned
+            </div>
+          </div>
+          <span style="background:#DBEAFE;color:#1D4ED8;border-radius:999px;padding:2px 10px;font-size:0.75rem;font-weight:700;white-space:nowrap">Upcoming</span>
+        </div>`).join('');
+    }
+
+    if (expiredResults.length) {
+      html += expiredResults.map(r => `
+        <div data-banner="expired" style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);margin-bottom:4px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" stroke-width="2" width="15" height="15" style="flex-shrink:0">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <div style="flex:1;font-size:0.8rem;color:var(--gray-500)">
+            <span style="font-weight:600">Expired PMC Contract</span>
+            <span style="margin-left:6px">${Utils.escapeHtml(r.client?.name || '—')}</span>
+            <span style="margin-left:6px;font-size:0.75rem">${Utils.escapeHtml(r.machine.model)}</span>
+            <div style="margin-top:2px;font-size:0.75rem">
+              ${Utils.formatDate(r.contract.startDate)} → ${Utils.formatDate(r.contract.endDate)}
+              &nbsp;·&nbsp; ${r.done}/${r.total} visits completed
+            </div>
+          </div>
+          <span style="background:var(--gray-100);color:var(--gray-500);border-radius:999px;padding:2px 10px;font-size:0.75rem;font-weight:700;white-space:nowrap">Expired</span>
+        </div>`).join('');
+    }
+
+    banner.innerHTML = html;
+    banner.style.display = '';
+
+    // Disable PMC option if the machine has an active or upcoming contract
+    const hasValidContract = results.some(r => r.active || r.upcoming);
+    this._setPmcOptionDisabled(hasValidContract);
   },
 
-  _onExistingClientChange(clientId) {
-    const machineSel = document.getElementById('fExistingMachine');
-    if (!machineSel) return;
-    const machines = clientId
-      ? appState.machines.filter(m => m.clientId === clientId)
-      : appState.machines;
-    machineSel.innerHTML = '<option value="">— Select machine —</option>' +
-      machines.map(m => `<option value="${m.id}">${Utils.escapeHtml(m.model)} — Job #${m.jobNumber} (${m.serialNumber})</option>`).join('');
-    this._updateCoverageBanner();
+  _applySerialAutofill(machine, client) {
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val) el.value = val;
+    };
+    set('fNewMachineName',   machine.name);
+    set('fNewMachineModel',  machine.model);
+    set('fNewMachineType',   machine.type);
+    set('fNewMachineDistrict', machine.district);
+
+    // Client dropdown
+    const clientEl = document.getElementById('fNewMachineClient');
+    if (clientEl && machine.clientId) clientEl.value = machine.clientId;
+
+    // Location Address
+    const locEl = document.getElementById('fIntLocationAddress');
+    if (locEl && machine.location) locEl.value = machine.location;
+  },
+
+  _clearSerialAutofill() {
+    const clear = (id, defaultVal = '') => {
+      const el = document.getElementById(id);
+      if (el) el.value = defaultVal;
+    };
+    clear('fNewMachineName', 'MULTIVAC');
+    clear('fNewMachineModel');
+    clear('fNewMachineType');
+    clear('fNewMachineDistrict');
+    clear('fNewMachineClient');
+    clear('fIntLocationAddress');
+  },
+
+  _setPmcOptionDisabled(disabled) {
+    const typeEl = document.getElementById('fIntType');
+    if (!typeEl) return;
+    const pmcOpt = typeEl.querySelector('option[value="pmc"]');
+    if (!pmcOpt) return;
+    pmcOpt.disabled = disabled;
+    pmcOpt.textContent = disabled
+      ? 'PMC – Preventive Maintenance Contract (machine already has a contract)'
+      : CONFIG.INTERVENTION_TYPES.pmc;
+    // If PMC was selected and is now disabled, switch to breakdown
+    if (disabled && typeEl.value === 'pmc') {
+      typeEl.value = 'breakdown';
+      this._onTypeChange('breakdown');
+    }
   },
 
   _bindClientMachineDropdown() {
@@ -1050,7 +1049,6 @@ Views.Interventions = {
       const machines = clientId ? appState.machines.filter(m => m.clientId === clientId) : appState.machines;
       machineSel.innerHTML = '<option value="">— Select machine —</option>' +
         machines.map(m => `<option value="${m.id}">${Utils.escapeHtml(m.model)} — Job #${m.jobNumber} (${m.serialNumber})</option>`).join('');
-      this._updateCoverageBanner();
     });
   },
 
@@ -1085,24 +1083,21 @@ Views.Interventions = {
   _saveCreateDraft() {
     // Read all create-form fields and persist them in memory
     const get = id => document.getElementById(id)?.value ?? null;
-    const useExisting = document.getElementById('fMachineSectionExisting')?.style.display !== 'none';
     this._createDraft = {
-      machineMode:      useExisting ? 'existing' : 'new',
-      existingMachineId: get('fExistingMachine'),
-      machineName:     get('fNewMachineName'),
-      model:           get('fNewMachineModel'),
-      serial:          get('fNewMachineSerial'),
-      machineType:     get('fNewMachineType'),
-      clientId:        useExisting ? get('fExistingClient') : get('fNewMachineClient'),
+      machineName:    get('fNewMachineName'),
+      model:          get('fNewMachineModel'),
+      serial:         get('fNewMachineSerial'),
+      machineType:    get('fNewMachineType'),
+      clientId:       get('fNewMachineClient'),
       machineLocation: get('fNewMachineLocation'),
       machineDistrict: get('fNewMachineDistrict'),
       locationAddress: get('fIntLocationAddress'),
-      type:            get('fIntType'),
-      priority:        get('fIntPriority'),
-      location:        get('fIntLocation'),
-      description:     get('fIntDesc'),
-      pmcStartDate:    get('fPmcStart'),
-      pmcVisits:       get('fPmcVisits'),
+      type:           get('fIntType'),
+      priority:       get('fIntPriority'),
+      location:       get('fIntLocation'),
+      description:    get('fIntDesc'),
+      pmcStartDate:   get('fPmcStart'),
+      pmcVisits:      get('fPmcVisits'),
     };
     // Discard if every meaningful field is empty / default
     const meaningful = ['model','serial','machineType','machineLocation','description','pmcStartDate','pmcEndDate'];
@@ -1127,101 +1122,74 @@ Views.Interventions = {
     if (!type) { Toast.error('Please select an intervention type'); return; }
 
     const user = appState.currentUser;
+
+    const machineName = document.getElementById('fNewMachineName')?.value.trim() || 'MULTIVAC';
+    const model    = document.getElementById('fNewMachineModel')?.value.trim();
+    const serial   = document.getElementById('fNewMachineSerial')?.value.trim();
+    const clientId = document.getElementById('fNewMachineClient')?.value;
+
     const description = document.getElementById('fIntDesc')?.value.trim();
+
+    if (!model)       { Toast.error('Machine model is required'); return; }
+    if (!serial)      { Toast.error('Serial number is required'); return; }
+    if (!clientId)    { Toast.error('Please select a client for the machine'); return; }
     if (!description) { Toast.error('Description is required'); return; }
 
-    const useExisting = document.getElementById('fMachineSectionExisting')?.style.display !== 'none';
-
-    let machineId, clientId, serial;
-
-    if (useExisting) {
-      // ── EXISTING MACHINE MODE ────────────────────────────────
-      machineId = document.getElementById('fExistingMachine')?.value;
-      clientId  = document.getElementById('fExistingClient')?.value;
-      if (!clientId)  { Toast.error('Please select a client'); return; }
-      if (!machineId) { Toast.error('Please select a machine'); return; }
-      const machine = appState.machines.find(m => m.id === machineId);
-      serial = machine?.serialNumber || '';
-
-      await Storage.createIntervention({
-        clientId, machineId, type,
-        priority:        document.getElementById('fIntPriority')?.value || 'medium',
-        status:          'new',
-        technicianId:    null,
-        location:        document.getElementById('fIntLocation')?.value || 'client',
-        locationAddress: document.getElementById('fIntLocationAddress')?.value.trim() || '',
-        scheduledDate:   null,
-        description,
-        createdBy:       user?.name || 'Admin',
-      });
-
-    } else {
-      // ── NEW MACHINE MODE ─────────────────────────────────────
-      const machineName = document.getElementById('fNewMachineName')?.value.trim() || 'MULTIVAC';
-      const model  = document.getElementById('fNewMachineModel')?.value.trim();
-      serial       = document.getElementById('fNewMachineSerial')?.value.trim();
-      clientId     = document.getElementById('fNewMachineClient')?.value;
-
-      if (!model)    { Toast.error('Machine model is required'); return; }
-      if (!serial)   { Toast.error('Serial number is required'); return; }
-      if (!clientId) { Toast.error('Please select a client for the machine'); return; }
-
-      // If type is PMC, validate contract fields
-      if (type === 'pmc') {
-        const pmcStart = document.getElementById('fPmcStart')?.value;
-        if (!pmcStart) { Toast.error('Contract Start Date is required for PMC'); return; }
-      }
-
-      const newMachine = await Storage.createMachine({
-        name: machineName, model, serialNumber: serial, clientId,
-        type:     document.getElementById('fNewMachineType')?.value || '',
-        location: document.getElementById('fNewMachineLocation')?.value.trim() || '',
-        district: document.getElementById('fNewMachineDistrict')?.value || '',
-      });
-      machineId = newMachine.id;
-
-      // Auto-create maintenance contract for PMC type
-      let pmcContractId = null;
-      let pmcStartDate  = null;
-      if (type === 'pmc') {
-        const pmcStart  = document.getElementById('fPmcStart')?.value;
-        const pmcVisits = parseInt(document.getElementById('fPmcVisits')?.value, 10) || 2;
-        const endDateObj = new Date(pmcStart);
-        endDateObj.setFullYear(endDateObj.getFullYear() + 1);
-        const pmcEnd   = endDateObj.toISOString().split('T')[0];
-        const schedule = Views.MaintenanceContracts._generateSchedule(pmcStart, pmcEnd, pmcVisits);
-        const contract = await Storage.createMaintenanceContract({
-          clientId, machineId,
-          serialNumber: serial,
-          startDate:    pmcStart,
-          endDate:      pmcEnd,
-          visitsPerYear: pmcVisits,
-          schedule,
-          completedVisits: [],
-          notes: '',
-          createdBy: user?.name || 'Admin'
-        });
-        pmcContractId = contract.id;
-        pmcStartDate  = pmcStart;
-      }
-
-      await Storage.createIntervention({
-        clientId, machineId, type,
-        priority:        document.getElementById('fIntPriority')?.value || 'medium',
-        status:          'new',
-        technicianId:    null,
-        location:        document.getElementById('fIntLocation')?.value || 'client',
-        locationAddress: document.getElementById('fIntLocationAddress')?.value.trim() || '',
-        scheduledDate:   pmcStartDate ? new Date(`${pmcStartDate}T08:00`).toISOString() : null,
-        description,
-        createdBy:       user?.name || 'Admin',
-        ...(pmcContractId ? { maintenanceContractId: pmcContractId, maintenanceVisitIndex: 0 } : {})
-      });
+    // If type is PMC, validate and collect contract fields
+    if (type === 'pmc') {
+      const pmcStart = document.getElementById('fPmcStart')?.value;
+      if (!pmcStart) { Toast.error('Contract Start Date is required for PMC'); return; }
     }
+
+    const newMachine = await Storage.createMachine({
+      name: machineName, model, serialNumber: serial, clientId,
+      type:     document.getElementById('fNewMachineType')?.value || '',
+      location: document.getElementById('fNewMachineLocation')?.value.trim() || '',
+      district: document.getElementById('fNewMachineDistrict')?.value || '',
+    });
+    const machineId = newMachine.id;
+
+    // Auto-create maintenance contract for PMC type
+    let pmcContractId = null;
+    let pmcStartDate  = null;
+    if (type === 'pmc') {
+      const pmcStart  = document.getElementById('fPmcStart')?.value;
+      const pmcVisits = parseInt(document.getElementById('fPmcVisits')?.value, 10) || 2;
+      const endDateObj = new Date(pmcStart);
+      endDateObj.setFullYear(endDateObj.getFullYear() + 1);
+      const pmcEnd   = endDateObj.toISOString().split('T')[0];
+      const schedule = Views.MaintenanceContracts._generateSchedule(pmcStart, pmcEnd, pmcVisits);
+      const contract = await Storage.createMaintenanceContract({
+        clientId, machineId,
+        serialNumber: serial,
+        startDate:    pmcStart,
+        endDate:      pmcEnd,
+        visitsPerYear: pmcVisits,
+        schedule,
+        completedVisits: [],
+        notes: '',
+        createdBy: user?.name || 'Admin'
+      });
+      pmcContractId = contract.id;
+      pmcStartDate  = pmcStart;
+    }
+
+    await Storage.createIntervention({
+      clientId, machineId, type,
+      priority:        document.getElementById('fIntPriority')?.value || 'medium',
+      status:          'new',
+      technicianId:    null,
+      location:        document.getElementById('fIntLocation')?.value || 'client',
+      locationAddress: document.getElementById('fIntLocationAddress')?.value.trim() || '',
+      scheduledDate:   pmcStartDate ? new Date(`${pmcStartDate}T08:00`).toISOString() : null,
+      description,
+      createdBy:       user?.name || 'Admin',
+      ...(pmcContractId ? { maintenanceContractId: pmcContractId, maintenanceVisitIndex: 0 } : {})
+    });
 
     this._createDraft = null;
     Modals.close();
-    Toast.success(useExisting ? 'Intervention added successfully' : 'Machine added successfully');
+    Toast.success('Machine added successfully');
   },
 
   _openEditModal(interventionId) {
@@ -1287,7 +1255,7 @@ Views.Interventions = {
       </span>` : ''}
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitEdit('${interventionId}')" ${isTechOnNew ? 'disabled title="This intervention must first be scheduled or assigned by an Administrator."' : ''}>Save Changes</button>
-    `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); this._restoreEditDraft(); this._initLocationAutocomplete(null, interventionId); this._updateCoverageBanner(); } });
+    `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); this._restoreEditDraft(); this._initLocationAutocomplete(null, interventionId); } });
   },
 
   _openQueueReviewModal(interventionId) {
@@ -1810,9 +1778,56 @@ Views.Interventions = {
             </div>`;
         }).join('');
 
+    // ── PMC coverage banner (shown when this intervention is NOT a PMC and machine has a contract) ──
+    let pmcBannerHTML = '';
+    if (i.type !== 'pmc' && machine) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      // Match by serialNumber so breakdown interventions (which may have a different machineId)
+      // still show the PMC contract that belongs to the same physical machine.
+      const serial = (machine.serialNumber || '').trim().toLowerCase();
+      const contractMachines = serial
+        ? appState.machines.filter(m => (m.serialNumber || '').trim().toLowerCase() === serial)
+        : [machine];
+      const contractMachineIds = new Set(contractMachines.map(m => m.id));
+      const contracts = appState.maintenanceContracts.filter(c => contractMachineIds.has(c.machineId));
+      const bannerItems = contracts.map(c => {
+        const start    = new Date(c.startDate + 'T00:00:00');
+        const end      = new Date(c.endDate   + 'T23:59:59');
+        const active   = today >= start && today <= end;
+        const upcoming = today < start;
+        const total    = (c.schedule || []).length;
+        const done     = (c.completedVisits || []).length;
+        if (active) return `
+          <div data-banner="active" style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--radius-sm);margin-bottom:4px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" width="15" height="15" style="flex-shrink:0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <div style="flex:1;font-size:0.8rem">
+              <span style="font-weight:700;color:#065F46">Active PMC Contract</span>
+              <span style="color:#6B7280;margin-left:6px;font-size:0.75rem">${Utils.escapeHtml(machine.model)}</span>
+              <div style="margin-top:2px;color:#047857;font-size:0.75rem">${Utils.formatDate(c.startDate)} → ${Utils.formatDate(c.endDate)}&nbsp;·&nbsp;${done}/${total} visits completed</div>
+            </div>
+            <span style="background:#BBF7D0;color:#065F46;border-radius:999px;padding:2px 10px;font-size:0.75rem;font-weight:700;white-space:nowrap">Covered</span>
+          </div>`;
+        if (upcoming) return `
+          <div data-banner="upcoming" style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--radius-sm);margin-bottom:4px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" width="15" height="15" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <div style="flex:1;font-size:0.8rem">
+              <span style="font-weight:700;color:#1D4ED8">Upcoming PMC Contract</span>
+              <span style="color:#6B7280;margin-left:6px;font-size:0.75rem">${Utils.escapeHtml(machine.model)}</span>
+              <div style="margin-top:2px;color:#2563EB;font-size:0.75rem">Starts ${Utils.formatDate(c.startDate)} → ${Utils.formatDate(c.endDate)}&nbsp;·&nbsp;${total} visits planned</div>
+            </div>
+            <span style="background:#DBEAFE;color:#1D4ED8;border-radius:999px;padding:2px 10px;font-size:0.75rem;font-weight:700;white-space:nowrap">Upcoming</span>
+          </div>`;
+        return null;
+      }).filter(Boolean).join('');
+      if (bannerItems) {
+        pmcBannerHTML = `<div id="detailPmcBanner" style="margin-bottom:12px">${bannerItems}</div>`;
+      }
+    }
+
     const body = `
       <div class="detail-section">
         <div class="detail-section-label">Intervention Details</div>
+        ${pmcBannerHTML}
         <div class="detail-grid">
           <div class="detail-field"><div class="detail-field-label">Job Number</div><div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.jobNumber || '—')}</div></div>
           <div class="detail-field"><div class="detail-field-label">Serial Number</div><div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.serialNumber || '—')}</div></div>

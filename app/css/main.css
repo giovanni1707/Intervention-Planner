@@ -2746,14 +2746,22 @@ body.dark-mode .data-table tbody tr:hover {
 body.dark-mode .form-input,
 body.dark-mode .form-select,
 body.dark-mode .form-textarea {
-  background: var(--gray-100);
-  border-color: var(--gray-300);
-  color: var(--gray-900);
+  background: var(--gray-200) !important;
+  border-color: var(--gray-300) !important;
+  color: var(--gray-900) !important;
 }
 
 body.dark-mode .form-input::placeholder,
 body.dark-mode .form-select option {
   color: var(--gray-500);
+}
+
+body.dark-mode .form-input:-webkit-autofill,
+body.dark-mode .form-input:-webkit-autofill:hover,
+body.dark-mode .form-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #334155 inset !important;
+  -webkit-text-fill-color: var(--gray-900) !important;
+  caret-color: var(--gray-900) !important;
 }
 
 body.dark-mode .login-card {
@@ -3668,8 +3676,8 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
   color: var(--blue);
 }
 .dark-mode .dash-quick-btn {
-  background: var(--gray-800);
-  border-color: var(--gray-700);
+  background: #1E293B;
+  border-color: #334155;
   color: var(--gray-300);
 }
 .dark-mode .dash-quick-btn:hover {
@@ -4392,4 +4400,27 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
 }
 .dark-mode .loc-ac-name { color: var(--gray-700); }
 .dark-mode .loc-ac-district { color: var(--gray-400); }
+
+/* Serial coverage banner — dark mode overrides */
+body.dark-mode #fSerialCoverageBanner [data-banner="active"] {
+  background: #0D2E22 !important;
+  border-color: #166534 !important;
+}
+body.dark-mode #fSerialCoverageBanner [data-banner="upcoming"] {
+  background: #1A2744 !important;
+  border-color: #1E3A8A !important;
+}
+body.dark-mode #fSerialCoverageBanner [data-banner="expired"] {
+  background: var(--gray-100) !important;
+  border-color: var(--gray-300) !important;
+}
+
+body.dark-mode #detailPmcBanner [data-banner="active"] {
+  background: #0D2E22 !important;
+  border-color: #166534 !important;
+}
+body.dark-mode #detailPmcBanner [data-banner="upcoming"] {
+  background: #1A2744 !important;
+  border-color: #1E3A8A !important;
+}
 
