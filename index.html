@@ -49,6 +49,20 @@
        APP SHELL
   ============================= -->
   <div id="appShell" class="app-shell hidden">
+    <!-- Mobile top bar (visible only on small screens) -->
+    <div class="mobile-topbar" id="mobileTopbar">
+      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <div class="mobile-topbar-brand">
+        <div class="mobile-topbar-badge">BPS</div>
+        <span class="mobile-topbar-name">BPS Service</span>
+      </div>
+    </div>
+    <!-- Sidebar overlay (mobile only) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <aside id="sidebar" class="sidebar"></aside>
     <div class="main-wrapper">
       <main id="mainContent" class="main-content"></main>

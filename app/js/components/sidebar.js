@@ -162,14 +162,41 @@ const Sidebar = {
     if (active) active.classList.add('active');
   },
 
+  openMobile() {
+    document.getElementById('sidebar')?.classList.add('mobile-open');
+    document.getElementById('sidebarOverlay')?.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+  },
+
+  closeMobile() {
+    document.getElementById('sidebar')?.classList.remove('mobile-open');
+    document.getElementById('sidebarOverlay')?.classList.remove('visible');
+    document.body.style.overflow = '';
+  },
+
   bindEvents() {
     // Nav item clicks
     document.querySelectorAll('.sidebar-nav-item').forEach(item => {
       item.addEventListener('click', () => {
         const route = item.dataset.route;
-        if (route) Router.go(route);
+        if (route) {
+          Router.go(route);
+          this.closeMobile(); // auto-close on mobile after navigation
+        }
       });
     });
+
+    // Mobile hamburger button
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    if (mobileMenuBtn) {
+      mobileMenuBtn.onclick = () => this.openMobile();
+    }
+
+    // Overlay tap-to-close
+    const overlay = document.getElementById('sidebarOverlay');
+    if (overlay) {
+      overlay.onclick = () => this.closeMobile();
+    }
 
     // Toggle collapse
     const toggleBtn = document.getElementById('sidebarToggleBtn');
