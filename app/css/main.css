@@ -4326,3 +4326,55 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
 }
 
 .nc-sidebar-badge.hidden { display: none; }
+
+/* ============================================================
+   Location Address Autocomplete (.loc-ac-*)
+   ============================================================ */
+.loc-ac-wrap {
+  position: relative;
+}
+
+.loc-ac-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.loc-ac-dropdown.hidden { display: none; }
+
+.loc-ac-item {
+  padding: 8px 12px;
+  font-size: 0.857rem;
+  color: var(--gray-700);
+  cursor: pointer;
+  border-bottom: 1px solid var(--gray-100);
+  transition: background 0.1s;
+}
+.loc-ac-item:last-child { border-bottom: none; }
+.loc-ac-item:hover,
+.loc-ac-item-active {
+  background: var(--primary-50, #EFF6FF);
+  color: var(--blue);
+}
+
+.dark-mode .loc-ac-dropdown {
+  background: var(--white);
+  border-color: var(--gray-200);
+}
+.dark-mode .loc-ac-item {
+  color: var(--gray-700);
+  border-bottom-color: var(--gray-100);
+}
+.dark-mode .loc-ac-item:hover,
+.dark-mode .loc-ac-item-active {
+  background: var(--primary-50, #EFF6FF);
+  color: var(--blue);
+}
+

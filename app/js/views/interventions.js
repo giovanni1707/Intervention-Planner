@@ -619,7 +619,10 @@ Views.Interventions = {
         </div>
         <div class="form-group">
           <label class="form-label">Location Address <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
-          <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="e.g. Zone Industrielle, Riche Terre">
+          <div class="loc-ac-wrap" id="fIntLocationAddressWrap">
+            <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="Type to search locations…" autocomplete="off">
+            <div class="loc-ac-dropdown hidden" id="fIntLocationAddressDropdown"></div>
+          </div>
         </div>
       </div>
       <hr style="border:none;border-top:1px solid var(--gray-200);margin:8px 0 12px">
@@ -697,7 +700,10 @@ Views.Interventions = {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Location Address <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
-          <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="e.g. Zone Industrielle, Riche Terre">
+          <div class="loc-ac-wrap" id="fIntLocationAddressWrap">
+            <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="Type to search locations…" autocomplete="off">
+            <div class="loc-ac-dropdown hidden" id="fIntLocationAddressDropdown"></div>
+          </div>
         </div>
         <div class="form-group"></div>
       </div>` : ''}
@@ -729,6 +735,117 @@ Views.Interventions = {
         <textarea id="fIntDesc" class="form-textarea" rows="3" placeholder="Describe the issue or work to be done…"></textarea>
       </div>` : ''}
     `;
+  },
+
+  // ── LOCATION ADDRESS AUTOCOMPLETE ────────────────────────────
+  // districtSelectId: id of the district <select> (create form)
+  // interventionId:   if set, reads district from the intervention's machine (edit form)
+  _initLocationAutocomplete(districtSelectId, interventionId) {
+    const input    = document.getElementById('fIntLocationAddress');
+    const dropdown = document.getElementById('fIntLocationAddressDropdown');
+    if (!input || !dropdown) return;
+
+    // Determine the current district — from the select (create) or the machine (edit)
+    const getDistrict = () => {
+      if (districtSelectId) {
+        return document.getElementById(districtSelectId)?.value || '';
+      }
+      if (interventionId) {
+        const iv = appState.interventions.find(x => x.id === interventionId);
+        const m  = appState.machines.find(x => x.id === iv?.machineId);
+        return m?.district || '';
+      }
+      return '';
+    };
+
+    const getSuggestions = (query, district) => {
+      const base    = (CONFIG.DISTRICT_LOCATIONS[district] || []);
+      // Also pull unique locations already saved across interventions for this district
+      const saved   = appState.interventions
+        .filter(iv => {
+          const m = appState.machines.find(x => x.id === iv.machineId);
+          return m?.district === district && iv.locationAddress;
+        })
+        .map(iv => iv.locationAddress.trim())
+        .filter(Boolean);
+      const combined = [...new Set([...base, ...saved])].sort((a, b) => a.localeCompare(b));
+      if (!query) return combined.slice(0, 8);
+      const q = query.toLowerCase();
+      return combined.filter(l => l.toLowerCase().includes(q)).slice(0, 8);
+    };
+
+    const showDropdown = items => {
+      if (items.length === 0) { hideDropdown(); return; }
+      dropdown.innerHTML = items.map(item => `
+        <div class="loc-ac-item" data-value="${Utils.escapeHtml(item)}">${Utils.escapeHtml(item)}</div>
+      `).join('');
+      dropdown.classList.remove('hidden');
+      dropdown.querySelectorAll('.loc-ac-item').forEach(el => {
+        el.addEventListener('mousedown', e => {
+          e.preventDefault(); // prevent blur firing before click
+          input.value = el.dataset.value;
+          hideDropdown();
+          input.dispatchEvent(new Event('change'));
+        });
+      });
+    };
+
+    const hideDropdown = () => {
+      dropdown.classList.add('hidden');
+      dropdown.innerHTML = '';
+    };
+
+    // Keyboard navigation
+    let activeIdx = -1;
+    input.addEventListener('keydown', e => {
+      const items = dropdown.querySelectorAll('.loc-ac-item');
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIdx = Math.min(activeIdx + 1, items.length - 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIdx = Math.max(activeIdx - 1, 0);
+      } else if (e.key === 'Enter' && activeIdx >= 0) {
+        e.preventDefault();
+        input.value = items[activeIdx].dataset.value;
+        hideDropdown();
+        activeIdx = -1;
+        return;
+      } else if (e.key === 'Escape') {
+        hideDropdown(); activeIdx = -1; return;
+      } else {
+        activeIdx = -1;
+      }
+      items.forEach((el, i) => el.classList.toggle('loc-ac-item-active', i === activeIdx));
+    });
+
+    // Show suggestions on input
+    input.addEventListener('input', () => {
+      activeIdx = -1;
+      const district = getDistrict();
+      const items = getSuggestions(input.value.trim(), district);
+      showDropdown(items);
+    });
+
+    // Show on focus if district is selected
+    input.addEventListener('focus', () => {
+      const district = getDistrict();
+      if (!district) return;
+      const items = getSuggestions(input.value.trim(), district);
+      showDropdown(items);
+    });
+
+    input.addEventListener('blur', () => setTimeout(hideDropdown, 150));
+
+    // When district changes (create form only), refresh suggestions
+    if (districtSelectId) {
+      const distSel = document.getElementById(districtSelectId);
+      if (distSel) distSel.addEventListener('change', () => {
+        input.value = '';
+        hideDropdown();
+      });
+    }
   },
 
   _onTypeChange(type) {
@@ -775,7 +892,7 @@ Views.Interventions = {
       <div style="flex:1"></div>
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitCreate()">Add Machine</button>
-    `, { size: 'lg', onClose: () => Views.Interventions._saveCreateDraft() });
+    `, { size: 'lg', onClose: () => Views.Interventions._saveCreateDraft(), onOpen: () => Views.Interventions._initLocationAutocomplete('fNewMachineDistrict') });
   },
 
   _saveCreateDraft() {
@@ -954,7 +1071,7 @@ Views.Interventions = {
       </span>` : ''}
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitEdit('${interventionId}')" ${isTechOnNew ? 'disabled title="This intervention must first be scheduled or assigned by an Administrator."' : ''}>Save Changes</button>
-    `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); this._restoreEditDraft(); } });
+    `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); this._restoreEditDraft(); this._initLocationAutocomplete(null, interventionId); } });
   },
 
   _openQueueReviewModal(interventionId) {
