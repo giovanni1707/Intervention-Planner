@@ -65,6 +65,7 @@ Views.PMC = {
       ${this._thHTML('jobNumber',       'Job Number')}
       ${this._thHTML('clientName',      'Client')}
       ${this._thHTML('machineName',     'Machine')}
+      ${this._thHTML('serialNumber',    'Serial Number')}
       ${this._thHTML('district',        'District')}
       ${this._thHTML('locationAddress', 'Location Address')}
       ${this._thHTML('visit',           'Visit #')}
@@ -201,8 +202,7 @@ Views.PMC = {
     return rows.filter(r => {
       if (fJob      && !r.jobNumber.toLowerCase().includes(fJob))          return false;
       if (fClient   && !r.clientName.toLowerCase().includes(fClient))       return false;
-      if (fMachine  && !r.machineName.toLowerCase().includes(fMachine) &&
-                       !r.machineType.toLowerCase().includes(fMachine))     return false;
+      if (fMachine  && r.machineName.toLowerCase() !== fMachine)             return false;
       if (fVisit    && r.visitNumber.toLowerCase() !== fVisit)              return false;
       if (fTech     && !r.techName.toLowerCase().includes(fTech))           return false;
       if (fDateFrom && r.visitDate < fDateFrom)                             return false;
@@ -232,8 +232,6 @@ Views.PMC = {
     const counter = document.getElementById('pmcRowCount');
     if (counter) counter.textContent = `${filtered.length} of ${yearRows.length} visit${yearRows.length !== 1 ? 's' : ''}`;
 
-    const clearBtn = document.getElementById('pmcClearFilters');
-    if (clearBtn) clearBtn.style.display = this._hasActiveFilters() ? '' : 'none';
   },
 
   _refreshYear() {
@@ -301,7 +299,9 @@ Views.PMC = {
                        .filter(v => rows.some(r => r.visitNumber === v));
     const statuses = ['planned','assigned','tentative','ongoing','overdue','completed'];
 
+    const machines = [...new Set(rows.map(r => r.machineName))].filter(v => v !== '—').sort();
     const clientOpts  = clients.map(v  => `<option value="${v}">${Utils.escapeHtml(v)}</option>`).join('');
+    const machineOpts = machines.map(v => `<option value="${v.toLowerCase()}">${Utils.escapeHtml(v)}</option>`).join('');
     const techOpts    = techs.map(v    => `<option value="${v}">${Utils.escapeHtml(v)}</option>`).join('');
     const visitOpts   = visits.map(v   => `<option value="${v.toLowerCase()}">${v}</option>`).join('');
     const statusOpts  = statuses.map(v => `<option value="${v}">${v.charAt(0).toUpperCase() + v.slice(1)}</option>`).join('');
@@ -390,7 +390,7 @@ Views.PMC = {
           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
             <input  id="pmcFJob"      type="text"   placeholder="Job Number" style="${inputStyle}width:120px">
             <select id="pmcFClient"   style="${selectStyle}width:140px"><option value="">All Clients</option>${clientOpts}</select>
-            <input  id="pmcFMachine"  type="text"   placeholder="Machine" style="${inputStyle}width:120px">
+            <select id="pmcFMachine"  style="${selectStyle}width:140px"><option value="">All Machines</option>${machineOpts}</select>
             <select id="pmcFVisit"    style="${selectStyle}width:100px"><option value="">All Visits</option>${visitOpts}</select>
             <select id="pmcFTech"     style="${selectStyle}width:140px"><option value="">All Technicians</option>${techOpts}</select>
             <input  id="pmcFDateFrom" type="date"   title="Date from" style="${inputStyle}width:130px">
@@ -405,7 +405,7 @@ Views.PMC = {
               <option value="">All Locations</option>
               ${[...new Set(rows.map(r => r.locationAddress).filter(v => v && v !== '—'))].sort().map(v => `<option value="${Utils.escapeHtml(v.toLowerCase())}">${Utils.escapeHtml(v)}</option>`).join('')}
             </select>
-            <button id="pmcClearFilters" class="btn btn-ghost btn-sm" style="display:none;white-space:nowrap">
+            <button id="pmcClearFilters" class="btn btn-ghost btn-sm" style="white-space:nowrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               Clear
             </button>
@@ -420,6 +420,7 @@ Views.PMC = {
                   ${this._thHTML('jobNumber',       'Job Number')}
                   ${this._thHTML('clientName',      'Client')}
                   ${this._thHTML('machineName',     'Machine')}
+                  ${this._thHTML('serialNumber',    'Serial Number')}
                   ${this._thHTML('district',        'District')}
                   ${this._thHTML('locationAddress', 'Location Address')}
                   ${this._thHTML('visit',           'Visit #')}
@@ -441,7 +442,7 @@ Views.PMC = {
   /* ── TABLE ROWS ──────────────────────────────────────────── */
   _buildRows(rows) {
     if (!rows.length) {
-      return `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--gray-400)">No PMC visits match the current filters.</td></tr>`;
+      return `<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--gray-400)">No PMC visits match the current filters.</td></tr>`;
     }
 
     return rows.map(r => {
@@ -476,6 +477,7 @@ Views.PMC = {
           <div style="font-weight:500">${Utils.escapeHtml(r.machineName)}</div>
           <div style="font-size:0.786rem;color:var(--gray-400)">${Utils.escapeHtml(r.machineType)}</div>
         </td>
+        <td style="font-family:monospace;font-size:0.786rem;color:${r.serialNumber === '—' ? 'var(--gray-400)' : 'var(--gray-500)'}">${Utils.escapeHtml(r.serialNumber)}</td>
         <td style="font-size:0.786rem;color:${r.district === '—' ? 'var(--gray-400)' : 'inherit'}">${Utils.escapeHtml(r.district)}</td>
         <td style="font-size:0.786rem;color:${r.locationAddress === '—' ? 'var(--gray-400)' : 'inherit'}">${Utils.escapeHtml(r.locationAddress)}</td>
         <td><span style="font-weight:600">${r.visitNumber}</span></td>

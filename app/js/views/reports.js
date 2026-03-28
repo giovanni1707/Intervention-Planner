@@ -564,6 +564,10 @@ Views.Reports = {
             <div class="stat-box-label">Expired</div>
           </div>
           <div class="stat-box">
+            <div class="stat-box-value">${totalPlanned}</div>
+            <div class="stat-box-label">Total Visits</div>
+          </div>
+          <div class="stat-box">
             <div class="stat-box-value" style="color:var(--green)">${totalCompleted}</div>
             <div class="stat-box-label">Visits Completed</div>
           </div>
@@ -644,10 +648,13 @@ Views.Reports = {
         const machineRows = Object.entries(machineGroups).map(([machineId, items]) => {
           const machine = appState.machines.find(m => m.id === machineId);
           const sorted  = Utils.sortBy(items, 'createdAt', 'desc');
+          const locationAddress = sorted[0]?.locationAddress || '—';
           return `
             <tr>
               <td style="padding-left:24px">${Utils.escapeHtml(machine?.model || 'Unknown')}</td>
+              <td style="font-family:monospace;font-size:0.786rem;font-weight:600">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
               <td style="font-family:monospace;font-size:0.786rem">${Utils.escapeHtml(machine?.serialNumber || '—')}</td>
+              <td style="font-size:0.786rem;color:${locationAddress === '—' ? 'var(--gray-400)' : 'inherit'}">${Utils.escapeHtml(locationAddress)}</td>
               <td>${items.length}</td>
               <td>${Utils.getContractBadge(machine?.contractType || 'none')}</td>
               <td>${Utils.formatDate(sorted[0]?.createdAt)}</td>
@@ -658,7 +665,7 @@ Views.Reports = {
 
         return `
           <tr style="background:var(--gray-50)">
-            <td colspan="6" class="td-primary" style="padding-top:12px">${Utils.escapeHtml(client.name)}</td>
+            <td colspan="8" class="td-primary" style="padding-top:12px">${Utils.escapeHtml(client.name)}</td>
           </tr>
           ${machineRows}
         `;
@@ -671,11 +678,11 @@ Views.Reports = {
           <table class="data-table">
             <thead>
               <tr>
-                <th>Machine</th><th>Serial</th><th>Interventions</th><th>Contract</th><th>Last Service</th><th>Last Status</th>
+                <th>Machine</th><th>Job Number</th><th>Serial</th><th>Location Address</th><th>Interventions</th><th>Contract</th><th>Last Service</th><th>Last Status</th>
               </tr>
             </thead>
             <tbody>
-              ${sections || '<tr><td colspan="6"><div class="table-empty"><p class="table-empty-text">No data for selected period</p></div></td></tr>'}
+              ${sections || '<tr><td colspan="8"><div class="table-empty"><p class="table-empty-text">No data for selected period</p></div></td></tr>'}
             </tbody>
           </table>
         </div>
