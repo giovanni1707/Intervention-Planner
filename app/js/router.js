@@ -19,7 +19,10 @@ const ROUTES = {
   analytics:                 () => Views.Analytics.mount(),
   notifications:             () => Views.Notifications.mount(),
   settings:                  () => Views.Settings.mount(),
-  'my-jobs':                 () => Views.MyJobs.mount()
+  'my-jobs':                 () => Views.MyJobs.mount(),
+  'my-account':              () => Views.MyAccount.mount(),
+  'parts-inventory':         () => Views.PartsInventory.mount(),
+  'client-summary':          () => Views.ClientSummary.mount()
 };
 
 const Router = {

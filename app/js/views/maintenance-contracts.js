@@ -453,38 +453,37 @@ Views.MaintenanceContracts = {
                  style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--gray-400);pointer-events:none">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input id="mcJobFilter" type="text" placeholder="Job Number…"
-                   style="padding:5px 10px 5px 28px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);width:140px">
+            <input id="mcJobFilter" type="text" placeholder="Job Number…" class="form-input mc-job-filter-input">
           </div>
-          <select id="mcClientFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+          <select id="mcClientFilter" class="toolbar-select">
             <option value="">All Clients</option>
             ${[...new Map(contracts.filter(c => clients.find(cl => cl.id === c.clientId)).map(c => {
               const cl = clients.find(cl => cl.id === c.clientId);
               return [cl.id, cl];
             })).values()].sort((a,b) => a.name.localeCompare(b.name)).map(cl => `<option value="${Utils.escapeHtml(cl.id.toLowerCase())}">${Utils.escapeHtml(cl.name)}</option>`).join('')}
           </select>
-          <select id="mcDistrictFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+          <select id="mcDistrictFilter" class="toolbar-select">
             <option value="">All Districts</option>
             ${CONFIG.DISTRICTS.map(d => `<option value="${d.toLowerCase()}">${d}</option>`).join('')}
           </select>
-          <select id="mcLocationFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+          <select id="mcLocationFilter" class="toolbar-select">
             <option value="">All Locations</option>
             ${[...new Set(contracts.map(c => machines.find(m => m.id === c.machineId)?.location).filter(Boolean))].sort().map(l => `<option value="${Utils.escapeHtml(l.toLowerCase())}">${Utils.escapeHtml(l)}</option>`).join('')}
           </select>
-          <select id="mcFreqFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+          <select id="mcFreqFilter" class="toolbar-select">
             <option value="">All Frequencies</option>
             <option value="1">1×/yr</option>
             <option value="2">2×/yr</option>
             <option value="3">3×/yr</option>
             <option value="4">4×/yr</option>
           </select>
-          <select id="mcAssignedFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+          <select id="mcAssignedFilter" class="toolbar-select">
             <option value="">All Assigned</option>
             <option value="full">Fully Assigned</option>
             <option value="partial">Partially Assigned</option>
             <option value="none">Not Assigned</option>
           </select>
-          <select id="mcProgressFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);cursor:pointer">
+          <select id="mcProgressFilter" class="toolbar-select">
             <option value="">All Progress</option>
             <option value="high">High (≥80%)</option>
             <option value="mid">Mid (40–79%)</option>

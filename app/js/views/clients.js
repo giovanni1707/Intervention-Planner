@@ -167,6 +167,9 @@ Views.Clients = {
               <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick="Views.Clients.openDetailModal('${c.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
+              <button class="btn btn-ghost btn-sm btn-icon" title="Full Summary" onclick="Views.ClientSummary.open('${c.id}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              </button>
               ${Auth.isAdmin() ? `
               <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="Views.Clients._openEditModal('${c.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>

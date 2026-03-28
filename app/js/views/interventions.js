@@ -319,7 +319,7 @@ Views.Interventions = {
       const machine = appState.machines.find(m => m.id === i.machineId);
       const isOverdue = CONFIG.OPEN_STATUSES.includes(i.status) && i.scheduledDate && Utils.isPast(i.scheduledDate);
       return `
-        <tr ${isOverdue ? 'style="background:var(--red-light)"' : ''}>
+        <tr ${isOverdue ? 'style="background:var(--red-light)"' : ''} data-id="${i.id}">
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.serialNumber || '—')}</td>
           <td class="td-primary">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
@@ -373,6 +373,7 @@ Views.Interventions = {
     }).join('');
 
     const si = this._sortIcon();
+
     container.innerHTML = `
       <div class="table-wrapper has-toolbar">
         <table class="data-table">
@@ -1510,9 +1511,315 @@ Views.Interventions = {
       </div>
     `;
 
-    const footer = ``;
+    const footer = `
+      <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._printWorkOrder('${i.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print Work Order
+      </button>
+    `;
 
     Modals.open(`Intervention #${i.id.slice(-6)}`, body, footer, { size: 'lg' });
+  },
+
+  _printWorkOrder(interventionId) {
+    const i        = appState.interventions.find(iv => iv.id === interventionId);
+    if (!i) return;
+    const machine  = appState.machines.find(m => m.id === i.machineId) || {};
+    const client   = appState.clients.find(c => c.id === i.clientId)  || {};
+    const priorityCfg = CONFIG.PRIORITIES?.[i.priority] || {};
+
+    // ── Build chronological timeline ──────────────────────────
+    const statusChain   = [...(i.statusHistory  || [])].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const allNotes      = [...(i.notes  || [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const allParts      = [...(i.parts  || [])].sort((a, b) => new Date(a.addedAt || 0) - new Date(b.addedAt || 0));
+    const schedHistory  = [...(i.scheduledHistory || [])].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    // Assign notes & parts to the status window they were created in
+    const windows = statusChain.map((s, idx) => {
+      const winStart = new Date(s.timestamp);
+      const winEnd   = statusChain[idx + 1] ? new Date(statusChain[idx + 1].timestamp) : new Date(9999999999999);
+      return {
+        s,
+        isFirst:  idx === 0,
+        isLatest: idx === statusChain.length - 1,
+        notes: allNotes.filter(n => { const t = new Date(n.createdAt); return t >= winStart && t < winEnd; }),
+        parts: allParts.filter(p => { const t = new Date(p.addedAt || 0); return t >= winStart && t < winEnd; }),
+        scheds: schedHistory.filter(sc => { const t = new Date(sc.timestamp); return t >= winStart && t < winEnd; })
+      };
+    });
+
+    // Parts that have no addedAt fall into the "unassigned" bucket — show them at the end
+    const unassignedParts = allParts.filter(p => !p.addedAt);
+
+    // ── Status colour map (plain CSS colours, no CSS vars) ────
+    const STATUS_COLORS = {
+      new:           '#64748b',
+      tentative:     '#a855f7',
+      assigned:      '#3b82f6',
+      ongoing:       '#f59e0b',
+      pending:       '#6366f1',
+      waiting_parts: '#f97316',
+      completed:     '#10b981',
+      cancelled:     '#ef4444'
+    };
+    const statusColor  = s => STATUS_COLORS[s] || '#64748b';
+    const statusLabel  = s => CONFIG.STATUSES[s]?.label || s;
+
+    // ── Helpers ───────────────────────────────────────────────
+    const esc = v => Utils.escapeHtml(String(v ?? ''));
+    const fdt = v => Utils.formatDateTime(v) || '—';
+    const fd  = v => Utils.formatDate(v) || '—';
+
+    const techName = techIds => {
+      const ids = Array.isArray(techIds) ? techIds : (techIds ? [techIds] : []);
+      return ids.map(id => appState.users.find(u => u.id === id)?.name).filter(Boolean).join(', ') || '—';
+    };
+
+    // ── Timeline HTML ─────────────────────────────────────────
+    const timelineHTML = windows.length === 0
+      ? '<p style="color:#94a3b8;font-style:italic">No status history recorded.</p>'
+      : windows.map(({ s, isFirst, isLatest, notes, parts, scheds }) => {
+
+          // Schedule changes within this window
+          const schedHTML = scheds.length === 0 ? '' : `
+            <div class="wo-sub-section">
+              <div class="wo-sub-label">📅 Schedule Changes</div>
+              <table>
+                <thead><tr><th>Scheduled Date</th><th>Set By</th><th>Assigned To</th><th>Recorded At</th></tr></thead>
+                <tbody>${scheds.map(sc => {
+                  const ids = sc.technicianIds?.length ? sc.technicianIds : (sc.technicianId ? [sc.technicianId] : []);
+                  return `<tr>
+                    <td>${fd(sc.scheduledDate)}</td>
+                    <td>${esc(sc.changedBy)}</td>
+                    <td>${techName(ids)}</td>
+                    <td style="color:#64748b;font-size:11px">${fdt(sc.timestamp)}</td>
+                  </tr>`;
+                }).join('')}</tbody>
+              </table>
+            </div>`;
+
+          // Notes within this window
+          const notesHTML = notes.length === 0 ? '' : `
+            <div class="wo-sub-section">
+              <div class="wo-sub-label">📝 Notes</div>
+              ${notes.map(n => `
+                <div class="wo-note">
+                  <p class="wo-note-text">${esc(n.text)}</p>
+                  <p class="wo-note-meta">${esc(n.author)} · ${fdt(n.createdAt)}</p>
+                </div>`).join('')}
+            </div>`;
+
+          // Parts within this window
+          const partsHTML = parts.length === 0 ? '' : `
+            <div class="wo-sub-section">
+              <div class="wo-sub-label">🔧 Parts Used</div>
+              <table>
+                <thead><tr><th>Reference</th><th>Description</th><th style="text-align:center">Qty</th><th>Unit</th><th>Added</th></tr></thead>
+                <tbody>${parts.map(p => `<tr>
+                  <td style="font-family:monospace">${esc(p.reference)}</td>
+                  <td>${esc(p.description)}</td>
+                  <td style="text-align:center;font-weight:600">${p.quantity}</td>
+                  <td>${esc(p.unit || 'pcs')}</td>
+                  <td style="color:#64748b;font-size:11px">${fd(p.addedAt)}</td>
+                </tr>`).join('')}</tbody>
+              </table>
+            </div>`;
+
+          const hasContent = schedHTML || notesHTML || partsHTML;
+
+          return `
+            <div class="wo-timeline-entry">
+              <div class="wo-tl-dot" style="background:${statusColor(s.status)}"></div>
+              <div class="wo-tl-body">
+                <div class="wo-tl-header">
+                  <span class="wo-status-badge" style="background:${statusColor(s.status)}20;color:${statusColor(s.status)};border:1px solid ${statusColor(s.status)}40">
+                    ${esc(statusLabel(s.status))}${isLatest ? ' ★ Current' : ''}
+                  </span>
+                  <span class="wo-tl-by">by ${esc(s.changedBy)}</span>
+                  <span class="wo-tl-time">${fdt(s.timestamp)}</span>
+                </div>
+                ${s.note ? `<div class="wo-tl-note">${esc(s.note)}</div>` : ''}
+                ${hasContent ? schedHTML + notesHTML + partsHTML : '<p class="wo-tl-empty">No activity recorded during this status.</p>'}
+              </div>
+            </div>`;
+        }).join('');
+
+    // ── Unassigned parts (no addedAt timestamp) ───────────────
+    const unassignedHTML = unassignedParts.length === 0 ? '' : `
+      <div class="wo-section">
+        <div class="wo-section-title">Additional Parts (undated)</div>
+        <table>
+          <thead><tr><th>Reference</th><th>Description</th><th style="text-align:center">Qty</th><th>Unit</th></tr></thead>
+          <tbody>${unassignedParts.map(p => `<tr>
+            <td style="font-family:monospace">${esc(p.reference)}</td>
+            <td>${esc(p.description)}</td>
+            <td style="text-align:center;font-weight:600">${p.quantity}</td>
+            <td>${esc(p.unit || 'pcs')}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+
+    // ── Summary totals ────────────────────────────────────────
+    const totalParts = allParts.reduce((s, p) => s + (Number(p.quantity) || 0), 0);
+    const totalNotes = allNotes.length;
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Work Order — ${esc(machine.jobNumber || i.id)}</title>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; font-size:13px; color:#1e293b; padding:32px; max-width:900px; margin:0 auto; }
+    /* Header */
+    .wo-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:20px; border-bottom:3px solid #0066ff; margin-bottom:24px; }
+    .wo-company { font-size:18px; font-weight:700; color:#0066ff; }
+    .wo-sub { font-size:11px; color:#64748b; margin-top:2px; }
+    .wo-title { font-size:24px; font-weight:700; color:#0f172a; }
+    .wo-id { font-size:12px; color:#64748b; margin-top:3px; }
+    /* Sections */
+    .wo-section { margin-bottom:24px; }
+    .wo-section-title { font-size:11px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.07em; margin-bottom:12px; padding-bottom:5px; border-bottom:2px solid #e2e8f0; }
+    /* Info grid */
+    .wo-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+    .wo-field label { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:2px; }
+    .wo-field span { font-size:13px; color:#1e293b; font-weight:500; }
+    /* Description box */
+    .wo-desc { white-space:pre-wrap; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px 14px; font-size:13px; line-height:1.6; margin-top:14px; }
+    /* Summary strip */
+    .wo-summary { display:flex; gap:24px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; margin-bottom:24px; }
+    .wo-summary-item { text-align:center; }
+    .wo-summary-val { font-size:20px; font-weight:700; color:#0f172a; }
+    .wo-summary-lbl { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+    /* Timeline */
+    .wo-timeline { position:relative; padding-left:28px; }
+    .wo-timeline::before { content:''; position:absolute; left:8px; top:0; bottom:0; width:2px; background:#e2e8f0; }
+    .wo-timeline-entry { position:relative; margin-bottom:20px; }
+    .wo-tl-dot { position:absolute; left:-24px; top:4px; width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 2px #e2e8f0; }
+    .wo-tl-body { background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:14px 16px; }
+    .wo-tl-header { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+    .wo-status-badge { padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; }
+    .wo-tl-by { font-size:12px; color:#64748b; }
+    .wo-tl-time { font-size:11px; color:#94a3b8; margin-left:auto; }
+    .wo-tl-note { font-size:12px; color:#475569; background:#f1f5f9; border-radius:4px; padding:6px 10px; margin-bottom:10px; font-style:italic; }
+    .wo-tl-empty { font-size:12px; color:#94a3b8; font-style:italic; }
+    /* Sub-sections within each timeline entry */
+    .wo-sub-section { margin-top:12px; }
+    .wo-sub-label { font-size:11px; font-weight:700; color:#64748b; margin-bottom:6px; }
+    .wo-note { border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; margin-bottom:6px; background:#fafafa; }
+    .wo-note-text { white-space:pre-wrap; margin-bottom:4px; font-size:13px; line-height:1.5; }
+    .wo-note-meta { font-size:11px; color:#94a3b8; }
+    /* Tables */
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th { background:#f1f5f9; padding:6px 10px; text-align:left; font-weight:600; font-size:11px; color:#475569; border-bottom:1px solid #e2e8f0; }
+    td { padding:6px 10px; border-bottom:1px solid #f8fafc; }
+    tr:last-child td { border-bottom:none; }
+    /* Signatures */
+    .sig-row { display:grid; grid-template-columns:1fr 1fr; gap:60px; margin-top:40px; padding-top:24px; border-top:1px solid #e2e8f0; }
+    .sig-box { }
+    .sig-line { border-top:1px solid #cbd5e1; margin-top:40px; padding-top:6px; font-size:11px; color:#94a3b8; }
+    .sig-label { font-size:12px; font-weight:600; color:#475569; margin-bottom:4px; }
+    @media print {
+      body { padding:16px; }
+      .wo-tl-body { break-inside:avoid; }
+      .wo-timeline-entry { break-inside:avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="wo-header">
+    <div>
+      <div class="wo-company">GIOVANNI PACKAGING SOLUTION LTD</div>
+      <div class="wo-sub">Official Representative — MULTIVAC Group · Indian Ocean Region</div>
+    </div>
+    <div style="text-align:right">
+      <div class="wo-title">WORK ORDER</div>
+      <div class="wo-id"><strong>#${esc(machine.jobNumber || i.id.slice(-8).toUpperCase())}</strong></div>
+      <div class="wo-id">Printed: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+    </div>
+  </div>
+
+  <!-- INTERVENTION INFO -->
+  <div class="wo-section">
+    <div class="wo-section-title">Intervention Details</div>
+    <div class="wo-grid">
+      <div class="wo-field"><label>Client</label><span>${esc(client.name || '—')}</span></div>
+      <div class="wo-field"><label>Machine Model</label><span>${esc(machine.model || '—')}</span></div>
+      <div class="wo-field"><label>Serial Number</label><span style="font-family:monospace">${esc(machine.serialNumber || '—')}</span></div>
+      <div class="wo-field"><label>Job Number</label><span style="font-family:monospace">${esc(machine.jobNumber || '—')}</span></div>
+      <div class="wo-field"><label>Machine Type</label><span>${esc(machine.type || '—')}</span></div>
+      <div class="wo-field"><label>Machine Name</label><span>${esc(machine.name || '—')}</span></div>
+      <div class="wo-field"><label>Intervention Type</label><span>${esc(Utils.getInterventionTypeLabel(i.type))}</span></div>
+      <div class="wo-field"><label>Priority</label><span>${esc(priorityCfg.label || i.priority || '—')}</span></div>
+      <div class="wo-field"><label>Current Status</label><span style="font-weight:700;color:${statusColor(i.status)}">${esc(statusLabel(i.status))}</span></div>
+      <div class="wo-field"><label>Technician(s)</label><span>${esc(Utils.getTechnicianNames(i) || '—')}</span></div>
+      <div class="wo-field"><label>Scheduled Date</label><span>${fdt(i.scheduledDate)}</span></div>
+      <div class="wo-field"><label>Created Date</label><span>${fdt(i.createdAt)}</span></div>
+      <div class="wo-field"><label>District</label><span>${esc(machine.district || '—')}</span></div>
+      <div class="wo-field"><label>Location</label><span>${esc(machine.location || '—')}</span></div>
+      <div class="wo-field"><label>On-site / Workshop</label><span>${i.location === 'workshop' ? 'Workshop' : 'Client Premises'}</span></div>
+      ${i.locationAddress ? `<div class="wo-field"><label>Address</label><span>${esc(i.locationAddress)}</span></div>` : ''}
+    </div>
+    ${i.description ? `<div class="wo-desc">${esc(i.description)}</div>` : ''}
+  </div>
+
+  <!-- SUMMARY STRIP -->
+  <div class="wo-summary">
+    <div class="wo-summary-item">
+      <div class="wo-summary-val">${statusChain.length}</div>
+      <div class="wo-summary-lbl">Status Changes</div>
+    </div>
+    <div class="wo-summary-item">
+      <div class="wo-summary-val">${totalNotes}</div>
+      <div class="wo-summary-lbl">Notes</div>
+    </div>
+    <div class="wo-summary-item">
+      <div class="wo-summary-val">${allParts.length}</div>
+      <div class="wo-summary-lbl">Part Entries</div>
+    </div>
+    <div class="wo-summary-item">
+      <div class="wo-summary-val">${totalParts}</div>
+      <div class="wo-summary-lbl">Total Parts Qty</div>
+    </div>
+    <div class="wo-summary-item">
+      <div class="wo-summary-val">${schedHistory.length}</div>
+      <div class="wo-summary-lbl">Schedule Changes</div>
+    </div>
+  </div>
+
+  <!-- FULL HISTORY TIMELINE -->
+  <div class="wo-section">
+    <div class="wo-section-title">Full Intervention History (Oldest → Latest)</div>
+    <div class="wo-timeline">
+      ${timelineHTML}
+    </div>
+  </div>
+
+  ${unassignedHTML}
+
+  <!-- SIGNATURES -->
+  <div class="sig-row">
+    <div class="sig-box">
+      <div class="sig-label">Technician</div>
+      <div class="sig-line">Signature &amp; Date</div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-label">Customer</div>
+      <div class="sig-line">Signature &amp; Date</div>
+    </div>
+  </div>
+
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=960,height=800');
+    if (!win) { Toast.show('Pop-up blocked. Allow pop-ups for this site.', 'warning'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
   },
 
   _switchStatusTab(btn, interventionId) {
