@@ -94,6 +94,10 @@ const Sidebar = {
     {
       route: 'my-account', label: 'My Account', adminOnly: false,
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+    },
+    {
+      route: 'help', label: 'Help Center', adminOnly: false,
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
     }
   ],
 
@@ -125,7 +129,7 @@ const Sidebar = {
     sidebar.innerHTML = `
       <div class="sidebar-brand">
         <div class="sidebar-logo">
-          <div class="sidebar-logo-badge">BPS</div>
+          <div class="sidebar-logo-badge">GPS</div>
           <div class="sidebar-logo-text">
             <div class="sidebar-logo-name">Giovanni Packaging</div>
             <div class="sidebar-logo-sub">MULTIVAC — Indian Ocean</div>

@@ -23,7 +23,8 @@ const ROUTES = {
   'my-account':              () => Views.MyAccount.mount(),
   'parts-inventory':         () => Views.PartsInventory.mount(),
   'client-summary':          () => Views.ClientSummary.mount(),
-  'chat':                    () => Views.Chat.mount()
+  'chat':                    () => Views.Chat.mount(),
+  'help':                    () => Views.Help.mount()
 };
 
 const Router = {
