@@ -4013,8 +4013,9 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
   border-radius: var(--radius);
 }
 .dark-mode .mj-empty {
-  background: var(--gray-800);
-  border-color: var(--gray-700);
+  background: #1E293B;
+  border-color: #334155;
+  color: #64748B;
 }
 
 /* ═══════════════════════════════════════════════════════════
