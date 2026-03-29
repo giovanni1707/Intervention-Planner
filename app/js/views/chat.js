@@ -341,30 +341,32 @@ Views.Chat = {
   /* ── Delete Individual Message ───────────────────────────── */
   _confirmDeleteMsg(msgId) {
     const msg = this._messages.find(m => m.id === msgId);
-    if (!msg) return;
-    const uid    = appState.currentUser.id;
-    const isOwn  = msg.senderId === uid;
+    if (!msg || msg.deleted) return;
+    const uid   = appState.currentUser.id;
+    const isOwn = msg.senderId === uid;
 
     const text = isOwn
-      ? 'Delete this message? It will be removed for everyone in this conversation.'
-      : 'Hide this message from your view?';
+      ? 'Delete this message? It will appear as deleted for everyone in this conversation.'
+      : 'Delete this message from your view? It will appear as deleted for everyone.';
 
     Modals.confirm(text, 'Delete Message?').then(confirmed => {
       if (!confirmed) return;
-      if (isOwn) {
-        // Hard delete from Firestore — removes for all participants
-        db.collection('chatMessages').doc(msgId).delete()
-          .catch(err => {
-            console.error('[Chat] delete msg error:', err);
-            Toast.error('Failed to delete message.');
-          });
-        // Snapshot listener will re-render automatically
-      } else {
-        // Soft-delete locally for this user only
-        this._hideMsg(msgId);
-        this._renderMessages();
-      }
+      db.collection('chatMessages').doc(msgId).update({
+        deleted:   true,
+        deletedBy: uid,
+        deletedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(err => {
+        console.error('[Chat] delete msg error:', err);
+        Toast.error('Failed to delete message.');
+      });
+      // Snapshot listener re-renders automatically
     });
+  },
+
+  /* ── Remove tombstone from own view (after 24h) ─────────── */
+  _removeTombstone(msgId) {
+    this._hideMsg(msgId);
+    this._renderMessages();
   },
 
   /* ── Render Messages ──────────────────────────────────────── */
@@ -373,8 +375,7 @@ Views.Chat = {
     if (!el) return;
     const uid = appState.currentUser.id;
 
-    // Filter out locally hidden messages
-    const visible = this._messages.filter(m => !this._isMsgHidden(m.id));
+    const visible = this._messages;
 
     if (visible.length === 0) {
       el.innerHTML = `
@@ -400,7 +401,7 @@ Views.Chat = {
     if (isDm && otherId) {
       for (let i = visible.length - 1; i >= 0; i--) {
         const m = visible[i];
-        if (m.senderId === uid && (m.readBy || []).includes(otherId)) {
+        if (!m.deleted && m.senderId === uid && (m.readBy || []).includes(otherId)) {
           lastReadByOtherMsgId = m.id;
           break;
         }
@@ -436,8 +437,55 @@ Views.Chat = {
           ? `<div class="chat-avatar-sm" style="${senderPhoto ? 'background:transparent;padding:0;overflow:hidden' : `background:${this._userColor(msg.senderId)}`}">${Utils.userAvatarHtml(senderUser || { name: msg.senderName })}</div>`
           : `<div class="chat-avatar-sm-placeholder"></div>`;
 
+      // ── Deleted message tombstone ──────────────────────────
+      if (msg.deleted) {
+        const tombstoneText = (msg.deletedBy === uid)
+          ? 'You deleted a message'
+          : 'This message was deleted';
+
+        // Calculate whether 24h have passed since deletion
+        const deletedMs  = msg.deletedAt?.toMillis?.() || 0;
+        const canRemove  = deletedMs > 0 && (Date.now() - deletedMs) >= 24 * 60 * 60 * 1000;
+        const hoursLeft  = deletedMs > 0
+          ? Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - deletedMs)) / (60 * 60 * 1000))
+          : null;
+
+        const removeBtn = canRemove
+          ? `<button class="chat-tombstone-remove-btn" title="Remove from your view"
+                     onclick="Views.Chat._removeTombstone('${msg.id}')">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+                 <polyline points="3 6 5 6 21 6"/>
+                 <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                 <path d="M10 11v6"/><path d="M14 11v6"/>
+               </svg>
+             </button>`
+          : (hoursLeft !== null
+              ? `<span class="chat-tombstone-timer" title="You can remove this in ~${hoursLeft}h">
+                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                   ${hoursLeft}h
+                 </span>`
+              : '');
+
+        out += `
+          <div class="chat-msg-row chat-msg-row-${isOwn ? 'out' : 'in'}">
+            ${avatarHtml}
+            <div class="chat-msg-wrap">
+              <div class="chat-bubble-deleted">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="flex-shrink:0">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                </svg>
+                <em>${tombstoneText}</em>
+                ${removeBtn}
+              </div>
+            </div>
+          </div>`;
+        return out;
+      }
+
       const deleteBtn = `
-        <button class="chat-msg-delete-btn" title="${isOwn ? 'Delete for everyone' : 'Hide message'}"
+        <button class="chat-msg-delete-btn" title="Delete message"
                 onclick="Views.Chat._confirmDeleteMsg('${msg.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
             <polyline points="3 6 5 6 21 6"/>

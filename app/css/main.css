@@ -4935,6 +4935,63 @@ body.dark-mode [data-banner="related-interventions"] {
 .chat-bubble-in .chat-bubble-time  { color: var(--gray-400); }
 .chat-bubble-out .chat-bubble-time { color: rgba(255,255,255,0.65); }
 
+/* ── Deleted message tombstone ───────────────────────────── */
+.chat-bubble-deleted {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px dashed var(--gray-300);
+  border-radius: 14px;
+  color: var(--gray-400);
+  font-size: 0.814rem;
+  user-select: none;
+}
+.chat-bubble-deleted em { font-style: italic; }
+
+.chat-tombstone-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.714rem;
+  color: var(--gray-300);
+  margin-left: 4px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.chat-tombstone-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--gray-300);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.chat-tombstone-remove-btn:hover {
+  background: rgba(239,68,68,0.12);
+  color: var(--red);
+}
+
+body.dark-mode .chat-bubble-deleted {
+  border-color: #334155;
+  color: #475569;
+}
+body.dark-mode .chat-tombstone-timer { color: #334155; }
+body.dark-mode .chat-tombstone-remove-btn { color: #334155; }
+body.dark-mode .chat-tombstone-remove-btn:hover {
+  background: rgba(239,68,68,0.18);
+  color: #F87171;
+}
+
 /* ── Read receipt ("Seen") ────────────────────────────────── */
 .chat-seen-receipt {
   display: flex;
