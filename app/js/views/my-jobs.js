@@ -229,14 +229,6 @@ Views.MyJobs = {
       if (isToday)   { dateLabel = 'Today'; dateClass = 'mj-date-today'; }
       if (isOverdue) { dateClass = 'mj-date-overdue'; }
 
-      const availableStatuses = CONFIG.OPEN_STATUSES.includes(i.status)
-        ? ['assigned', 'ongoing', 'pending', 'waiting_parts', 'completed']
-        : ['completed', 'cancelled'];
-
-      const statusOpts = availableStatuses
-        .map(s => `<option value="${s}" ${i.status === s ? 'selected' : ''}>${CONFIG.STATUSES[s]?.label || s}</option>`)
-        .join('');
-
       return `
         <div class="mj-card${isUrgent ? ' mj-card-urgent' : ''}${isOverdue ? ' mj-card-overdue' : ''}${isToday ? ' mj-card-today' : ''}">
           <div class="mj-card-top">
@@ -262,10 +254,6 @@ Views.MyJobs = {
           <div class="mj-card-footer">
             <div class="mj-card-status-wrap">
               ${Utils.getStatusBadge(i.status, i)}
-              ${CONFIG.OPEN_STATUSES.includes(i.status) ? `
-              <select class="mj-status-select" data-id="${i.id}" title="Update status">
-                ${statusOpts}
-              </select>` : ''}
             </div>
             <button class="btn btn-ghost btn-sm" onclick="Views.Interventions.openDetailModal('${i.id}')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -276,22 +264,5 @@ Views.MyJobs = {
     }).join('');
 
     container.innerHTML = `<div class="mj-list">${cards}</div>`;
-
-    // Bind status selects
-    container.querySelectorAll('.mj-status-select').forEach(sel => {
-      sel.addEventListener('change', async () => {
-        const id        = sel.dataset.id;
-        const newStatus = sel.value;
-        sel.disabled    = true;
-        try {
-          await Storage.updateIntervention(id, { status: newStatus });
-          Toast.show(`Status updated to "${CONFIG.STATUSES[newStatus]?.label || newStatus}"`, 'success');
-        } catch (err) {
-          console.error('[MyJobs] status update error:', err);
-          Toast.show('Failed to update status', 'danger');
-          sel.disabled = false;
-        }
-      });
-    });
   }
 };

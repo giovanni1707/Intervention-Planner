@@ -4,10 +4,11 @@
 
 window.Views = window.Views || {};
 
-/* ── ChatBadge — global unread counter (module-level) ─────── */
+/* ── ChatBadge — global unread counter + per-conv counts ───── */
 const ChatBadge = {
   _unsub: null,
-  _count: 0,
+  _total: 0,
+  _perConv: {},   // { convId: count }
 
   start() {
     if (this._unsub) return;
@@ -15,27 +16,46 @@ const ChatBadge = {
     if (!uid) return;
     this._unsub = db.collection('chatMessages')
       .orderBy('createdAt', 'desc')
-      .limit(300)
+      .limit(500)
       .onSnapshot(snap => {
-        this._count = snap.docs.filter(d => {
+        const uid2 = appState.currentUser?.id;
+        if (!uid2) return;
+        const perConv = {};
+        let total = 0;
+        snap.docs.forEach(d => {
           const data = d.data();
-          return data.senderId !== uid && !(data.readBy || []).includes(uid);
-        }).length;
+          if (data.senderId === uid2) return;              // own messages never count
+          if ((data.readBy || []).includes(uid2)) return;  // already read
+          const cid = data.conversationId;
+          // Only count public channel OR a DM that involves this user
+          if (cid !== 'public' && !cid.split('_').includes(uid2)) return;
+          perConv[cid] = (perConv[cid] || 0) + 1;
+          total++;
+        });
+        this._total  = total;
+        this._perConv = perConv;
         this.updateBadge();
+        if (typeof Views.Chat !== 'undefined') Views.Chat._updateConvBadges();
       }, err => console.warn('[ChatBadge] listener error:', err));
   },
 
   stop() {
     if (this._unsub) { this._unsub(); this._unsub = null; }
-    this._count = 0;
+    this._total  = 0;
+    this._perConv = {};
     this.updateBadge();
   },
 
   updateBadge() {
     const badge = document.getElementById('chatSidebarBadge');
     if (!badge) return;
-    badge.textContent = this._count > 99 ? '99+' : this._count;
-    badge.classList.toggle('hidden', this._count === 0);
+    const count = this._total;
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.classList.toggle('hidden', count === 0);
+  },
+
+  getConvCount(convId) {
+    return this._perConv[convId] || 0;
   }
 };
 
@@ -46,17 +66,19 @@ Views.Chat = {
   _messages: [],
   _unsubListener: null,
   _sending: false,
-  _unreadCounts: {},    // { convId: number }
+  // convIds hidden by current user (soft-delete): stored in localStorage
+  _hiddenKey: null,
 
   /* ── Entry / Exit ─────────────────────────────────────────── */
   mount() {
     const content = document.getElementById('mainContent');
     if (!content) return;
+    this._hiddenKey = `bps_chat_hidden_${appState.currentUser?.id}`;
     content.style.padding  = '0';
     content.style.overflow = 'hidden';
     content.innerHTML = this._template();
     this._renderConvList();
-    this._switchConv(this._activeConvId, false);
+    this._switchConv(this._activeConvId);
     this._bindEvents();
   },
 
@@ -69,6 +91,43 @@ Views.Chat = {
     }
   },
 
+  /* ── Hidden (soft-deleted) conversations ─────────────────── */
+  _getHidden() {
+    try { return JSON.parse(localStorage.getItem(this._hiddenKey)) || []; }
+    catch { return []; }
+  },
+  _setHidden(arr) {
+    localStorage.setItem(this._hiddenKey, JSON.stringify(arr));
+  },
+  _hideConv(convId) {
+    const h = this._getHidden();
+    if (!h.includes(convId)) { h.push(convId); this._setHidden(h); }
+  },
+  // Unhide when a new message arrives in a hidden conversation
+  _unhideConv(convId) {
+    const h = this._getHidden().filter(id => id !== convId);
+    this._setHidden(h);
+  },
+
+  /* ── Hidden (soft-deleted) messages (per user, localStorage) ── */
+  _getMsgHiddenKey() {
+    return `bps_chat_msghidden_${appState.currentUser?.id}`;
+  },
+  _getHiddenMsgs() {
+    try { return JSON.parse(localStorage.getItem(this._getMsgHiddenKey())) || []; }
+    catch { return []; }
+  },
+  _hideMsg(msgId) {
+    const h = this._getHiddenMsgs();
+    if (!h.includes(msgId)) {
+      h.push(msgId);
+      localStorage.setItem(this._getMsgHiddenKey(), JSON.stringify(h));
+    }
+  },
+  _isMsgHidden(msgId) {
+    return this._getHiddenMsgs().includes(msgId);
+  },
+
   /* ── Helpers ──────────────────────────────────────────────── */
   _dmId(otherUid) {
     return [appState.currentUser.id, otherUid].sort().join('_');
@@ -76,7 +135,8 @@ Views.Chat = {
 
   _convLabel(convId) {
     if (convId === 'public') return { name: 'Public Channel', sub: 'All team members', isPublic: true };
-    const otherId = convId.split('_').find(id => id !== appState.currentUser.id);
+    const uid     = appState.currentUser.id;
+    const otherId = convId.split('_').find(id => id !== uid);
     const other   = appState.users.find(u => u.id === otherId);
     return {
       name:     other ? other.name : 'Unknown User',
@@ -87,23 +147,23 @@ Views.Chat = {
   },
 
   _conversations() {
-    const uid = appState.currentUser.id;
+    const uid    = appState.currentUser.id;
+    const hidden = this._getHidden();
     const others = appState.users
       .filter(u => u.id !== uid)
       .sort((a, b) => a.name.localeCompare(b.name));
     return [
       { id: 'public' },
       ...others.map(u => ({ id: this._dmId(u.id) }))
-    ];
+    ].filter(c => !hidden.includes(c.id));
   },
 
   _fmtTime(ts) {
     if (!ts) return '';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     if (isNaN(d)) return '';
-    const now  = new Date();
-    const sameDay = d.toDateString() === now.toDateString();
-    return sameDay
+    const now = new Date();
+    return d.toDateString() === now.toDateString()
       ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
       : Utils.formatDateTime(d.toISOString());
   },
@@ -156,39 +216,72 @@ Views.Chat = {
     const el = document.getElementById('chatConvList');
     if (!el) return;
     const convs = this._conversations();
+    if (convs.length === 0) {
+      el.innerHTML = `<div style="padding:20px 16px;font-size:0.786rem;color:var(--gray-400);text-align:center">No conversations</div>`;
+      return;
+    }
     el.innerHTML = convs.map(({ id }) => {
       const info    = this._convLabel(id);
-      const unread  = this._unreadCounts[id] || 0;
+      const unread  = ChatBadge.getConvCount(id);
       const isActive = id === this._activeConvId;
+      const otherUserId  = !info.isPublic ? id.split('_').find(x => x !== appState.currentUser.id) : null;
+      const otherUser    = otherUserId ? appState.users.find(u => u.id === otherUserId) : null;
       const avatarContent = info.isPublic
         ? `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>`
-        : Utils.escapeHtml(info.initials || Utils.getInitials(info.name));
+        : Utils.userAvatarHtml(otherUser || { name: info.name });
+      const convAvatarBg = info.isPublic ? '' : (otherUser?.photoURL ? 'background:transparent;padding:0;overflow:hidden' : `background:${this._userColor(id)}`);
       return `
-        <div class="chat-conv-item${isActive ? ' active' : ''}" data-conv-id="${id}"
-             onclick="Views.Chat._switchConv('${id}')">
-          <div class="chat-conv-avatar${info.isPublic ? ' chat-conv-avatar-public' : ''}">${avatarContent}</div>
-          <div class="chat-conv-info">
+        <div class="chat-conv-item${isActive ? ' active' : ''}" data-conv-id="${Utils.escapeHtml(id)}">
+          <div class="chat-conv-avatar${info.isPublic ? ' chat-conv-avatar-public' : ''}" style="${convAvatarBg}"
+               onclick="Views.Chat._switchConv('${id}')">${avatarContent}</div>
+          <div class="chat-conv-info" onclick="Views.Chat._switchConv('${id}')">
             <div class="chat-conv-name">${Utils.escapeHtml(info.name)}</div>
             <div class="chat-conv-last">${Utils.escapeHtml(info.sub)}</div>
           </div>
-          <span class="chat-unread-badge${unread === 0 ? ' hidden' : ''}" id="chatBadge_${id}">${unread > 99 ? '99+' : unread}</span>
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <span class="chat-unread-badge${unread === 0 ? ' hidden' : ''}" id="chatBadge_${id.replace(/_/g,'__')}">${unread > 99 ? '99+' : unread}</span>
+          </div>
         </div>`;
     }).join('');
   },
 
+  /* ── Update per-conv unread badges (called by ChatBadge) ──── */
+  _updateConvBadges() {
+    // Update sidebar main badge
+    ChatBadge.updateBadge();
+
+    // Update per-conversation badges in conv list
+    document.querySelectorAll('.chat-conv-item').forEach(item => {
+      const convId = item.dataset.convId;
+      if (!convId) return;
+      const count  = ChatBadge.getConvCount(convId);
+      const badge  = item.querySelector('.chat-unread-badge');
+      if (!badge) return;
+      badge.textContent = count > 99 ? '99+' : count;
+      badge.classList.toggle('hidden', count === 0);
+
+      // Bold conv name when unread
+      const nameEl = item.querySelector('.chat-conv-name');
+      if (nameEl) nameEl.style.fontWeight = count > 0 ? '700' : '600';
+    });
+
+    // Zero out active conversation badge immediately
+    const activeBadgeId = `chatBadge_${this._activeConvId.replace(/_/g,'__')}`;
+    const activeBadge = document.getElementById(activeBadgeId);
+    if (activeBadge) { activeBadge.textContent = '0'; activeBadge.classList.add('hidden'); }
+  },
+
   /* ── Switch Conversation ──────────────────────────────────── */
-  _switchConv(convId, rerender = true) {
+  _switchConv(convId) {
+    // Unhide if re-opening a hidden conv via direct call
+    this._unhideConv(convId);
     this._activeConvId = convId;
 
-    // Update active state in list
     document.querySelectorAll('.chat-conv-item').forEach(el => {
       el.classList.toggle('active', el.dataset.convId === convId);
     });
 
-    // Update header
     this._renderHeader(convId);
-
-    // Attach real-time listener for this conversation
     this._attachListener(convId);
   },
 
@@ -196,11 +289,14 @@ Views.Chat = {
     const header = document.getElementById('chatHeader');
     if (!header) return;
     const info = this._convLabel(convId);
+    const hOtherUserId = !info.isPublic ? convId.split('_').find(x => x !== appState.currentUser.id) : null;
+    const hOtherUser   = hOtherUserId ? appState.users.find(u => u.id === hOtherUserId) : null;
     const avatarContent = info.isPublic
       ? `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>`
-      : Utils.escapeHtml(info.initials || Utils.getInitials(info.name));
+      : Utils.userAvatarHtml(hOtherUser || { name: info.name });
+    const avatarBg = info.isPublic ? '' : (hOtherUser?.photoURL ? 'background:transparent;padding:0;overflow:hidden' : `background:${this._userColor(convId)}`);
     header.innerHTML = `
-      <div class="chat-header-avatar${info.isPublic ? ' chat-header-avatar-public' : ''}">${avatarContent}</div>
+      <div class="chat-header-avatar${info.isPublic ? ' chat-header-avatar-public' : ''}" style="${avatarBg}">${avatarContent}</div>
       <div class="chat-header-info">
         <div class="chat-header-name">${Utils.escapeHtml(info.name)}</div>
         <div class="chat-header-sub">${Utils.escapeHtml(info.sub)}</div>
@@ -221,9 +317,17 @@ Views.Chat = {
       .limitToLast(100)
       .onSnapshot(snap => {
         this._messages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // If a new message arrives in a hidden conv, unhide it
+        const latestMsg = this._messages[this._messages.length - 1];
+        if (latestMsg && latestMsg.senderId !== appState.currentUser.id) {
+          this._unhideConv(convId);
+        }
+
         this._renderMessages();
-        this._markRead();
-        this._computeUnread(snap);
+        this._markRead(convId);
+        // Zero this conv's badge immediately in conv list
+        this._updateConvBadges();
       }, err => {
         console.error('[Chat] listener error:', err);
         if (msgEl) msgEl.innerHTML = `<div class="chat-empty"><div class="chat-empty-title">Failed to load messages.</div><div class="chat-empty-sub">${Utils.escapeHtml(err.message)}</div></div>`;
@@ -234,13 +338,45 @@ Views.Chat = {
     if (this._unsubListener) { this._unsubListener(); this._unsubListener = null; }
   },
 
+  /* ── Delete Individual Message ───────────────────────────── */
+  _confirmDeleteMsg(msgId) {
+    const msg = this._messages.find(m => m.id === msgId);
+    if (!msg) return;
+    const uid    = appState.currentUser.id;
+    const isOwn  = msg.senderId === uid;
+
+    const text = isOwn
+      ? 'Delete this message? It will be removed for everyone in this conversation.'
+      : 'Hide this message from your view?';
+
+    Modals.confirm(text, 'Delete Message?').then(confirmed => {
+      if (!confirmed) return;
+      if (isOwn) {
+        // Hard delete from Firestore — removes for all participants
+        db.collection('chatMessages').doc(msgId).delete()
+          .catch(err => {
+            console.error('[Chat] delete msg error:', err);
+            Toast.error('Failed to delete message.');
+          });
+        // Snapshot listener will re-render automatically
+      } else {
+        // Soft-delete locally for this user only
+        this._hideMsg(msgId);
+        this._renderMessages();
+      }
+    });
+  },
+
   /* ── Render Messages ──────────────────────────────────────── */
   _renderMessages() {
     const el = document.getElementById('chatMessages');
     if (!el) return;
     const uid = appState.currentUser.id;
 
-    if (this._messages.length === 0) {
+    // Filter out locally hidden messages
+    const visible = this._messages.filter(m => !this._isMsgHidden(m.id));
+
+    if (visible.length === 0) {
       el.innerHTML = `
         <div class="chat-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -250,66 +386,96 @@ Views.Chat = {
       return;
     }
 
-    let lastDateSep = null;
+    let lastDateSep  = null;
     let lastSenderId = null;
-    let lastTs = null;
+    let lastTs       = null;
 
-    const html = this._messages.map((msg, idx) => {
+    // For DMs only: find the id of the last own message that has been read by the other party
+    const isDm = this._activeConvId !== 'public';
+    const otherId = isDm
+      ? this._activeConvId.split('_').find(id => id !== uid)
+      : null;
+    // Walk backwards to find the last message sent by me that the other user has read
+    let lastReadByOtherMsgId = null;
+    if (isDm && otherId) {
+      for (let i = visible.length - 1; i >= 0; i--) {
+        const m = visible[i];
+        if (m.senderId === uid && (m.readBy || []).includes(otherId)) {
+          lastReadByOtherMsgId = m.id;
+          break;
+        }
+      }
+    }
+
+    const html = visible.map(msg => {
       const isOwn   = msg.senderId === uid;
       const ts      = msg.createdAt;
       const dateSep = this._fmtDateSep(ts);
       let out = '';
 
-      // Date separator
       if (dateSep && dateSep !== lastDateSep) {
-        lastDateSep = dateSep;
+        lastDateSep  = dateSep;
         out += `<div class="chat-date-sep">${dateSep}</div>`;
-        lastSenderId = null; // reset grouping on date change
+        lastSenderId = null;
       }
 
-      // Group consecutive messages from same sender within 5 min
-      const isSameSender  = msg.senderId === lastSenderId;
-      const tsMs   = ts?.toMillis?.() || 0;
-      const lastMs = lastTs?.toMillis?.() || 0;
-      const within5Min    = tsMs - lastMs < 5 * 60 * 1000;
-      const showAvatar    = !isOwn && (!isSameSender || !within5Min);
-      const showSenderName = !isOwn && showAvatar && this._activeConvId === 'public';
+      const isSameSender = msg.senderId === lastSenderId;
+      const tsMs         = ts?.toMillis?.() || 0;
+      const lastMs       = lastTs?.toMillis?.() || 0;
+      const within5Min   = tsMs - lastMs < 5 * 60 * 1000;
+      const showAvatar   = !isOwn && (!isSameSender || !within5Min);
+      const showName     = !isOwn && showAvatar && this._activeConvId === 'public';
 
       lastSenderId = msg.senderId;
       lastTs       = ts;
 
-      const avatarHtml = isOwn
-        ? ''
+      const senderUser  = appState.users.find(u => u.id === msg.senderId);
+      const senderPhoto = senderUser?.photoURL;
+      const avatarHtml  = isOwn ? ''
         : showAvatar
-          ? `<div class="chat-avatar-sm" style="background:${this._userColor(msg.senderId)}">${Utils.escapeHtml(Utils.getInitials(msg.senderName))}</div>`
+          ? `<div class="chat-avatar-sm" style="${senderPhoto ? 'background:transparent;padding:0;overflow:hidden' : `background:${this._userColor(msg.senderId)}`}">${Utils.userAvatarHtml(senderUser || { name: msg.senderName })}</div>`
           : `<div class="chat-avatar-sm-placeholder"></div>`;
 
-      const senderHtml = showSenderName
-        ? `<span class="chat-bubble-sender">${Utils.escapeHtml(msg.senderName)}</span>`
-        : '';
+      const deleteBtn = `
+        <button class="chat-msg-delete-btn" title="${isOwn ? 'Delete for everyone' : 'Hide message'}"
+                onclick="Views.Chat._confirmDeleteMsg('${msg.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/>
+          </svg>
+        </button>`;
 
-      const timeHtml = `<span class="chat-bubble-time">${this._fmtTime(ts)}</span>`;
+      // Read receipt: show "Seen" only under the last own message the other party has read
+      const showSeen = isDm && isOwn && msg.id === lastReadByOtherMsgId;
+      const seenHtml = showSeen ? `
+        <div class="chat-seen-receipt">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" style="margin-left:-6px"><polyline points="20 6 9 17 4 12"/></svg>
+          Seen
+        </div>` : '';
 
       out += `
         <div class="chat-msg-row chat-msg-row-${isOwn ? 'out' : 'in'}">
           ${avatarHtml}
-          <div class="chat-bubble chat-bubble-${isOwn ? 'out' : 'in'}">
-            ${senderHtml}
-            <p class="chat-bubble-text">${Utils.escapeHtml(msg.text)}</p>
-            ${timeHtml}
+          <div class="chat-msg-wrap">
+            <div class="chat-bubble chat-bubble-${isOwn ? 'out' : 'in'}">
+              ${showName ? `<span class="chat-bubble-sender">${Utils.escapeHtml(msg.senderName)}</span>` : ''}
+              <p class="chat-bubble-text">${Utils.escapeHtml(msg.text)}</p>
+              <span class="chat-bubble-time">${this._fmtTime(ts)}</span>
+            </div>
+            ${deleteBtn}
           </div>
-        </div>`;
+        </div>
+        ${seenHtml}`;
       return out;
     }).join('');
 
     const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     el.innerHTML = html;
-    if (wasAtBottom || this._messages.length <= 5) {
-      el.scrollTop = el.scrollHeight;
-    }
+    if (wasAtBottom || visible.length <= 5) el.scrollTop = el.scrollHeight;
   },
 
-  // Deterministic pastel color per user ID for avatars
   _userColor(uid) {
     const colors = ['#3B82F6','#10B981','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#EC4899','#14B8A6','#F97316','#6366F1'];
     let hash = 0;
@@ -318,28 +484,31 @@ Views.Chat = {
   },
 
   /* ── Mark Read ────────────────────────────────────────────── */
-  _markRead() {
+  _markRead(convId) {
     const uid = appState.currentUser?.id;
     if (!uid) return;
     const unread = this._messages.filter(m => !(m.readBy || []).includes(uid));
     if (!unread.length) return;
-    const batch = db.batch();
-    unread.slice(0, 20).forEach(m => {
-      batch.update(db.collection('chatMessages').doc(m.id), {
-        readBy: firebase.firestore.FieldValue.arrayUnion(uid)
-      });
-    });
-    batch.commit().catch(err => console.warn('[Chat] markRead error:', err));
-  },
 
-  /* ── Unread Counts (per conversation) ────────────────────── */
-  _computeUnread(snap) {
-    // Only update count for conversations OTHER than the active one
-    // (active one is always marked read immediately)
-    // For simplicity, use the ChatBadge global count and set active conv to 0
-    this._unreadCounts[this._activeConvId] = 0;
-    const badge = document.getElementById(`chatBadge_${this._activeConvId}`);
-    if (badge) { badge.textContent = '0'; badge.classList.add('hidden'); }
+    // Optimistically clear this conv from ChatBadge immediately
+    const cleared = ChatBadge._perConv[convId] || 0;
+    if (cleared > 0) {
+      delete ChatBadge._perConv[convId];
+      ChatBadge._total = Math.max(0, ChatBadge._total - cleared);
+      ChatBadge.updateBadge();
+    }
+
+    // Firestore batches are limited to 500 writes — chunk if needed
+    const chunkSize = 400;
+    for (let i = 0; i < unread.length; i += chunkSize) {
+      const batch = db.batch();
+      unread.slice(i, i + chunkSize).forEach(m => {
+        batch.update(db.collection('chatMessages').doc(m.id), {
+          readBy: firebase.firestore.FieldValue.arrayUnion(uid)
+        });
+      });
+      batch.commit().catch(err => console.warn('[Chat] markRead error:', err));
+    }
   },
 
   /* ── Send Message ─────────────────────────────────────────── */
@@ -354,6 +523,8 @@ Views.Chat = {
     if (btn) btn.disabled = true;
 
     try {
+      // Sending to a conv re-shows it for both parties
+      this._unhideConv(this._activeConvId);
       await db.collection('chatMessages').add({
         conversationId: this._activeConvId,
         senderId:       appState.currentUser.id,
@@ -379,10 +550,7 @@ Views.Chat = {
 
     if (input) {
       input.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          this._sendMessage();
-        }
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._sendMessage(); }
       });
       input.addEventListener('input', () => {
         input.style.height = 'auto';

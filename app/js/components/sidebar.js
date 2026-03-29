@@ -150,7 +150,7 @@ const Sidebar = {
 
       <div class="sidebar-footer">
         <div class="sidebar-user">
-          <div class="sidebar-avatar">${user ? Utils.getInitials(user.name) : '?'}</div>
+          <div class="sidebar-avatar" style="${user && user.photoURL ? 'background:transparent;padding:0;overflow:hidden' : ''}">${user ? Utils.userAvatarHtml(user) : '?'}</div>
           <div class="sidebar-user-info">
             <div class="sidebar-user-name">${user ? Utils.escapeHtml(user.name) : 'Guest'}</div>
             <div class="sidebar-user-role">${user ? (CONFIG.ROLES[user.role] || user.role) : ''}</div>

@@ -35,7 +35,15 @@ Views.MyAccount = {
         <!-- LEFT: Avatar + overview -->
         <div class="acc-sidebar">
           <div class="card acc-profile-card">
-            <div class="acc-avatar" id="accAvatarDisplay" style="background:${roleColor}">${initials}</div>
+            <div class="acc-avatar-wrap">
+              <div class="acc-avatar" id="accAvatarDisplay" style="background:${user.photoURL ? 'transparent' : roleColor}">
+                ${Utils.userAvatarHtml(user)}
+              </div>
+              <label class="acc-avatar-edit-btn" for="accPhotoInput" title="Change profile picture">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </label>
+              <input type="file" id="accPhotoInput" accept="image/*" style="display:none">
+            </div>
             <div class="acc-name" id="accNameDisplay">${Utils.escapeHtml(user.name)}</div>
             <div class="acc-role-badge" style="background:${roleColor}22;color:${roleColor}">${Utils.escapeHtml(roleLabel)}</div>
             <div class="acc-email">${Utils.escapeHtml(user.email)}</div>
@@ -177,6 +185,12 @@ Views.MyAccount = {
     this._renderStats(user);
     this._renderRecentActivity(user);
 
+    // Photo upload
+    document.getElementById('accPhotoInput')?.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (file) this._handlePhotoUpload(file);
+    });
+
     // Save profile
     document.getElementById('accSaveProfile')?.addEventListener('click', () => this._saveProfile());
 
@@ -228,6 +242,58 @@ Views.MyAccount = {
     container.innerHTML = rows;
   },
 
+  _handlePhotoUpload(file) {
+    if (!file.type.startsWith('image/')) {
+      Toast.error('Please select a valid image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      Toast.error('Image must be smaller than 5 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = async () => {
+        // Resize to max 256×256 via canvas
+        const size   = 256;
+        const canvas = document.createElement('canvas');
+        canvas.width  = size;
+        canvas.height = size;
+        const ctx    = canvas.getContext('2d');
+        // Cover-crop: centre the image
+        const scale  = Math.max(size / img.width, size / img.height);
+        const sw     = size / scale;
+        const sh     = size / scale;
+        const sx     = (img.width  - sw) / 2;
+        const sy     = (img.height - sh) / 2;
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+        try {
+          const user = appState.currentUser;
+          await Storage.updateUser(user.id, { photoURL: dataUrl });
+          appState.currentUser = { ...user, photoURL: dataUrl };
+
+          // Update avatar display
+          const avatarEl = document.getElementById('accAvatarDisplay');
+          if (avatarEl) {
+            avatarEl.style.background = 'transparent';
+            avatarEl.innerHTML = Utils.userAvatarHtml(appState.currentUser);
+          }
+          Sidebar.render();
+          Toast.success('Profile picture updated.');
+        } catch (err) {
+          console.error('[MyAccount] photo upload error:', err);
+          Toast.error('Failed to save profile picture.');
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
   async _saveProfile() {
     const btn     = document.getElementById('accSaveProfile');
     const msgEl   = document.getElementById('accProfileMsg');
@@ -249,8 +315,11 @@ Views.MyAccount = {
       // Update avatar and name displays
       const avatarEl = document.getElementById('accAvatarDisplay');
       const nameEl   = document.getElementById('accNameDisplay');
-      if (avatarEl) avatarEl.textContent = Utils.getInitials(nameVal);
-      if (nameEl)   nameEl.textContent   = nameVal;
+      if (avatarEl) {
+        avatarEl.style.background = appState.currentUser.photoURL ? 'transparent' : roleColor;
+        avatarEl.innerHTML = Utils.userAvatarHtml(appState.currentUser);
+      }
+      if (nameEl) nameEl.textContent = nameVal;
       // Re-render sidebar to update avatar
       Sidebar.render();
       this._showMsg(msgEl, 'Profile updated successfully.', 'success');

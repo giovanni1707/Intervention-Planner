@@ -119,6 +119,18 @@ const Utils = {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   },
 
+  // ── USER AVATAR HTML ──────────────────────────────────────
+  // Returns either an <img> (if user has photoURL) or initials text,
+  // wrapped in no extra element — caller provides the container.
+  // usage: containerEl.innerHTML = Utils.userAvatarHtml(user)
+  userAvatarHtml(user, opts = {}) {
+    if (user && user.photoURL) {
+      return `<img src="${user.photoURL}" alt="${this.escapeHtml(user.name || '')}"
+                   style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">`;
+    }
+    return this.escapeHtml(this.getInitials(user ? user.name : ''));
+  },
+
   // ── TRUNCATE ──────────────────────────────────────────────
   truncate(str, len = 50) {
     if (!str) return '';
