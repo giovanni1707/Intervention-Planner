@@ -1062,6 +1062,8 @@ Views.Interventions = {
   },
 
   _setPmcOptionDisabled(disabled) {
+    // In PMC-dedicated modal mode, never disable or change the PMC type
+    if (this._pmcModalMode) return;
     const typeEl = document.getElementById('fIntType');
     if (!typeEl) return;
     const pmcOpt = typeEl.querySelector('option[value="pmc"]');
@@ -1117,6 +1119,33 @@ Views.Interventions = {
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitCreate()">Add Machine</button>
     `, { size: 'lg', onClose: () => Views.Interventions._saveCreateDraft(), onOpen: () => { Views.Interventions._initLocationAutocomplete('fNewMachineDistrict'); Views.Interventions._updateCoverageBanner(); } });
+  },
+
+  // PMC-specific creation modal — forces type to 'pmc', hides type selector, shows contract fields
+  _openPmcCreateModal() {
+    this._pmcModalMode = true;
+    const draft = { type: 'pmc' };
+    Modals.open('Add PMC Intervention', this._interventionFormHTML(draft), `
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="Views.Interventions._submitCreate()">Create PMC</button>
+    `, { size: 'lg',
+      onClose: () => { this._pmcModalMode = false; },
+      onOpen: () => {
+        // Force type to PMC and hide type row
+        const typeEl = document.getElementById('fIntType');
+        if (typeEl) {
+          typeEl.value = 'pmc';
+          const typeRow = typeEl.closest('.form-row');
+          if (typeRow) typeRow.style.display = 'none';
+        }
+        // Show PMC fields
+        const pmcFields = document.getElementById('fPmcFields');
+        if (pmcFields) pmcFields.style.display = '';
+        Views.Interventions._initLocationAutocomplete('fNewMachineDistrict');
+        Views.Interventions._updateCoverageBanner();
+      }
+    });
   },
 
   _saveCreateDraft() {

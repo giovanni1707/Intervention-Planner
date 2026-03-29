@@ -522,6 +522,11 @@ Views.MaintenanceContracts = {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export CSV
             </button>
+            ${isAdmin ? `
+            <button class="btn btn-primary btn-sm" onclick="Views.Interventions._openPmcCreateModal()" style="display:flex;align-items:center;gap:6px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add PMC
+            </button>` : ''}
           </div>
         </div>
         <!-- Filters bar -->
@@ -869,6 +874,10 @@ Views.MaintenanceContracts = {
         <label class="form-label">Notes</label>
         <textarea id="mcNotes" class="form-input" rows="2" placeholder="Optional notes..."></textarea>
       </div>
+      <div id="mcDuplicateWarn" style="display:none;align-items:flex-start;gap:8px;padding:8px 10px;background:#FFF7ED;border:1px solid #FDBA74;border-radius:var(--radius-sm);margin-bottom:8px;font-size:0.82rem;color:#92400E">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" width="15" height="15" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span></span>
+      </div>
       <div id="mcError" class="error-msg hidden"></div>
     `;
 
@@ -898,12 +907,31 @@ Views.MaintenanceContracts = {
       if (m && !serial.value) serial.value = m.serialNumber || '';
     }
 
-    // Also listen for machine change to update serial
+    // Also listen for machine change to update serial and show duplicate warning
+    const _checkDuplicate = (machineId) => {
+      const warn = document.getElementById('mcDuplicateWarn');
+      if (!warn) return;
+      const t = new Date(); t.setHours(0,0,0,0);
+      const dup = appState.maintenanceContracts.find(c => {
+        if (c.machineId !== machineId) return false;
+        return t <= new Date(c.endDate + 'T23:59:59');
+      });
+      if (dup) {
+        const st = new Date(dup.startDate) > t ? 'upcoming' : 'active';
+        warn.style.display = 'flex';
+        warn.querySelector('span').textContent = `This machine already has an ${st} contract (${Utils.formatDate(dup.startDate)} → ${Utils.formatDate(dup.endDate)}).`;
+      } else {
+        warn.style.display = 'none';
+      }
+    };
     machSel.addEventListener('change', () => {
       const m = appState.machines.find(m => m.id === machSel.value);
       const s = document.getElementById('mcSerial') || document.getElementById('ecSerial');
       if (m && s) s.value = m.serialNumber || '';
+      _checkDuplicate(machSel.value);
     });
+    // Check on initial load if machine pre-selected
+    if (machSel.value) _checkDuplicate(machSel.value);
   },
 
   async _submitCreate() {
@@ -923,15 +951,29 @@ Views.MaintenanceContracts = {
     if (!endDate)    return showErr('End date is required.');
     if (new Date(endDate) <= new Date(startDate)) return showErr('End date must be after start date.');
 
+    // Duplicate contract warning
+    const today2 = new Date(); today2.setHours(0,0,0,0);
+    const duplicate = appState.maintenanceContracts.find(c => {
+      if (c.machineId !== machineId) return false;
+      const s = new Date(c.startDate + 'T00:00:00');
+      const e = new Date(c.endDate   + 'T23:59:59');
+      return today2 <= e; // active or upcoming
+    });
+    if (duplicate) {
+      const dupStatus = new Date(duplicate.startDate) > today2 ? 'upcoming' : 'active';
+      return showErr(`This machine already has an ${dupStatus} contract (${Utils.formatDate(duplicate.startDate)} → ${Utils.formatDate(duplicate.endDate)}). Please check before creating a duplicate.`);
+    }
+
     const schedule = this._generateSchedule(startDate, endDate, visitsPerYear);
 
-    await Storage.createMaintenanceContract({
+    const newContract = await Storage.createMaintenanceContract({
       clientId, machineId,
       serialNumber: serial,
       startDate, endDate,
       visitsPerYear,
       schedule,
       completedVisits: [],
+      auditLog: [{ action: 'Contract created', by: appState.currentUser?.name || 'Admin', at: new Date().toISOString() }],
       notes,
       createdBy: appState.currentUser?.name || 'Admin'
     });
@@ -1013,6 +1055,7 @@ Views.MaintenanceContracts = {
       serialNumber: contract.serialNumber,
       startDate, endDate, visitsPerYear, schedule,
       completedVisits: [],
+      auditLog: [{ action: `Contract renewed (previous: ${Utils.formatDate(contract.startDate)} → ${Utils.formatDate(contract.endDate)})`, by: appState.currentUser?.name || 'Admin', at: new Date().toISOString() }],
       notes,
       createdBy: appState.currentUser?.name || 'Admin'
     });
@@ -1126,6 +1169,7 @@ Views.MaintenanceContracts = {
       completedVisits: preserved,
       notes
     });
+    await this._appendAudit(contractId, 'Contract details edited');
 
     Modals.close();
     Toast.success('Contract updated.');
@@ -1326,6 +1370,93 @@ Views.MaintenanceContracts = {
 
     const tab = activeTab || 'overview';
 
+    // ── Gantt timeline ──
+    const contractStart = new Date(contract.startDate + 'T00:00:00');
+    const contractEnd   = new Date(contract.endDate   + 'T23:59:59');
+    const totalMs       = contractEnd - contractStart;
+    const today         = new Date(); today.setHours(0,0,0,0);
+    const todayPct      = Math.min(100, Math.max(0, Math.round(((today - contractStart) / totalMs) * 100)));
+    const ganttDots     = (contract.schedule || []).map(date => {
+      const isCompleted = (contract.completedVisits || []).includes(date);
+      const d           = new Date(date + 'T00:00:00');
+      const pct         = Math.min(100, Math.max(0, Math.round(((d - contractStart) / totalMs) * 100)));
+      const isOverdue   = d < today && !isCompleted;
+      const color       = isCompleted ? '#10B981' : isOverdue ? 'var(--red)' : 'var(--gray-400)';
+      const label       = isCompleted ? 'Completed' : isOverdue ? 'Overdue' : 'Upcoming';
+      return `<div title="${Utils.formatDate(date)} — ${label}"
+        style="position:absolute;left:${pct}%;top:50%;transform:translate(-50%,-50%);
+               width:13px;height:13px;border-radius:50%;background:${color};
+               border:2px solid white;box-shadow:0 0 0 1px ${color};cursor:default;z-index:2"></div>`;
+    }).join('');
+    const ganttHTML = `
+      <div style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:0.8rem;font-weight:600;color:var(--gray-600)">Visit Timeline</span>
+          <span style="font-size:0.75rem;color:var(--gray-400)">${Utils.formatDate(contract.startDate)} → ${Utils.formatDate(contract.endDate)}</span>
+        </div>
+        <div style="position:relative;height:24px;background:var(--gray-200);border-radius:6px;overflow:visible">
+          <!-- elapsed fill -->
+          <div style="position:absolute;left:0;top:0;height:100%;width:${todayPct}%;background:var(--gray-300);border-radius:6px;opacity:0.5"></div>
+          <!-- today marker -->
+          ${todayPct > 0 && todayPct < 100 ? `<div title="Today" style="position:absolute;left:${todayPct}%;top:-3px;bottom:-3px;width:2px;background:var(--blue);border-radius:2px;z-index:3"></div>` : ''}
+          ${ganttDots}
+        </div>
+        <div style="display:flex;gap:12px;margin-top:8px;font-size:0.72rem;color:var(--gray-500)">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#10B981;display:inline-block"></span>Completed</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:var(--red);display:inline-block"></span>Overdue</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:var(--gray-400);display:inline-block"></span>Upcoming</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:2px;height:10px;background:var(--blue);display:inline-block"></span>Today</span>
+        </div>
+      </div>`;
+
+    // ── Technician assignment overview ──
+    const techMap = {};
+    (contract.schedule || []).forEach((date, idx) => {
+      const linked = allInterventions.find(i =>
+        i.type === 'pmc' && i.maintenanceContractId === contract.id && i.maintenanceVisitIndex === idx && !['cancelled'].includes(i.status)
+      ) || allInterventions.find(i =>
+        i.type === 'pmc' && i.machineId === contract.machineId && i.scheduledDate === date && !['cancelled'].includes(i.status)
+      );
+      if (linked) {
+        Utils.getTechIds(linked).forEach(tid => {
+          const user = appState.users.find(u => u.id === tid);
+          if (!user) return;
+          if (!techMap[tid]) techMap[tid] = { name: user.name, visits: [], completed: 0 };
+          const isCompleted = (contract.completedVisits || []).includes(date);
+          techMap[tid].visits.push({ date, isCompleted });
+          if (isCompleted) techMap[tid].completed++;
+        });
+      }
+    });
+    const techEntries = Object.values(techMap);
+    const techOverviewHTML = techEntries.length ? `
+      <div class="detail-section" style="margin-top:0">
+        <div class="detail-section-label">Technician Assignment</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${techEntries.map(t => `
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--gray-50);border-radius:var(--radius-sm);border:1px solid var(--gray-200)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0;color:var(--gray-400)"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span style="font-weight:600;font-size:0.857rem;flex:1">${Utils.escapeHtml(t.name)}</span>
+              <span style="font-size:0.78rem;color:var(--gray-500)">${t.visits.length} visit${t.visits.length !== 1 ? 's' : ''} assigned</span>
+              <span style="font-size:0.78rem;font-weight:600;color:#059669">${t.completed} completed</span>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+
+    // ── Audit log ──
+    const auditLog = [...(contract.auditLog || [])].sort((a, b) => new Date(b.at) - new Date(a.at));
+    const auditHTML = auditLog.length ? auditLog.map(entry => `
+      <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+        <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--gray-100);display:flex;align-items:center;justify-content:center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:0.82rem;color:var(--gray-800)">${Utils.escapeHtml(entry.action)}</div>
+          <div style="font-size:0.75rem;color:var(--gray-400);margin-top:2px">${Utils.escapeHtml(entry.by)} &middot; ${Utils.formatDateTime(entry.at)}</div>
+        </div>
+      </div>`).join('')
+    : `<div style="color:var(--gray-400);font-size:0.857rem;padding:12px 0">No history recorded yet.</div>`;
+
     // ── Related active non-PMC interventions banner ──
     const _modalSerial = (contract.serialNumber || machine?.serialNumber || '').trim().toLowerCase();
     const FINAL_STATUSES = ['completed', 'cancelled'];
@@ -1386,6 +1517,11 @@ Views.MaintenanceContracts = {
           id="cdTab_parts"
           style="padding:9px 18px;border:none;background:none;cursor:pointer;font-size:0.857rem;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;color:${tab==='parts'?'var(--primary)':'var(--gray-500)'}; border-bottom-color:${tab==='parts'?'var(--primary)':'transparent'}">
           Spare Parts${partsAlertBadge}
+        </button>
+        <button onclick="Views.MaintenanceContracts._switchDetailTab('${contractId}','history')"
+          id="cdTab_history"
+          style="padding:9px 18px;border:none;background:none;cursor:pointer;font-size:0.857rem;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;color:${tab==='history'?'var(--primary)':'var(--gray-500)'}; border-bottom-color:${tab==='history'?'var(--primary)':'transparent'}">
+          History${auditLog.length ? `<span style="margin-left:5px;background:var(--gray-200);color:var(--gray-600);border-radius:999px;padding:1px 7px;font-size:0.72rem;font-weight:700">${auditLog.length}</span>` : ''}
         </button>
       </div>
 
@@ -1489,8 +1625,10 @@ Views.MaintenanceContracts = {
             <div style="background:var(--gray-200);border-radius:6px;height:8px">
               <div style="width:${progPct}%;background:${progColor};height:8px;border-radius:6px;transition:width 0.3s"></div>
             </div>
+            ${ganttHTML}
           </div>
         </div>
+        ${techOverviewHTML}
       </div>
 
       <!-- Visit Schedule Tab -->
@@ -1520,6 +1658,14 @@ Views.MaintenanceContracts = {
       <div id="cdPanel_parts" style="display:${tab==='parts'?'block':'none'}">
         ${sparePartsContent}
       </div>
+
+      <!-- History Tab -->
+      <div id="cdPanel_history" style="display:${tab==='history'?'block':'none'}">
+        <div class="detail-section">
+          <div class="detail-section-label">Contract History</div>
+          <div style="max-height:380px;overflow-y:auto">${auditHTML}</div>
+        </div>
+      </div>
     `;
 
     const footer = `
@@ -1530,7 +1676,7 @@ Views.MaintenanceContracts = {
   },
 
   _switchDetailTab(contractId, tab) {
-    ['overview','schedule','parts'].forEach(t => {
+    ['overview','schedule','parts','history'].forEach(t => {
       const panel = document.getElementById(`cdPanel_${t}`);
       const btn   = document.getElementById(`cdTab_${t}`);
       if (!panel || !btn) return;
@@ -2178,12 +2324,21 @@ Views.MaintenanceContracts = {
   },
 
   /* ── VISIT COMPLETION ────────────────────────────────────── */
+  async _appendAudit(contractId, action) {
+    const contract = appState.maintenanceContracts.find(c => c.id === contractId);
+    if (!contract) return;
+    const entry  = { action, by: appState.currentUser?.name || 'System', at: new Date().toISOString() };
+    const log    = [...(contract.auditLog || []), entry];
+    await Storage.updateMaintenanceContract(contractId, { auditLog: log });
+  },
+
   async _markVisitDone(contractId, date) {
     const contract = appState.maintenanceContracts.find(c => c.id === contractId);
     if (!contract) return;
     const completed = [...(contract.completedVisits || [])];
     if (!completed.includes(date)) completed.push(date);
     await Storage.updateMaintenanceContract(contractId, { completedVisits: completed });
+    await this._appendAudit(contractId, `Visit on ${Utils.formatDate(date)} marked as completed`);
     Toast.success(`Visit on ${Utils.formatDate(date)} marked as completed.`);
     // Refresh the detail modal in place
     Modals.close();
@@ -2199,6 +2354,7 @@ Views.MaintenanceContracts = {
     if (!contract) return;
     const completed = (contract.completedVisits || []).filter(d => d !== date);
     await Storage.updateMaintenanceContract(contractId, { completedVisits: completed });
+    await this._appendAudit(contractId, `Visit on ${Utils.formatDate(date)} marked as pending`);
     Toast.success(`Visit on ${Utils.formatDate(date)} marked as pending.`);
     Modals.close();
     setTimeout(() => this.openDetailModal(contractId), 80);
