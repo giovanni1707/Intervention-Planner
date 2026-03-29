@@ -4424,3 +4424,8 @@ body.dark-mode #detailPmcBanner [data-banner="upcoming"] {
   border-color: #1E3A8A !important;
 }
 
+body.dark-mode [data-banner="related-interventions"] {
+  background: #2D1E0E !important;
+  border-color: #92400E !important;
+}
+

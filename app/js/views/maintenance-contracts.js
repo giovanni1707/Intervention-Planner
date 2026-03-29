@@ -110,6 +110,27 @@ Views.MaintenanceContracts = {
         const progBucket = progPct >= 80 ? 'high' : progPct >= 40 ? 'mid' : 'low';
         const assignedBucket = assigned >= total && total > 0 ? 'full' : assigned > 0 ? 'partial' : 'none';
 
+        // Active non-PMC interventions linked by serial number (fallback to machineId)
+        const _contractSerial = (contract.serialNumber || machine?.serialNumber || '').trim().toLowerCase();
+        const _activeNonPmc = allInterventions.filter(i => {
+          if (i.type === 'pmc') return false;
+          if (['completed', 'cancelled'].includes(i.status)) return false;
+          const iMachine = machines.find(m => m.id === i.machineId);
+          if (!iMachine) return false;
+          // Match by serial number if available, otherwise fall back to same machineId
+          const iSerial = (iMachine.serialNumber || '').trim().toLowerCase();
+          if (_contractSerial && iSerial) return iSerial === _contractSerial;
+          return machine && i.machineId === machine.id;
+        });
+        const activeNonPmcCell = _activeNonPmc.length
+          ? `<span title="${_activeNonPmc.length} active non-PMC intervention${_activeNonPmc.length !== 1 ? 's' : ''}"
+               style="display:inline-flex;align-items:center;gap:4px;background:#FFF7ED;color:#B45309;border:1px solid #FDBA74;border-radius:999px;padding:2px 8px;font-size:0.72rem;font-weight:700;white-space:nowrap;cursor:pointer"
+               onclick="Views.MaintenanceContracts.openDetailModal('${contract.id}')">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+               ${_activeNonPmc.length}
+             </span>`
+          : '<span style="color:var(--gray-300);font-size:0.75rem">—</span>';
+
         return `<tr data-job="${Utils.escapeHtml((machine?.jobNumber || '').toLowerCase())}"
                     data-district="${Utils.escapeHtml((machine?.district || '').toLowerCase())}"
                     data-client="${Utils.escapeHtml((client?.id || '').toLowerCase())}"
@@ -137,6 +158,7 @@ Views.MaintenanceContracts = {
           <td style="font-size:0.857rem">${Utils.formatDate(contract.startDate)}</td>
           <td style="font-size:0.857rem">${Utils.formatDate(contract.endDate)}</td>
           <td>${this._statusBadge(status)}</td>
+          <td style="text-align:center">${activeNonPmcCell}</td>
           <td>
             <div style="display:flex;gap:6px;justify-content:flex-end">
               <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick="Views.MaintenanceContracts.openDetailModal('${contract.id}')">
@@ -167,6 +189,7 @@ Views.MaintenanceContracts = {
         ${this._thHTML('start',    'Start')}
         ${this._thHTML('end',      'End')}
         ${this._thHTML('status',   'Status')}
+        <th style="text-align:center" title="Active non-PMC interventions linked to this machine">Active Int.</th>
         <th style="text-align:right">Actions</th>
       `;
     }
@@ -342,6 +365,25 @@ Views.MaintenanceContracts = {
       const progBucket = progPct >= 80 ? 'high' : progPct >= 40 ? 'mid' : 'low';
       const assignedBucket = assigned >= total && total > 0 ? 'full' : assigned > 0 ? 'partial' : 'none';
 
+      const _contractSerial2 = (contract.serialNumber || machine?.serialNumber || '').trim().toLowerCase();
+      const _activeNonPmc2 = appState.interventions.filter(i => {
+        if (i.type === 'pmc') return false;
+        if (['completed', 'cancelled'].includes(i.status)) return false;
+        const iMachine = machines.find(m => m.id === i.machineId);
+        if (!iMachine) return false;
+        const iSerial = (iMachine.serialNumber || '').trim().toLowerCase();
+        if (_contractSerial2 && iSerial) return iSerial === _contractSerial2;
+        return machine && i.machineId === machine.id;
+      });
+      const _activeNonPmcCell2 = _activeNonPmc2.length
+        ? `<span title="${_activeNonPmc2.length} active non-PMC intervention${_activeNonPmc2.length !== 1 ? 's' : ''}"
+             style="display:inline-flex;align-items:center;gap:4px;background:#FFF7ED;color:#B45309;border:1px solid #FDBA74;border-radius:999px;padding:2px 8px;font-size:0.72rem;font-weight:700;white-space:nowrap;cursor:pointer"
+             onclick="Views.MaintenanceContracts.openDetailModal('${contract.id}')">
+             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+             ${_activeNonPmc2.length}
+           </span>`
+        : '<span style="color:var(--gray-300);font-size:0.75rem">—</span>';
+
       return `
         <tr data-job="${Utils.escapeHtml((machine?.jobNumber || '').toLowerCase())}"
             data-district="${Utils.escapeHtml((machine?.district || '').toLowerCase())}"
@@ -383,6 +425,7 @@ Views.MaintenanceContracts = {
           <td style="font-size:0.857rem">${Utils.formatDate(contract.startDate)}</td>
           <td style="font-size:0.857rem">${Utils.formatDate(contract.endDate)}</td>
           <td>${this._statusBadge(status)}</td>
+          <td style="text-align:center">${_activeNonPmcCell2}</td>
           <td>
             <div style="display:flex;gap:6px;justify-content:flex-end">
               <button class="btn btn-ghost btn-sm btn-icon" title="View Details"
@@ -401,7 +444,7 @@ Views.MaintenanceContracts = {
     };
 
     const rows = contracts.length === 0 ? `
-      <tr><td colspan="13">
+      <tr><td colspan="14">
         <div class="table-empty">
           <p class="table-empty-text">No maintenance contracts found</p>
           ${isAdmin ? `<p style="font-size:0.8rem;color:var(--gray-400);margin-top:4px">Click "Add Contract" to register the first one.</p>` : ''}
@@ -520,6 +563,7 @@ Views.MaintenanceContracts = {
                   ${this._thHTML('start',    'Start')}
                   ${this._thHTML('end',      'End')}
                   ${this._thHTML('status',   'Status')}
+                  <th style="text-align:center" title="Active non-PMC interventions linked to this machine">Active Int.</th>
                   <th style="text-align:right">Actions</th>
                 </tr>
               </thead>
@@ -1170,6 +1214,49 @@ Views.MaintenanceContracts = {
 
     const tab = activeTab || 'overview';
 
+    // ── Related active non-PMC interventions banner ──
+    const _modalSerial = (contract.serialNumber || machine?.serialNumber || '').trim().toLowerCase();
+    const FINAL_STATUSES = ['completed', 'cancelled'];
+    const relatedInterventions = appState.interventions.filter(i => {
+      if (i.type === 'pmc') return false;
+      if (FINAL_STATUSES.includes(i.status)) return false;
+      const iMachine = appState.machines.find(m => m.id === i.machineId);
+      if (!iMachine) return false;
+      const iSerial = (iMachine.serialNumber || '').trim().toLowerCase();
+      if (_modalSerial && iSerial) return iSerial === _modalSerial;
+      return machine && i.machineId === machine.id;
+    });
+    let relatedBannerHTML = '';
+    if (relatedInterventions.length) {
+      const typeLabel = i => CONFIG.INTERVENTION_TYPES[i.type] || i.type;
+      const statusCfg = i => CONFIG.STATUSES[i.status] || { label: i.status, color: 'badge-gray' };
+      const rows = relatedInterventions.map(i => `
+        <div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #FED7AA">
+          <div style="flex:1;font-size:0.8rem">
+            <span style="font-weight:600;color:#92400E">${Utils.escapeHtml(typeLabel(i))}</span>
+            <span style="margin-left:8px"><span class="badge ${statusCfg(i).color}" style="font-size:0.7rem">${Utils.escapeHtml(statusCfg(i).label)}</span></span>
+            ${i.scheduledDate ? `<span style="color:#B45309;margin-left:8px;font-size:0.75rem">${Utils.formatDate(i.scheduledDate)}</span>` : ''}
+            ${i.description ? `<div style="color:#92400E;font-size:0.75rem;margin-top:1px;opacity:0.8">${Utils.escapeHtml(i.description.slice(0, 80))}${i.description.length > 80 ? '…' : ''}</div>` : ''}
+          </div>
+          <button title="View intervention details"
+            onclick="Modals.close();setTimeout(()=>Views.Interventions.openDetailModal('${i.id}'),80)"
+            style="flex-shrink:0;background:none;border:none;cursor:pointer;padding:3px;border-radius:var(--radius-sm);display:flex;align-items:center;color:#B45309;opacity:0.8"
+            onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>`).join('');
+      relatedBannerHTML = `
+        <div data-banner="related-interventions" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:#FFF7ED;border:1px solid #FDBA74;border-radius:var(--radius-sm);margin-bottom:16px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" width="16" height="16" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div style="flex:1">
+            <div style="font-weight:700;color:#92400E;font-size:0.82rem;margin-bottom:6px">
+              ${relatedInterventions.length} active intervention${relatedInterventions.length !== 1 ? 's' : ''} linked to this machine
+            </div>
+            ${rows}
+          </div>
+        </div>`;
+    }
+
     const body = `
       <!-- Tab Bar -->
       <div id="contractDetailTabs" style="display:flex;gap:0;border-bottom:2px solid var(--gray-200);margin-bottom:20px">
@@ -1192,6 +1279,7 @@ Views.MaintenanceContracts = {
 
       <!-- Overview Tab -->
       <div id="cdPanel_overview" style="display:${tab==='overview'?'block':'none'}">
+        ${relatedBannerHTML}
         <div class="detail-section">
           <div class="detail-section-label">Contract Details</div>
           <div class="detail-grid">
