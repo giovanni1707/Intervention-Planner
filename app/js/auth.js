@@ -10,6 +10,17 @@ const Auth = {
    */
   async login(email, password) {
     try {
+      // Apply session persistence preference before signing in
+      const sessionMode = (() => {
+        try {
+          const s = JSON.parse(localStorage.getItem('bps_settings'));
+          return (s && s.sessionPersistence === 'session')
+            ? firebase.auth.Auth.Persistence.SESSION
+            : firebase.auth.Auth.Persistence.LOCAL;
+        } catch { return firebase.auth.Auth.Persistence.LOCAL; }
+      })();
+      await fbAuth.setPersistence(sessionMode);
+
       const cred = await fbAuth.signInWithEmailAndPassword(
         email.toLowerCase().trim(),
         password

@@ -14,7 +14,8 @@ const Settings = {
     sidebarTheme: 'navy',
     pageSize: 20,
     autoRefresh: false,
-    brightness: 100
+    brightness: 100,
+    sessionPersistence: 'local'
   },
 
   _pageSizeOptions: [10, 20, 50, 100],
@@ -276,6 +277,45 @@ const Settings = {
           </div>
         </div>
 
+        <!-- Card 7: Session Persistence -->
+        <div class="setting-card">
+          <div class="setting-card-title">Session Persistence</div>
+          <div class="setting-card-desc">Control whether your login session is preserved when you close the browser tab.</div>
+          <div class="toggle-row" style="margin-top:14px">
+            <div class="toggle-label">
+              Stay Logged In
+              <small id="sessionPersistenceHint">${s.sessionPersistence === 'local'
+                ? 'Session is restored automatically when you reopen the app'
+                : 'Session ends when you close the tab — each tab is independent'
+              }</small>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="sessionPersistenceToggle" ${s.sessionPersistence === 'local' ? 'checked' : ''}
+                     onchange="Settings._setSessionPersistence(this.checked ? 'local' : 'session')">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div style="margin-top:12px;padding:10px 12px;border-radius:var(--radius-sm);font-size:0.786rem;display:flex;align-items:flex-start;gap:8px;
+               ${s.sessionPersistence === 'local'
+                 ? 'background:#ECFDF5;border:1px solid #6EE7B7;color:#065F46'
+                 : 'background:#FFF7ED;border:1px solid #FDBA74;color:#92400E'}"
+               id="sessionPersistenceBanner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0;margin-top:1px">
+              ${s.sessionPersistence === 'local'
+                ? '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+                : '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><line x1="17" y1="3" x2="17" y2="7"/>'}
+            </svg>
+            <span id="sessionPersistenceStatus">
+              ${s.sessionPersistence === 'local'
+                ? '<strong>Stay Logged In</strong> — Opening the app in a new tab or after closing will automatically restore your session.'
+                : '<strong>Session Per Tab</strong> — Closing this tab will log you out. Each tab requires a separate login.'}
+            </span>
+          </div>
+          <div style="margin-top:10px;font-size:0.75rem;color:var(--gray-400)">
+            Takes effect on your next login.
+          </div>
+        </div>
+
       </div>
 
       <!-- Reset -->
@@ -380,6 +420,99 @@ const Settings = {
       indicator.textContent = enabled ? 'Active — refreshes every 5 minutes' : 'Off';
       indicator.style.color  = enabled ? 'var(--green)' : 'var(--gray-400)';
     }
+  },
+
+  _setSessionPersistence(mode) {
+    // Revert the toggle visually — change only applied after password confirmation
+    const toggle = document.getElementById('sessionPersistenceToggle');
+    if (toggle) toggle.checked = !toggle.checked;
+
+    // Open password confirmation modal
+    const body = `
+      <div style="margin-bottom:14px;padding:10px 14px;background:#FFF7ED;border:1px solid #FDBA74;border-radius:var(--radius-sm);display:flex;align-items:flex-start;gap:8px;font-size:0.857rem;color:#92400E">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0;margin-top:1px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Changing your session setting requires password confirmation.
+      </div>
+      <div class="form-group">
+        <label class="form-label">Current Password <span class="required">*</span></label>
+        <input type="password" id="sessionPwdInput" class="form-input" placeholder="Enter your password" autocomplete="current-password">
+      </div>
+      <div id="sessionPwdError" class="error-msg hidden"></div>
+    `;
+    const footer = `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-primary" id="sessionPwdConfirmBtn" onclick="Settings._confirmSessionPersistence('${mode}')">Confirm</button>
+    `;
+    Modals.open('Confirm Password', body, footer, {
+      onOpen: () => {
+        const input = document.getElementById('sessionPwdInput');
+        if (input) {
+          input.focus();
+          input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') Settings._confirmSessionPersistence(mode);
+          });
+        }
+      }
+    });
+  },
+
+  async _confirmSessionPersistence(mode) {
+    const input  = document.getElementById('sessionPwdInput');
+    const errEl  = document.getElementById('sessionPwdError');
+    const btn    = document.getElementById('sessionPwdConfirmBtn');
+    const password = input?.value;
+
+    if (!password) {
+      if (errEl) { errEl.textContent = 'Please enter your password.'; errEl.classList.remove('hidden'); }
+      return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying…'; }
+    if (errEl) errEl.classList.add('hidden');
+
+    try {
+      const email = appState.currentUser?.email;
+      await fbAuth.signInWithEmailAndPassword(email, password);
+    } catch (err) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirm'; }
+      if (errEl) {
+        errEl.textContent = 'Incorrect password. Please try again.';
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // Password verified — apply the change
+    Modals.close();
+    this.save({ sessionPersistence: mode });
+    const isLocal = mode === 'local';
+
+    const toggle = document.getElementById('sessionPersistenceToggle');
+    if (toggle) toggle.checked = isLocal;
+
+    const hint = document.getElementById('sessionPersistenceHint');
+    if (hint) hint.textContent = isLocal
+      ? 'Session is restored automatically when you reopen the app'
+      : 'Session ends when you close the tab — each tab is independent';
+
+    const banner = document.getElementById('sessionPersistenceBanner');
+    if (banner) {
+      banner.style.background   = isLocal ? '#ECFDF5' : '#FFF7ED';
+      banner.style.borderColor  = isLocal ? '#6EE7B7' : '#FDBA74';
+      banner.style.color        = isLocal ? '#065F46' : '#92400E';
+    }
+
+    const status = document.getElementById('sessionPersistenceStatus');
+    if (status) status.innerHTML = isLocal
+      ? '<strong>Stay Logged In</strong> — Opening the app in a new tab or after closing will automatically restore your session.'
+      : '<strong>Session Per Tab</strong> — Closing this tab will log you out. Each tab requires a separate login.';
+
+    const svg = banner?.querySelector('svg');
+    if (svg) svg.innerHTML = isLocal
+      ? '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+      : '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><line x1="17" y1="3" x2="17" y2="7"/>';
+
+    Toast.success(`Session mode updated to "${isLocal ? 'Stay Logged In' : 'Session Per Tab'}". Takes effect on next login.`);
   },
 
   _confirmReset() {
