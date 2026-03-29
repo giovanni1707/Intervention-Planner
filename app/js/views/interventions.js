@@ -656,7 +656,7 @@ Views.Interventions = {
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Location Address <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
+          <label class="form-label">Location Address <span class="required">*</span></label>
           <div class="loc-ac-wrap" id="fIntLocationAddressWrap">
             <input type="text" id="fIntLocationAddress" class="form-input" value="${Utils.escapeHtml(intervention.locationAddress ?? '')}" placeholder="Type to search locations…" autocomplete="off">
             <div class="loc-ac-dropdown hidden" id="fIntLocationAddressDropdown"></div>
@@ -1198,10 +1198,13 @@ Views.Interventions = {
 
     const description = document.getElementById('fIntDesc')?.value.trim();
 
-    if (!model)       { Toast.error('Machine model is required'); return; }
-    if (!serial)      { Toast.error('Serial number is required'); return; }
-    if (!clientId)    { Toast.error('Please select a client for the machine'); return; }
-    if (!description) { Toast.error('Description is required'); return; }
+    const locationAddress = document.getElementById('fIntLocationAddress')?.value.trim();
+
+    if (!model)           { Toast.error('Machine model is required'); return; }
+    if (!serial)          { Toast.error('Serial number is required'); return; }
+    if (!clientId)        { Toast.error('Please select a client for the machine'); return; }
+    if (!locationAddress) { Toast.error('Location address is required'); return; }
+    if (!description)     { Toast.error('Description is required'); return; }
 
     // If type is PMC, validate and collect contract fields
     if (type === 'pmc') {
@@ -1212,7 +1215,7 @@ Views.Interventions = {
     const newMachine = await Storage.createMachine({
       name: machineName, model, serialNumber: serial, clientId,
       type:     document.getElementById('fNewMachineType')?.value || '',
-      location: document.getElementById('fNewMachineLocation')?.value.trim() || '',
+      location: locationAddress,
       district: document.getElementById('fNewMachineDistrict')?.value || '',
     });
     const machineId = newMachine.id;
@@ -1248,7 +1251,7 @@ Views.Interventions = {
       status:          'new',
       technicianId:    null,
       location:        document.getElementById('fIntLocation')?.value || 'client',
-      locationAddress: document.getElementById('fIntLocationAddress')?.value.trim() || '',
+      locationAddress: locationAddress,
       scheduledDate:   pmcStartDate ? new Date(`${pmcStartDate}T08:00`).toISOString() : null,
       description,
       createdBy:       user?.name || 'Admin',

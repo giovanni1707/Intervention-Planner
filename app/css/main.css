@@ -3754,7 +3754,7 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
 .dark-mode .dash-act-item { border-bottom-color: var(--gray-700); }
 .dash-act-item:last-child { border-bottom: none; }
 .dash-act-item:hover { background: var(--gray-50); }
-.dark-mode .dash-act-item:hover { background: var(--gray-800); }
+.dark-mode .dash-act-item:hover { background: #263248; }
 
 .dash-act-dot {
   width: 8px; height: 8px;
@@ -3785,8 +3785,11 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
   font-size: 0.75rem;
   color: var(--gray-400);
 }
-.dash-act-view { flex-shrink: 0; opacity: 0; transition: opacity 0.15s; }
-.dash-act-item:hover .dash-act-view { opacity: 1; }
+.dash-act-view { flex-shrink: 0; opacity: 0; transition: opacity 0.15s; color: var(--gray-500); }
+.dash-act-item:hover .dash-act-view { opacity: 1; color: var(--blue); background: transparent !important; }
+.dash-act-item:hover .dash-act-view:hover { background: var(--gray-200) !important; }
+.dark-mode .dash-act-item:hover .dash-act-view { color: var(--blue); }
+.dark-mode .dash-act-item:hover .dash-act-view:hover { background: var(--gray-700) !important; }
 
 .dash-activity-empty {
   padding: 24px 16px;
