@@ -68,8 +68,12 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-4"/></svg>`
     },
     {
-      route: 'notifications', label: 'Notifications', adminOnly: false, hasBadge: true,
+      route: 'notifications', label: 'Notifications', adminOnly: false, hasBadge: true, badgeId: 'ncSidebarBadge',
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>`
+    },
+    {
+      route: 'chat', label: 'Chat', adminOnly: false, hasBadge: true, badgeId: 'chatSidebarBadge',
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`
     },
     {
       route: 'job-tracker', label: 'Job Tracker', adminOnly: false,
@@ -112,7 +116,7 @@ const Sidebar = {
       <div class="sidebar-nav-item" data-route="${item.route}" title="${item.label}">
         ${item.icon}
         <span>${item.label}</span>
-        ${item.hasBadge ? `<span class="nc-sidebar-badge hidden" id="ncSidebarBadge">0</span>` : ''}
+        ${item.hasBadge ? `<span class="nc-sidebar-badge hidden" id="${item.badgeId || 'ncSidebarBadge'}">0</span>` : ''}
       </div>
     `).join('');
 
@@ -167,6 +171,9 @@ const Sidebar = {
     // Refresh notification badge after sidebar re-renders
     if (typeof NotificationCenter !== 'undefined') {
       NotificationCenter.updateBadge();
+    }
+    if (typeof ChatBadge !== 'undefined') {
+      ChatBadge.updateBadge();
     }
   },
 

@@ -92,6 +92,7 @@ function showApp() {
   GlobalSearch.init();
   Scheduler.start();
   AutoRefresh.start();
+  if (typeof ChatBadge !== 'undefined') ChatBadge.start();
 
   if (Auth.isAdmin()) {
     setTimeout(() => Views.MaintenanceContracts._checkNotifications(), 800);
@@ -106,6 +107,7 @@ function showLogin() {
 
   if (appShell)    appShell.classList.add('hidden');
   if (loginScreen) loginScreen.classList.remove('hidden');
+  if (typeof ChatBadge !== 'undefined') ChatBadge.stop();
 
   const errEl = document.getElementById('loginError');
   if (errEl) errEl.classList.add('hidden');

@@ -22,7 +22,8 @@ const ROUTES = {
   'my-jobs':                 () => Views.MyJobs.mount(),
   'my-account':              () => Views.MyAccount.mount(),
   'parts-inventory':         () => Views.PartsInventory.mount(),
-  'client-summary':          () => Views.ClientSummary.mount()
+  'client-summary':          () => Views.ClientSummary.mount(),
+  'chat':                    () => Views.Chat.mount()
 };
 
 const Router = {
@@ -40,6 +41,11 @@ const Router = {
   _navigate() {
     const hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
     const route = Object.keys(ROUTES).includes(hash) ? hash : 'dashboard';
+
+    // Unmount chat when navigating away (resets padding + detaches listener)
+    if (this._current === 'chat' && route !== 'chat' && typeof Views.Chat !== 'undefined') {
+      Views.Chat.unmount();
+    }
 
     this._current = route;
     appState.currentRoute = route;
