@@ -73,6 +73,9 @@ async function _loadProfileWithRetry(uid, retries = 5, delayMs = 1000) {
 
 // ── BOOT APP (after auth confirmed) ─────────────────────────
 async function _bootApp() {
+  // Seed demo data once per Firestore (guard inside prevents re-runs)
+  try { await seedDemoData(); } catch (e) { console.warn('[Seed] Error:', e); }
+
   // Attach real-time Firestore listeners — they populate appState live.
   // No initial fetch needed; onSnapshot fires immediately on attach.
   attachListeners();

@@ -371,6 +371,7 @@ Views.Interventions = {
               const n = (i.scheduledHistory || []).filter(s => s.status === i.status).length;
               if (n >= 1) {
                 const cfg = CONFIG.STATUSES[i.status];
+                if (!cfg) return Utils.getStatusBadge(i.status, i);
                 return `<span class="badge ${cfg.color}">${cfg.label} ${n}</span>`;
               }
             }

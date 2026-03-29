@@ -3702,8 +3702,11 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
 .dash-schedule-row:last-child { border-bottom: none; }
 .dash-schedule-row:hover { background: var(--gray-50); }
 .dash-schedule-row.dash-schedule-urgent { border-left: 3px solid var(--red); }
-.dark-mode .dash-schedule-row:hover { background: var(--gray-800); }
-.dark-mode .dash-schedule-row { border-bottom-color: var(--gray-700); }
+.dark-mode .dash-schedule-row { border-bottom-color: #334155; }
+.dark-mode .dash-schedule-row:hover { background: #2D3E55; }
+.dark-mode .dash-schedule-time { color: #94A3B8; }
+.dark-mode .dash-schedule-title { color: #E2E8F0; }
+.dark-mode .dash-schedule-meta { color: #94A3B8; }
 
 .dash-schedule-time {
   font-size: 0.786rem;
@@ -3721,7 +3724,6 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.dark-mode .dash-schedule-title { color: var(--gray-200); }
 .dash-schedule-meta {
   font-size: 0.786rem;
   color: var(--gray-400);
