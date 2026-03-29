@@ -160,7 +160,12 @@ Views.MaintenanceContracts = {
           <td>${this._statusBadge(status)}</td>
           <td style="text-align:center">${activeNonPmcCell}</td>
           <td>
-            <div style="display:flex;gap:6px;justify-content:flex-end">
+            <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
+              ${isAdmin && (status === 'expired' || status === 'expiring') ? `
+              <button class="btn btn-sm" title="Renew contract" style="font-size:0.75rem;padding:3px 8px;background:#EFF6FF;color:var(--blue);border:1px solid #BFDBFE;border-radius:var(--radius-sm);font-weight:600"
+                      onclick="Views.MaintenanceContracts._openRenewModal('${contract.id}')">
+                Renew
+              </button>` : ''}
               <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick="Views.MaintenanceContracts.openDetailModal('${contract.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
@@ -290,6 +295,18 @@ Views.MaintenanceContracts = {
     return schedule.find(d => new Date(d) >= today && !completed.includes(d)) || null;
   },
 
+  _nextVisitCountdown(contract) {
+    const next = this._nextVisit(contract);
+    if (!next) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = Math.round((new Date(next) - today) / 86400000);
+    if (days === 0) return { days, label: 'Today', color: 'var(--red)' };
+    if (days === 1) return { days, label: 'Tomorrow', color: '#D97706' };
+    if (days <= 7)  return { days, label: `In ${days}d`, color: '#D97706' };
+    if (days <= 30) return { days, label: `In ${days}d`, color: 'var(--blue)' };
+    return { days, label: `In ${days}d`, color: 'var(--gray-400)' };
+  },
+
   /* ── MOUNT ───────────────────────────────────────────────── */
   mount() {
     this._sortCol = null;
@@ -316,6 +333,10 @@ Views.MaintenanceContracts = {
     const totalRem  = contracts.reduce((sum, c) => {
       const s = this._visitStats(c);
       return sum + s.remaining;
+    }, 0);
+    const totalOverdue = contracts.reduce((sum, c) => {
+      const s = this._visitStats(c);
+      return sum + s.overdue;
     }, 0);
 
     const isAdmin = Auth.isAdmin();
@@ -427,7 +448,12 @@ Views.MaintenanceContracts = {
           <td>${this._statusBadge(status)}</td>
           <td style="text-align:center">${_activeNonPmcCell2}</td>
           <td>
-            <div style="display:flex;gap:6px;justify-content:flex-end">
+            <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
+              ${isAdmin && (status === 'expired' || status === 'expiring') ? `
+              <button class="btn btn-sm" title="Renew contract" style="font-size:0.75rem;padding:3px 8px;background:#EFF6FF;color:var(--blue);border:1px solid #BFDBFE;border-radius:var(--radius-sm);font-weight:600"
+                      onclick="Views.MaintenanceContracts._openRenewModal('${contract.id}')">
+                Renew
+              </button>` : ''}
               <button class="btn btn-ghost btn-sm btn-icon" title="View Details"
                       onclick="Views.MaintenanceContracts.openDetailModal('${contract.id}')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -462,7 +488,7 @@ Views.MaintenanceContracts = {
       </div>
 
       <!-- KPI Cards -->
-      <div class="grid-4" style="margin-bottom:20px">
+      <div class="grid-5" style="margin-bottom:20px">
         <div class="kpi-card">
           <div class="kpi-label">Active Contracts</div>
           <div class="kpi-value">${active.length}</div>
@@ -478,6 +504,10 @@ Views.MaintenanceContracts = {
         <div class="kpi-card">
           <div class="kpi-label">Remaining Visits</div>
           <div class="kpi-value">${totalRem}</div>
+        </div>
+        <div class="kpi-card" style="${totalOverdue > 0 ? 'border-color:var(--red);' : ''}">
+          <div class="kpi-label">Overdue Visits</div>
+          <div class="kpi-value" style="color:${totalOverdue > 0 ? 'var(--red)' : 'var(--gray-400)'}">${totalOverdue || '0'}</div>
         </div>
       </div>
 
@@ -654,25 +684,26 @@ Views.MaintenanceContracts = {
       const client  = clients.find(cl => cl.id === c.clientId) || {};
       if (!visibleJobs.has((machine.jobNumber || '').toLowerCase())) return null;
 
-      const visits    = c.visits || [];
-      const total     = c.totalVisits || 0;
-      const completed = visits.filter(v => v.status === 'completed').length;
-      const assigned  = visits.length;
+      const stats     = this._visitStats(c);
+      const nextV     = this._nextVisit(c);
+      const status    = this._contractStatus(c.endDate);
       return [
-        client.name          || '',
-        machine.model        || '',
-        machine.serialNumber || '',
-        machine.jobNumber    || '',
-        machine.district     || '',
-        machine.location     || '',
-        c.visitsPerYear      || '',
-        total,
-        assigned,
-        completed,
-        total - completed,
-        Utils.percent(completed, total) + '%',
+        client.name                          || '',
+        machine.model                        || '',
+        c.serialNumber || machine.serialNumber || '',
+        machine.jobNumber                    || '',
+        machine.district                     || '',
+        machine.location                     || '',
+        c.visitsPerYear                      || '',
+        stats.total,
+        stats.completed,
+        stats.remaining,
+        stats.overdue,
+        stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) + '%' : '0%',
         Utils.formatDate(c.startDate),
-        Utils.formatDate(c.endDate)
+        Utils.formatDate(c.endDate),
+        status.charAt(0).toUpperCase() + status.slice(1),
+        nextV ? Utils.formatDate(nextV) : '—'
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
     }).filter(Boolean);
 
@@ -681,7 +712,7 @@ Views.MaintenanceContracts = {
       return;
     }
 
-    const header = ['Client','Machine Model','Serial No.','Job No.','District','Location','Freq/yr','Total Visits','Assigned','Completed','Remaining','Progress','Start Date','End Date'].map(h => `"${h}"`).join(',');
+    const header = ['Client','Machine Model','Serial No.','Job No.','District','Location','Freq/yr','Total Visits','Completed','Remaining','Overdue','Progress','Start Date','End Date','Status','Next Visit'].map(h => `"${h}"`).join(',');
     const csv    = [header, ...data].join('\r\n');
     const blob   = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url    = URL.createObjectURL(blob);
@@ -907,6 +938,87 @@ Views.MaintenanceContracts = {
 
     Modals.close();
     Toast.success('Maintenance contract created.');
+    this.mount();
+  },
+
+  /* ── RENEW MODAL ─────────────────────────────────────────── */
+  _openRenewModal(contractId) {
+    const contract = appState.maintenanceContracts.find(c => c.id === contractId);
+    if (!contract) return;
+    const machine = appState.machines.find(m => m.id === contract.machineId);
+    const client  = appState.clients.find(c => c.id === contract.clientId);
+
+    // Default new start = day after old end date; new end = 1 year after new start
+    const oldEnd      = new Date(contract.endDate);
+    const newStart    = new Date(oldEnd); newStart.setDate(newStart.getDate() + 1);
+    const newEnd      = new Date(newStart); newEnd.setFullYear(newEnd.getFullYear() + 1);
+    const fmt         = d => d.toISOString().split('T')[0];
+
+    const body = `
+      <div style="margin-bottom:14px;padding:10px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--radius-sm);font-size:0.82rem;color:#1D4ED8">
+        <strong>Renewing contract for:</strong> ${Utils.escapeHtml(client?.name || '—')} &mdash; ${Utils.escapeHtml(machine?.model || '—')}
+        ${machine?.serialNumber ? `<span style="font-family:monospace;margin-left:6px;color:#3B82F6">(${Utils.escapeHtml(machine.serialNumber)})</span>` : ''}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">New Start Date <span style="color:var(--red)">*</span></label>
+          <input type="date" id="renewStart" class="form-input" value="${fmt(newStart)}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">New End Date <span style="color:var(--red)">*</span></label>
+          <input type="date" id="renewEnd" class="form-input" value="${fmt(newEnd)}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Maintenances per Year</label>
+        <select id="renewVisits" class="form-select">
+          <option value="1" ${contract.visitsPerYear === 1 ? 'selected' : ''}>1 per year</option>
+          <option value="2" ${contract.visitsPerYear === 2 ? 'selected' : ''}>2 per year</option>
+          <option value="3" ${contract.visitsPerYear === 3 ? 'selected' : ''}>3 per year</option>
+          <option value="4" ${contract.visitsPerYear === 4 ? 'selected' : ''}>4 per year</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea id="renewNotes" class="form-input" rows="2" placeholder="Optional notes for renewed contract…">${Utils.escapeHtml(contract.notes || '')}</textarea>
+      </div>
+      <div id="renewError" class="error-msg hidden"></div>
+    `;
+
+    const footer = `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="Views.MaintenanceContracts._submitRenew('${contractId}')">Create Renewed Contract</button>
+    `;
+    Modals.open('Renew Maintenance Contract', body, footer);
+  },
+
+  async _submitRenew(contractId) {
+    const contract = appState.maintenanceContracts.find(c => c.id === contractId);
+    if (!contract) return;
+    const startDate    = document.getElementById('renewStart')?.value;
+    const endDate      = document.getElementById('renewEnd')?.value;
+    const visitsPerYear = parseInt(document.getElementById('renewVisits')?.value, 10);
+    const notes        = document.getElementById('renewNotes')?.value.trim();
+    const errEl        = document.getElementById('renewError');
+    const showErr      = msg => { errEl.textContent = msg; errEl.classList.remove('hidden'); };
+
+    if (!startDate) return showErr('Start date is required.');
+    if (!endDate)   return showErr('End date is required.');
+    if (new Date(endDate) <= new Date(startDate)) return showErr('End date must be after start date.');
+
+    const schedule = this._generateSchedule(startDate, endDate, visitsPerYear);
+    await Storage.createMaintenanceContract({
+      clientId:     contract.clientId,
+      machineId:    contract.machineId,
+      serialNumber: contract.serialNumber,
+      startDate, endDate, visitsPerYear, schedule,
+      completedVisits: [],
+      notes,
+      createdBy: appState.currentUser?.name || 'Admin'
+    });
+
+    Modals.close();
+    Toast.success('Contract renewed successfully.');
     this.mount();
   },
 
