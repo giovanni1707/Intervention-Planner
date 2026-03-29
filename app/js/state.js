@@ -120,7 +120,9 @@ function resetFilters() {
     dateTo:      '',
     search:      '',
     jobNumber:   '',
+    serialNumber:'',
     district:    'all',
-    location:    'all'
+    location:    'all',
+    pmcStatus:   'all'
   };
 }

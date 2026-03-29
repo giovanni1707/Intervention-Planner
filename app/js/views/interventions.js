@@ -150,6 +150,7 @@ Views.Interventions = {
             </span>
             <input type="text" id="intSearch" class="search-input" placeholder="Search…" value="${Utils.escapeHtml(appState.filters.search)}">
           </div>
+          <input type="text" id="intSerial" class="toolbar-select" placeholder="Serial #…" value="${Utils.escapeHtml(appState.filters.serialNumber || '')}" style="font-family:monospace;min-width:110px">
           <select id="intStatus" class="toolbar-select">${statusOptions}</select>
           <select id="intPriority" class="toolbar-select">${priorityOptions}</select>
           <select id="intType" class="toolbar-select">${typeOptions}</select>
@@ -159,6 +160,13 @@ Views.Interventions = {
           <input type="date" id="intDateTo" class="toolbar-select" value="${appState.filters.dateTo}" title="To date" style="min-width:120px">
           <select id="intDistrict" class="toolbar-select">${districtOptions}</select>
           <select id="intLocation" class="toolbar-select">${locationOptions}</select>
+          <select id="intPmc" class="toolbar-select">
+            <option value="all">All PMC</option>
+            <option value="active"   ${appState.filters.pmcStatus === 'active'   ? 'selected' : ''}>Active</option>
+            <option value="upcoming" ${appState.filters.pmcStatus === 'upcoming' ? 'selected' : ''}>Upcoming</option>
+            <option value="expired"  ${appState.filters.pmcStatus === 'expired'  ? 'selected' : ''}>Expired</option>
+            <option value="none"     ${appState.filters.pmcStatus === 'none'     ? 'selected' : ''}>No PMC</option>
+          </select>
           <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._resetFilters()">Clear</button>
         </div>
         <span id="intCount"></span>
@@ -179,6 +187,7 @@ Views.Interventions = {
     };
 
     bind('intSearch', 'search');
+    bind('intSerial', 'serialNumber');
     bind('intStatus', 'status');
     bind('intPriority', 'priority');
     bind('intType', 'type');
@@ -188,6 +197,7 @@ Views.Interventions = {
     bind('intDateTo', 'dateTo');
     bind('intDistrict', 'district');
     bind('intLocation', 'location');
+    bind('intPmc', 'pmcStatus');
 
     const viewTableBtn  = document.getElementById('viewTable');
     const viewKanbanBtn = document.getElementById('viewKanban');
@@ -315,11 +325,38 @@ Views.Interventions = {
     if (this._page > totalPages) this._page = Math.max(1, totalPages);
     const pageItems = Pagination.paginate(sorted, this._page, pageSize);
 
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const _getPmcStatus = (machine) => {
+      if (!machine) return 'none';
+      const serial = (machine.serialNumber || '').trim().toLowerCase();
+      const machineIds = serial
+        ? new Set(appState.machines.filter(m => (m.serialNumber || '').trim().toLowerCase() === serial).map(m => m.id))
+        : new Set([machine.id]);
+      const contracts = appState.maintenanceContracts.filter(c => machineIds.has(c.machineId));
+      if (!contracts.length) return 'none';
+      for (const c of contracts) {
+        const start = new Date(c.startDate + 'T00:00:00');
+        const end   = new Date(c.endDate   + 'T23:59:59');
+        if (today >= start && today <= end) return 'active';
+      }
+      for (const c of contracts) {
+        if (today < new Date(c.startDate + 'T00:00:00')) return 'upcoming';
+      }
+      return 'expired';
+    };
+    const _getPmcBadge = (status) => {
+      if (status === 'active')   return '<span style="background:#BBF7D0;color:#065F46;border-radius:999px;padding:1px 8px;font-size:0.72rem;font-weight:700;white-space:nowrap">Active</span>';
+      if (status === 'upcoming') return '<span style="background:#DBEAFE;color:#1D4ED8;border-radius:999px;padding:1px 8px;font-size:0.72rem;font-weight:700;white-space:nowrap">Upcoming</span>';
+      if (status === 'expired')  return '<span style="background:var(--gray-100);color:var(--gray-500);border-radius:999px;padding:1px 8px;font-size:0.72rem;font-weight:600;white-space:nowrap">Expired</span>';
+      return '<span style="background:var(--gray-100);color:var(--gray-400);border-radius:999px;padding:1px 8px;font-size:0.72rem;font-weight:600;white-space:nowrap">No PMC</span>';
+    };
+
     const pageRows = pageItems.map(i => {
       const machine = appState.machines.find(m => m.id === i.machineId);
       const isOverdue = CONFIG.OPEN_STATUSES.includes(i.status) && i.scheduledDate && Utils.isPast(i.scheduledDate);
+      const pmcStatus = _getPmcStatus(machine);
       return `
-        <tr ${isOverdue ? 'style="background:var(--red-light)"' : ''} data-id="${i.id}">
+        <tr ${isOverdue ? 'style="background:var(--red-light)"' : ''} data-id="${i.id}" data-pmc="${pmcStatus}">
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.serialNumber || '—')}</td>
           <td class="td-primary">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
@@ -344,6 +381,7 @@ Views.Interventions = {
           <td style="white-space:nowrap;font-size:0.786rem">${Utils.formatDateTime(i.createdAt)}</td>
           <td style="font-size:0.786rem;color:${machine?.district ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(machine?.district || '—')}</td>
           <td style="font-size:0.786rem;color:${machine?.location ? 'inherit' : 'var(--gray-400)'}">${Utils.escapeHtml(machine?.location || '—')}</td>
+          <td style="text-align:center">${_getPmcBadge(pmcStatus)}</td>
           <td>
             <div class="td-actions">
               <button class="btn btn-ghost btn-sm btn-icon" title="View Detail" onclick="Views.Interventions.openDetailModal('${i.id}')">
@@ -393,6 +431,7 @@ Views.Interventions = {
               <th class="${this._thClass('createdAt')}" onclick="Views.Interventions._setSort('createdAt')">Created${si}</th>
               <th>District</th>
               <th class="${this._thClass('_location')}" onclick="Views.Interventions._setSort('_location')">Location${si}</th>
+              <th style="text-align:center">PMC</th>
               <th style="width:100px"></th>
             </tr>
           </thead>
@@ -1797,6 +1836,7 @@ Views.Interventions = {
         const upcoming = today < start;
         const total    = (c.schedule || []).length;
         const done     = (c.completedVisits || []).length;
+        const viewPmcBtn = `<button title="View PMC details" onclick="Modals.close();setTimeout(()=>{Router.go('maintenance-contracts');setTimeout(()=>Views.MaintenanceContracts.openDetailModal('${c.id}'),300)},80)" style="flex-shrink:0;background:none;border:none;cursor:pointer;padding:3px;border-radius:var(--radius-sm);display:flex;align-items:center;opacity:0.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
         if (active) return `
           <div data-banner="active" style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--radius-sm);margin-bottom:4px">
             <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" width="15" height="15" style="flex-shrink:0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -1806,6 +1846,7 @@ Views.Interventions = {
               <div style="margin-top:2px;color:#047857;font-size:0.75rem">${Utils.formatDate(c.startDate)} → ${Utils.formatDate(c.endDate)}&nbsp;·&nbsp;${done}/${total} visits completed</div>
             </div>
             <span style="background:#BBF7D0;color:#065F46;border-radius:999px;padding:2px 10px;font-size:0.75rem;font-weight:700;white-space:nowrap">Covered</span>
+            ${viewPmcBtn}
           </div>`;
         if (upcoming) return `
           <div data-banner="upcoming" style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--radius-sm);margin-bottom:4px">
@@ -1816,6 +1857,7 @@ Views.Interventions = {
               <div style="margin-top:2px;color:#2563EB;font-size:0.75rem">Starts ${Utils.formatDate(c.startDate)} → ${Utils.formatDate(c.endDate)}&nbsp;·&nbsp;${total} visits planned</div>
             </div>
             <span style="background:#DBEAFE;color:#1D4ED8;border-radius:999px;padding:2px 10px;font-size:0.75rem;font-weight:700;white-space:nowrap">Upcoming</span>
+            ${viewPmcBtn}
           </div>`;
         return null;
       }).filter(Boolean).join('');

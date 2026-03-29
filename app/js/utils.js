@@ -162,6 +162,29 @@ const Utils = {
         if (!machine || !machine.jobNumber.startsWith(filters.jobNumber)) return false;
       }
 
+      if (filters.serialNumber) {
+        const q = filters.serialNumber.toLowerCase();
+        const machine = appState.machines.find(m => m.id === i.machineId);
+        if (!machine || !(machine.serialNumber || '').toLowerCase().includes(q)) return false;
+      }
+
+      if (filters.pmcStatus && filters.pmcStatus !== 'all') {
+        const machine = appState.machines.find(m => m.id === i.machineId);
+        const serial = (machine?.serialNumber || '').trim().toLowerCase();
+        const machineIds = serial
+          ? new Set(appState.machines.filter(m => (m.serialNumber || '').trim().toLowerCase() === serial).map(m => m.id))
+          : machine ? new Set([machine.id]) : new Set();
+        const contracts = appState.maintenanceContracts.filter(c => machineIds.has(c.machineId));
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        let status = 'none';
+        if (contracts.length) {
+          if (contracts.some(c => { const s = new Date(c.startDate+'T00:00:00'), e = new Date(c.endDate+'T23:59:59'); return today >= s && today <= e; })) status = 'active';
+          else if (contracts.some(c => today < new Date(c.startDate+'T00:00:00'))) status = 'upcoming';
+          else status = 'expired';
+        }
+        if (status !== filters.pmcStatus) return false;
+      }
+
       if (filters.district && filters.district !== 'all') {
         const machine = appState.machines.find(m => m.id === i.machineId);
         if (!machine || machine.district !== filters.district) return false;
