@@ -220,6 +220,13 @@ const Utils = {
         if (!searchText.includes(q)) return false;
       }
 
+      // Preset: overdue — open status + past scheduled date (not today)
+      if (filters._preset === 'overdue') {
+        if (!CONFIG.OPEN_STATUSES.includes(i.status)) return false;
+        if (!i.scheduledDate) return false;
+        if (!Utils.isPast(i.scheduledDate) || Utils.isToday(i.scheduledDate)) return false;
+      }
+
       return true;
     });
   },

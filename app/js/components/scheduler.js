@@ -286,7 +286,15 @@ const Scheduler = {
   _viewIntervention(interventionId) {
     this._panelOpen = false;
     document.getElementById('schedulerPanel')?.classList.add('hidden');
-    // Navigate to interventions if not already there, then open detail
+
+    // Pre-filter the interventions table to show only this job
+    const intervention = appState.interventions.find(i => i.id === interventionId);
+    const machine = intervention ? appState.machines.find(m => m.id === intervention.machineId) : null;
+    if (machine?.jobNumber) {
+      resetFilters();
+      appState.filters.jobNumber = machine.jobNumber;
+    }
+
     if (appState.currentRoute !== 'interventions') {
       Router.go('interventions');
       setTimeout(() => Views.Interventions.openDetailModal(interventionId), 300);

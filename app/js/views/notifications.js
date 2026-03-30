@@ -407,6 +407,11 @@ Views.Notifications = {
   // ── NAVIGATION ACTIONS ─────────────────────────────────────
 
   _goIntervention(id) {
+    // Filter table to show only this specific job, then open the detail modal
+    const intervention = appState.interventions.find(i => i.id === id);
+    const machine = intervention ? appState.machines.find(m => m.id === intervention.machineId) : null;
+    resetFilters();
+    if (machine?.jobNumber) appState.filters.jobNumber = machine.jobNumber;
     Router.go('interventions');
     setTimeout(() => Views.Interventions.openDetailModal(id), 300);
   },
