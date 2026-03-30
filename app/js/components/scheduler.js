@@ -23,7 +23,8 @@ const Scheduler = {
   _REMINDER_WINDOW_MS: 6 * 60 * 60 * 1000, // 6 hours before scheduled time
   _REMINDER_REPEAT_MS: 6 * 60 * 60 * 1000, // repeat reminder every 6 hours
   _STORAGE_KEY: 'bps_dismissed_alerts',
-  _TOAST_KEY: 'bps_toasted_alerts',        // session-only toasts (cleared on login)
+  _TOAST_KEY:   'bps_toasted_alerts',      // session-only toasts (cleared on login)
+  _MUTE_KEY:    'bps_alerts_muted',
   _panelOpen: false,
 
   // ── LIFECYCLE ──────────────────────────────────────────────
@@ -46,6 +47,14 @@ const Scheduler = {
 
   _run() {
     const now = Date.now();
+    const muted = this._isMuted();
+
+    if (muted) {
+      // When muted show 0 badge but keep panel closeable
+      this._updateBell([]);
+      return;
+    }
+
     const alerts = this._buildAlerts(now);
     const newAlerts = alerts.filter(a => !this._isDismissed(a.id) && !this._wasToasted(a.id));
 
@@ -135,10 +144,11 @@ const Scheduler = {
     bellWrapper.id = 'schedulerBellWrapper';
     bellWrapper.className = 'scheduler-bell-wrapper';
     bellWrapper.innerHTML = `
-      <button class="scheduler-bell-btn" id="schedulerBellBtn" title="Intervention Alerts" onclick="Scheduler._togglePanel()">
+      <button class="scheduler-bell-btn${this._isMuted() ? ' scheduler-bell-muted' : ''}" id="schedulerBellBtn" title="Intervention Alerts" onclick="Scheduler._togglePanel()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
           <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
           <path d="M13.73 21a2 2 0 01-3.46 0"/>
+          ${this._isMuted() ? '<line x1="1" y1="1" x2="23" y2="23" stroke-width="2.5"/>' : ''}
         </svg>
         <span class="scheduler-bell-label">Alerts</span>
         <span class="scheduler-bell-badge hidden" id="schedulerBellBadge">0</span>
@@ -217,9 +227,23 @@ const Scheduler = {
           Intervention Alerts
           ${alerts.length > 0 ? `<span class="scheduler-panel-count">${alerts.length}</span>` : ''}
         </span>
-        <button class="scheduler-panel-close" onclick="Scheduler._togglePanel()" title="Close">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="scheduler-panel-close${this._isMuted() ? ' scheduler-mute-active' : ''}"
+            onclick="Scheduler._toggleMute()" title="${this._isMuted() ? 'Unmute alerts' : 'Mute alerts'}" style="width:26px;height:26px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              ${this._isMuted()
+                ? `<line x1="1" y1="1" x2="23" y2="23"/>
+                   <path d="M17.73 17.73A10.75 10.75 0 0112 19c-4 0-7.55-2.5-9-6"/>
+                   <path d="M6.26 6.26A10.75 10.75 0 0112 5c4 0 7.55 2.5 9 6a10.8 10.8 0 01-2.29 3.37"/>`
+                : `<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                   <path d="M13.73 21a2 2 0 01-3.46 0"/>`
+              }
+            </svg>
+          </button>
+          <button class="scheduler-panel-close" onclick="Scheduler._togglePanel()" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </div>
       <div class="scheduler-panel-body">
         ${isEmpty
@@ -325,5 +349,33 @@ const Scheduler = {
       const toasted = new Set(JSON.parse(sessionStorage.getItem(this._TOAST_KEY) || '[]'));
       return toasted.has(alertId);
     } catch { return false; }
+  },
+
+  // ── MUTE ──────────────────────────────────────────────────
+
+  _isMuted() {
+    return localStorage.getItem(this._MUTE_KEY) === '1';
+  },
+
+  _toggleMute() {
+    if (this._isMuted()) {
+      localStorage.removeItem(this._MUTE_KEY);
+      Toast.info('Alerts unmuted.');
+    } else {
+      localStorage.setItem(this._MUTE_KEY, '1');
+      Toast.info('Alerts muted. No alert toasts or badges until unmuted.');
+    }
+    // Re-render bell and panel immediately
+    this._renderBell();
+    const panel = document.getElementById('schedulerPanel');
+    if (panel && this._panelOpen) {
+      const now = Date.now();
+      const alerts = this._isMuted() ? [] : this._buildAlerts(now).filter(a => !this._isDismissed(a.id));
+      this._renderPanel(alerts);
+      this._updateBell(alerts);
+    } else {
+      this._updateBell(this._isMuted() ? [] : this._buildAlerts(Date.now()).filter(a => !this._isDismissed(a.id)));
+    }
+    if (typeof NotificationCenter !== 'undefined') NotificationCenter.updateBadge();
   }
 };

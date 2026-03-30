@@ -66,8 +66,23 @@ Views.Chat = {
   _messages: [],
   _unsubListener: null,
   _sending: false,
-  // convIds hidden by current user (soft-delete): stored in localStorage
+  _pendingFile: null,   // { name, type, size, dataUrl } — staged for send
   _hiddenKey: null,
+
+  // Accepted MIME types and max file size
+  _ACCEPTED_TYPES: [
+    'image/jpeg','image/png','image/gif','image/webp','image/svg+xml',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain','text/csv',
+    'application/zip','application/x-zip-compressed',
+  ],
+  _MAX_FILE_BYTES: 5 * 1024 * 1024, // 5 MB
 
   /* ── Entry / Exit ─────────────────────────────────────────── */
   mount() {
@@ -200,7 +215,12 @@ Views.Chat = {
               <div class="chat-empty-title">Loading messages…</div>
             </div>
           </div>
+          <div id="chatFilePreview" class="chat-file-preview hidden"></div>
           <div class="chat-input-area">
+            <label class="chat-attach-btn" title="Attach file">
+              <input type="file" id="chatFileInput" style="display:none" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            </label>
             <textarea id="chatInput" class="chat-input" placeholder="Type a message… (Enter to send, Shift+Enter for new line)" rows="1" maxlength="2000"></textarea>
             <button id="chatSendBtn" class="chat-send-btn" title="Send (Enter)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -503,13 +523,20 @@ Views.Chat = {
           Seen
         </div>` : '';
 
+      const msgFile = msg.fileName ? { name: msg.fileName, type: msg.fileType, size: msg.fileSize, dataUrl: msg.fileDataUrl } : null;
+      const fileHtml = msgFile ? this._renderFileAttachment(msgFile, isOwn) : '';
+      const textHtml = msg.text
+        ? `<p class="chat-bubble-text">${Utils.escapeHtml(msg.text)}</p>`
+        : '';
+
       out += `
         <div class="chat-msg-row chat-msg-row-${isOwn ? 'out' : 'in'}">
           ${avatarHtml}
           <div class="chat-msg-wrap">
-            <div class="chat-bubble chat-bubble-${isOwn ? 'out' : 'in'}">
+            <div class="chat-bubble chat-bubble-${isOwn ? 'out' : 'in'}${msgFile && !msg.text ? ' chat-bubble-file-only' : ''}">
               ${showName ? `<span class="chat-bubble-sender">${Utils.escapeHtml(msg.senderName)}</span>` : ''}
-              <p class="chat-bubble-text">${Utils.escapeHtml(msg.text)}</p>
+              ${fileHtml}
+              ${textHtml}
               <span class="chat-bubble-time">${this._fmtTime(ts)}</span>
             </div>
             ${deleteBtn}
@@ -529,6 +556,34 @@ Views.Chat = {
     let hash = 0;
     for (let i = 0; i < (uid || '').length; i++) hash = (hash * 31 + uid.charCodeAt(i)) >>> 0;
     return colors[hash % colors.length];
+  },
+
+  /* ── File attachment renderer ─────────────────────────────── */
+  _renderFileAttachment(file, isOwn) {
+    const isImage = file.type && file.type.startsWith('image/');
+    if (isImage) {
+      return `<img src="${file.dataUrl}" alt="${Utils.escapeHtml(file.name)}" class="chat-file-image"
+                   onclick="Views.Chat._openImage('${Utils.escapeHtml(file.dataUrl)}','${Utils.escapeHtml(file.name)}')" title="Click to view">`;
+    }
+    const ext  = (file.name || '').split('.').pop().toUpperCase().slice(0, 4);
+    const size  = file.size < 1024 * 1024
+      ? `${(file.size / 1024).toFixed(1)} KB`
+      : `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+    return `
+      <div class="chat-file-doc">
+        <div class="chat-file-doc-icon">${ext}</div>
+        <div class="chat-file-doc-info">
+          <div class="chat-file-doc-name">${Utils.escapeHtml(file.name)}</div>
+          <div class="chat-file-doc-size">${size}</div>
+        </div>
+        <a href="${file.dataUrl}" download="${Utils.escapeHtml(file.name)}" class="chat-file-doc-dl" title="Download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </a>
+      </div>`;
+  },
+
+  _openImage(dataUrl, name) {
+    Modals.open(name, `<img src="${dataUrl}" alt="${Utils.escapeHtml(name)}" style="max-width:100%;max-height:70vh;display:block;margin:auto;border-radius:8px">`, '');
   },
 
   /* ── Mark Read ────────────────────────────────────────────── */
@@ -559,29 +614,91 @@ Views.Chat = {
     }
   },
 
+  /* ── File Handling ────────────────────────────────────────── */
+  _onFileChosen(file) {
+    if (!file) return;
+
+    if (!this._ACCEPTED_TYPES.includes(file.type)) {
+      Toast.error(`File type not supported: ${file.type || 'unknown'}`);
+      return;
+    }
+    if (file.size > this._MAX_FILE_BYTES) {
+      Toast.error(`File too large. Maximum size is 5 MB.`);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      this._pendingFile = {
+        name:    file.name,
+        type:    file.type,
+        size:    file.size,
+        dataUrl: e.target.result
+      };
+      this._renderFilePreview();
+    };
+    reader.readAsDataURL(file);
+  },
+
+  _renderFilePreview() {
+    const bar = document.getElementById('chatFilePreview');
+    if (!bar) return;
+    const f = this._pendingFile;
+    if (!f) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+
+    const isImage = f.type.startsWith('image/');
+    const preview = isImage
+      ? `<img src="${f.dataUrl}" alt="${Utils.escapeHtml(f.name)}" class="chat-file-preview-thumb">`
+      : `<div class="chat-file-preview-icon">${f.name.split('.').pop().toUpperCase().slice(0,4)}</div>`;
+
+    bar.innerHTML = `
+      <div class="chat-file-preview-inner">
+        ${preview}
+        <div class="chat-file-preview-name">${Utils.escapeHtml(f.name)}</div>
+        <button class="chat-file-preview-remove" onclick="Views.Chat._clearFile()" title="Remove">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>`;
+    bar.classList.remove('hidden');
+  },
+
+  _clearFile() {
+    this._pendingFile = null;
+    this._renderFilePreview();
+    const fi = document.getElementById('chatFileInput');
+    if (fi) fi.value = '';
+  },
+
   /* ── Send Message ─────────────────────────────────────────── */
   async _sendMessage() {
     if (this._sending) return;
     const input = document.getElementById('chatInput');
     const text  = (input?.value || '').trim();
-    if (!text) return;
+    if (!text && !this._pendingFile) return;
 
     this._sending = true;
     const btn = document.getElementById('chatSendBtn');
     if (btn) btn.disabled = true;
 
     try {
-      // Sending to a conv re-shows it for both parties
       this._unhideConv(this._activeConvId);
-      await db.collection('chatMessages').add({
+      const payload = {
         conversationId: this._activeConvId,
         senderId:       appState.currentUser.id,
         senderName:     appState.currentUser.name,
-        text,
+        text:           text || '',
         createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
         readBy:         [appState.currentUser.id]
-      });
+      };
+      if (this._pendingFile) {
+        payload.fileName    = this._pendingFile.name;
+        payload.fileType    = this._pendingFile.type;
+        payload.fileSize    = this._pendingFile.size;
+        payload.fileDataUrl = this._pendingFile.dataUrl;
+      }
+      await db.collection('chatMessages').add(payload);
       if (input) { input.value = ''; input.style.height = 'auto'; input.focus(); }
+      this._clearFile();
     } catch (err) {
       Toast.error('Failed to send message. Please try again.');
       console.error('[Chat] send error:', err);
@@ -593,8 +710,9 @@ Views.Chat = {
 
   /* ── Bind Events ──────────────────────────────────────────── */
   _bindEvents() {
-    const input = document.getElementById('chatInput');
-    const btn   = document.getElementById('chatSendBtn');
+    const input    = document.getElementById('chatInput');
+    const btn      = document.getElementById('chatSendBtn');
+    const fileInput = document.getElementById('chatFileInput');
 
     if (input) {
       input.addEventListener('keydown', e => {
@@ -604,8 +722,21 @@ Views.Chat = {
         input.style.height = 'auto';
         input.style.height = Math.min(input.scrollHeight, 120) + 'px';
       });
+      // Allow drag-and-drop onto the input area
+      const area = input.closest('.chat-input-area');
+      if (area) {
+        area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('chat-input-area-dragover'); });
+        area.addEventListener('dragleave', () => area.classList.remove('chat-input-area-dragover'));
+        area.addEventListener('drop', e => {
+          e.preventDefault();
+          area.classList.remove('chat-input-area-dragover');
+          const file = e.dataTransfer?.files?.[0];
+          if (file) this._onFileChosen(file);
+        });
+      }
       setTimeout(() => input.focus(), 100);
     }
     if (btn) btn.addEventListener('click', () => this._sendMessage());
+    if (fileInput) fileInput.addEventListener('change', () => this._onFileChosen(fileInput.files[0]));
   }
 };

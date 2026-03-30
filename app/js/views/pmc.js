@@ -308,8 +308,8 @@ Views.PMC = {
     const progressOpts = [...new Set(rows.map(r => r.progress))].sort()
                           .map(v => `<option value="${v.toLowerCase()}">${Utils.escapeHtml(v)}</option>`).join('');
 
-    const inputStyle = 'padding:6px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.8rem;background:var(--surface);color:var(--text);height:32px;';
-    const selectStyle = inputStyle + 'cursor:pointer;';
+    const inputStyle = '';
+    const selectStyle = '';
 
     return `
       <div class="page-header">
@@ -321,7 +321,7 @@ Views.PMC = {
           <div style="display:flex;align-items:center;gap:8px;font-size:0.857rem;color:var(--gray-500)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span>Year:</span>
-            <select id="pmcYearFilter" style="padding:5px 10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-size:0.857rem;background:var(--surface);color:var(--text);cursor:pointer;font-weight:600">
+            <select id="pmcYearFilter" class="pmc-filter-select" style="font-weight:600">
               <option value="all" ${this._selectedYear === 'all' ? 'selected' : ''}>All Years</option>
               ${yearOpts}
             </select>
@@ -388,20 +388,20 @@ Views.PMC = {
 
           <!-- Filter row -->
           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-            <input  id="pmcFJob"      type="text"   placeholder="Job Number" style="${inputStyle}width:120px">
-            <select id="pmcFClient"   style="${selectStyle}width:140px"><option value="">All Clients</option>${clientOpts}</select>
-            <select id="pmcFMachine"  style="${selectStyle}width:140px"><option value="">All Machines</option>${machineOpts}</select>
-            <select id="pmcFVisit"    style="${selectStyle}width:100px"><option value="">All Visits</option>${visitOpts}</select>
-            <select id="pmcFTech"     style="${selectStyle}width:140px"><option value="">All Technicians</option>${techOpts}</select>
-            <input  id="pmcFDateFrom" type="date"   title="Date from" style="${inputStyle}width:130px">
-            <input  id="pmcFDateTo"   type="date"   title="Date to"   style="${inputStyle}width:130px">
-            <select id="pmcFProgress" style="${selectStyle}width:140px"><option value="">All Progress</option>${progressOpts}</select>
-            <select id="pmcFStatus"   style="${selectStyle}width:120px"><option value="">All Statuses</option>${statusOpts}</select>
-            <select id="pmcFDistrict" style="${selectStyle}width:160px">
+            <input  id="pmcFJob"      type="text"   placeholder="Job Number" class="pmc-filter-input" style="width:120px">
+            <select id="pmcFClient"   class="pmc-filter-select" style="width:140px"><option value="">All Clients</option>${clientOpts}</select>
+            <select id="pmcFMachine"  class="pmc-filter-select" style="width:140px"><option value="">All Machines</option>${machineOpts}</select>
+            <select id="pmcFVisit"    class="pmc-filter-select" style="width:100px"><option value="">All Visits</option>${visitOpts}</select>
+            <select id="pmcFTech"     class="pmc-filter-select" style="width:140px"><option value="">All Technicians</option>${techOpts}</select>
+            <input  id="pmcFDateFrom" type="date"   title="Date from" class="pmc-filter-input" style="width:130px">
+            <input  id="pmcFDateTo"   type="date"   title="Date to"   class="pmc-filter-input" style="width:130px">
+            <select id="pmcFProgress" class="pmc-filter-select" style="width:140px"><option value="">All Progress</option>${progressOpts}</select>
+            <select id="pmcFStatus"   class="pmc-filter-select" style="width:120px"><option value="">All Statuses</option>${statusOpts}</select>
+            <select id="pmcFDistrict" class="pmc-filter-select" style="width:160px">
               <option value="">All Districts</option>
               ${CONFIG.DISTRICTS.map(d => `<option value="${d.toLowerCase()}">${d}</option>`).join('')}
             </select>
-            <select id="pmcFLocation" style="${selectStyle}width:180px">
+            <select id="pmcFLocation" class="pmc-filter-select" style="width:180px">
               <option value="">All Locations</option>
               ${[...new Set(rows.map(r => r.locationAddress).filter(v => v && v !== '—'))].sort().map(v => `<option value="${Utils.escapeHtml(v.toLowerCase())}">${Utils.escapeHtml(v)}</option>`).join('')}
             </select>

@@ -953,13 +953,13 @@ input, select, textarea {
 .toolbar-select:focus { border-color: var(--blue); }
 
 .dark-mode .toolbar-select {
-  background-color: var(--white);
-  border-color: var(--gray-200);
-  color: var(--gray-700);
+  background-color: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
 }
 .dark-mode .toolbar-select option {
-  background: var(--white);
-  color: var(--gray-700);
+  background: #1E293B;
+  color: #E2E8F0;
 }
 
 /* MC job filter text input */
@@ -2270,6 +2270,14 @@ input, select, textarea {
   align-items: center;
 }
 .scheduler-panel-close:hover { color: var(--gray-700); background: var(--gray-100); }
+.scheduler-mute-active { color: #F59E0B !important; }
+.scheduler-mute-active:hover { color: #D97706 !important; background: #FEF3C7 !important; }
+.scheduler-bell-muted { opacity: 0.5; }
+
+/* Mute button in Notification Center */
+.nc-mute-btn { display: inline-flex; align-items: center; gap: 6px; }
+.nc-mute-btn-active { color: #F59E0B !important; border-color: #FDE68A !important; }
+.nc-mute-btn-active:hover { background: #FEF3C7 !important; }
 
 .scheduler-panel-body {
   flex: 1;
@@ -3194,6 +3202,38 @@ th.sort-desc .sort-icon svg:first-child {
   justify-content: center;
   font-size: 0.786rem;
   color: var(--gray-400);
+}
+
+/* ============================================================
+   PMC FILTER INPUTS & SELECTS
+   ============================================================ */
+
+.pmc-filter-input,
+.pmc-filter-select {
+  padding: 6px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  background: #fff;
+  color: #1E293B;
+  height: 32px;
+  font-family: inherit;
+  outline: none;
+}
+.pmc-filter-select { cursor: pointer; }
+.pmc-filter-input:focus,
+.pmc-filter-select:focus { border-color: var(--blue); }
+
+.dark-mode .pmc-filter-input,
+.dark-mode .pmc-filter-select {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+.dark-mode .pmc-filter-input::placeholder { color: #64748B; }
+.dark-mode .pmc-filter-select option {
+  background: #1E293B;
+  color: #E2E8F0;
 }
 
 /* ============================================================
@@ -5129,10 +5169,119 @@ body.dark-mode .chat-msg-delete-btn:hover {
   color: #F87171;
 }
 
+/* ── Attach button ────────────────────────────────────────── */
+.chat-attach-btn {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--gray-400);
+  transition: background 0.15s, color 0.15s;
+}
+.chat-attach-btn:hover { background: var(--gray-100); color: var(--blue); }
+body.dark-mode .chat-attach-btn { color: #64748B; }
+body.dark-mode .chat-attach-btn:hover { background: #263248; color: #60A5FA; }
+
+/* Drag-over highlight */
+.chat-input-area-dragover {
+  background: rgba(0,102,255,0.06) !important;
+  border-top-color: var(--blue) !important;
+}
+
+/* ── File preview bar (above input area) ─────────────────── */
+.chat-file-preview {
+  padding: 8px 20px;
+  border-top: 1px solid var(--gray-100);
+  background: var(--white);
+}
+.chat-file-preview.hidden { display: none; }
+.chat-file-preview-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  padding: 6px 10px;
+  max-width: 300px;
+}
+.chat-file-preview-thumb {
+  width: 48px; height: 48px;
+  object-fit: cover; border-radius: 6px; flex-shrink: 0;
+}
+.chat-file-preview-icon {
+  width: 48px; height: 48px; flex-shrink: 0;
+  background: #3B82F6; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; font-size: 0.65rem; font-weight: 700;
+}
+.chat-file-preview-name {
+  flex: 1; font-size: 0.786rem; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 160px;
+}
+.chat-file-preview-remove {
+  flex-shrink: 0;
+  width: 20px; height: 20px; border-radius: 50%;
+  border: none; background: var(--gray-200); color: var(--gray-500);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.chat-file-preview-remove:hover { background: #FEE2E2; color: #EF4444; }
+
+body.dark-mode .chat-file-preview { background: #1A2535; border-top-color: #334155; }
+body.dark-mode .chat-file-preview-inner { background: #263248; border-color: #334155; }
+body.dark-mode .chat-file-preview-name { color: #E2E8F0; }
+body.dark-mode .chat-file-preview-remove { background: #334155; color: #94A3B8; }
+
+/* ── File attachments inside bubbles ─────────────────────── */
+.chat-bubble-file-only { padding: 6px; }
+
+.chat-file-image {
+  display: block;
+  max-width: 260px; max-height: 220px;
+  border-radius: 8px; cursor: zoom-in;
+  object-fit: cover;
+  margin-bottom: 4px;
+}
+
+.chat-file-doc {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(0,0,0,0.06);
+  border-radius: 8px; padding: 8px 10px;
+  margin-bottom: 4px; min-width: 200px;
+}
+.chat-bubble-out .chat-file-doc { background: rgba(255,255,255,0.18); }
+.chat-file-doc-icon {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  background: #3B82F6; color: #fff;
+  border-radius: 6px; font-size: 0.65rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.chat-file-doc-info { flex: 1; min-width: 0; }
+.chat-file-doc-name {
+  font-size: 0.786rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: inherit;
+}
+.chat-file-doc-size { font-size: 0.714rem; opacity: 0.7; margin-top: 1px; }
+.chat-file-doc-dl {
+  flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: inherit; opacity: 0.7;
+  transition: opacity 0.15s, background 0.15s;
+  text-decoration: none;
+}
+.chat-file-doc-dl:hover { opacity: 1; background: rgba(0,0,0,0.1); }
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 720px) {
   .chat-layout { grid-template-columns: 1fr; }
   .chat-sidebar { display: none; }
   .chat-bubble  { max-width: 90%; }
   .chat-msg-delete-btn { opacity: 1; }
+  .chat-file-image { max-width: 180px; }
 }

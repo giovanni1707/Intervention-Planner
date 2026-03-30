@@ -17,6 +17,7 @@ window.Views = window.Views || {};
 Views.Notifications = {
 
   _STORAGE_KEY: 'bps_dismissed_notifications',
+  _MUTE_KEY:    'bps_notifications_muted',
   _activeTab: 'all',
 
   // ── MOUNT ──────────────────────────────────────────────────
@@ -33,6 +34,7 @@ Views.Notifications = {
   // ── BUILD ALL NOTIFICATIONS ────────────────────────────────
 
   _buildNotifications() {
+    if (this._isMuted()) return [];
     const now   = Date.now();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -294,12 +296,28 @@ Views.Notifications = {
           <h1 class="page-title">Notification Center</h1>
           <p class="page-subtitle">All system alerts and action items in one place</p>
         </div>
-        ${active.length > 0 ? `
-          <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center">
+          ${(() => {
+            const muted = this._isMuted();
+            return `<button class="btn btn-ghost btn-sm nc-mute-btn${muted ? ' nc-mute-btn-active' : ''}"
+              onclick="Views.Notifications._toggleMute()" title="${muted ? 'Unmute notifications' : 'Mute notifications'}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                ${muted
+                  ? `<line x1="1" y1="1" x2="23" y2="23"/>
+                     <path d="M17.73 17.73A10.75 10.75 0 0112 19c-4 0-7.55-2.5-9-6"/>
+                     <path d="M6.26 6.26A10.75 10.75 0 0112 5c4 0 7.55 2.5 9 6a10.8 10.8 0 01-2.29 3.37"/>`
+                  : `<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                     <path d="M13.73 21a2 2 0 01-3.46 0"/>`
+                }
+              </svg>
+              ${muted ? 'Unmute' : 'Mute'}
+            </button>`;
+          })()}
+          ${active.length > 0 ? `
             <button class="btn btn-ghost btn-sm" onclick="Views.Notifications._dismissAll()">
               Dismiss All
-            </button>
-          </div>` : ''}
+            </button>` : ''}
+        </div>
       </div>
 
       ${tabBar}
@@ -444,6 +462,24 @@ Views.Notifications = {
 
   _saveDismissed(set) {
     localStorage.setItem(this._STORAGE_KEY, JSON.stringify([...set]));
+  },
+
+  // ── MUTE ───────────────────────────────────────────────────
+
+  _isMuted() {
+    return localStorage.getItem(this._MUTE_KEY) === '1';
+  },
+
+  _toggleMute() {
+    if (this._isMuted()) {
+      localStorage.removeItem(this._MUTE_KEY);
+      Toast.info('Notifications unmuted.');
+    } else {
+      localStorage.setItem(this._MUTE_KEY, '1');
+      Toast.info('Notifications muted. Alerts will not appear until unmuted.');
+    }
+    this.mount();
+    NotificationCenter.updateBadge();
   },
 
   // ── COUNTER REFRESH (after single dismiss) ─────────────────
