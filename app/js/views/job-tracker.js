@@ -376,27 +376,27 @@ Views.JobTracker = {
       Toast.error('Admin email is incorrect or you do not have admin privileges.'); return;
     }
 
-    // Archive the deleted job record
-    const intervention = appState.interventions.find(i => i.id === interventionId);
-    const machine  = appState.machines.find(m => m.id === intervention?.machineId);
-    const client   = appState.clients.find(c => c.id === intervention?.clientId);
-    await Storage.archiveDeletedJob({
-      id:           interventionId,
-      jobNumber:    machine?.jobNumber || '—',
-      clientName:   client?.name || '—',
-      machineModel: machine?.model || '—',
-      type:         intervention?.type || '—',
-      status:       intervention?.status || '—',
-      createdAt:    intervention?.createdAt || null,
-      deletedAt:    new Date().toISOString(),
-      deletedBy:    admin.name,
-      reason
+    await Utils.withButtonLock(async () => {
+      const intervention = appState.interventions.find(i => i.id === interventionId);
+      const machine  = appState.machines.find(m => m.id === intervention?.machineId);
+      const client   = appState.clients.find(c => c.id === intervention?.clientId);
+      await Storage.archiveDeletedJob({
+        id:           interventionId,
+        jobNumber:    machine?.jobNumber || '—',
+        clientName:   client?.name || '—',
+        machineModel: machine?.model || '—',
+        type:         intervention?.type || '—',
+        status:       intervention?.status || '—',
+        createdAt:    intervention?.createdAt || null,
+        deletedAt:    new Date().toISOString(),
+        deletedBy:    admin.name,
+        reason
+      });
+      await Storage.deleteIntervention(interventionId);
+      Modals.close();
+      Toast.success('Job deleted and archived in Deleted Jobs log.');
+      this._render();
     });
-
-    await Storage.deleteIntervention(interventionId);
-    Modals.close();
-    Toast.success('Job deleted and archived in Deleted Jobs log.');
-    this._render();
   },
 
   _sortBy(col) {

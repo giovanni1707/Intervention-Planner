@@ -317,16 +317,17 @@ Views.Machines = {
     if (!serial)   { Toast.error('Serial number is required'); return; }
     if (!clientId) { Toast.error('Please select a client'); return; }
 
-    await Storage.createMachine({
-      name, model, serialNumber: serial, clientId,
-      type:           document.getElementById('fMachineType')?.value.trim() || '',
-      location:       document.getElementById('fMachineLocation')?.value.trim() || '',
-      contractType:   document.getElementById('fMachineContract')?.value || 'none',
-      contractExpiry: document.getElementById('fMachineExpiry')?.value || null
+    await Utils.withButtonLock(async () => {
+      await Storage.createMachine({
+        name, model, serialNumber: serial, clientId,
+        type:           document.getElementById('fMachineType')?.value.trim() || '',
+        location:       document.getElementById('fMachineLocation')?.value.trim() || '',
+        contractType:   document.getElementById('fMachineContract')?.value || 'none',
+        contractExpiry: document.getElementById('fMachineExpiry')?.value || null
+      });
+      Modals.close();
+      Toast.success(`Machine "${model}" added successfully`);
     });
-
-    Modals.close();
-    Toast.success(`Machine "${model}" added successfully`);
   },
 
   _openEditModal(machineId) {
@@ -350,16 +351,17 @@ Views.Machines = {
     if (!serial)   { Toast.error('Serial number is required'); return; }
     if (!clientId) { Toast.error('Please select a client'); return; }
 
-    await Storage.updateMachine(machineId, {
-      name, model, serialNumber: serial, clientId,
-      type:           document.getElementById('fMachineType')?.value.trim() || '',
-      location:       document.getElementById('fMachineLocation')?.value.trim() || '',
-      contractType:   document.getElementById('fMachineContract')?.value || 'none',
-      contractExpiry: document.getElementById('fMachineExpiry')?.value || null
+    await Utils.withButtonLock(async () => {
+      await Storage.updateMachine(machineId, {
+        name, model, serialNumber: serial, clientId,
+        type:           document.getElementById('fMachineType')?.value.trim() || '',
+        location:       document.getElementById('fMachineLocation')?.value.trim() || '',
+        contractType:   document.getElementById('fMachineContract')?.value || 'none',
+        contractExpiry: document.getElementById('fMachineExpiry')?.value || null
+      });
+      Modals.close();
+      Toast.success('Machine updated successfully');
     });
-
-    Modals.close();
-    Toast.success('Machine updated successfully');
   },
 
   openDetailModal(machineId) {

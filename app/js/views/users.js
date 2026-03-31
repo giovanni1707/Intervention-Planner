@@ -171,34 +171,29 @@ Views.Users = {
 
     const sa = appState.currentUser;
 
-    try {
-      // Create Firebase Auth account
-      const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
-      const uid  = cred.user.uid;
-
-      // Store profile in Firestore (no password stored)
-      const newUser = await Storage.createUser({ id: uid, name, email, role });
-
-      await Storage.logAction({
-        actor: sa.name,
-        actorId: sa.id,
-        action: 'CREATE_USER',
-        target: `${newUser.name} (${newUser.email})`,
-        targetId: newUser.id,
-        details: `Role: ${CONFIG.ROLES[role] || role}`
-      });
-
-      // Sign back in as the current super admin (createUser signed us in as new user)
-      await fbAuth.signInWithEmailAndPassword(sa.email, document.getElementById('uConfirmPassword')?.value || '');
-
-      Modals.close();
-      Toast.success(`User "${name}" created successfully.`);
-      this.mount();
-    } catch (err) {
-      if (err.code === 'auth/email-already-in-use') return showErr('A Firebase Auth account with this email already exists.');
-      if (err.code === 'auth/wrong-password') return showErr('Your password is incorrect — could not re-authenticate.');
-      showErr(err.message || 'Failed to create user.');
-    }
+    await Utils.withButtonLock(async () => {
+      try {
+        const cred = await fbAuth.createUserWithEmailAndPassword(email, password);
+        const uid  = cred.user.uid;
+        const newUser = await Storage.createUser({ id: uid, name, email, role });
+        await Storage.logAction({
+          actor: sa.name,
+          actorId: sa.id,
+          action: 'CREATE_USER',
+          target: `${newUser.name} (${newUser.email})`,
+          targetId: newUser.id,
+          details: `Role: ${CONFIG.ROLES[role] || role}`
+        });
+        await fbAuth.signInWithEmailAndPassword(sa.email, document.getElementById('uConfirmPassword')?.value || '');
+        Modals.close();
+        Toast.success(`User "${name}" created successfully.`);
+        this.mount();
+      } catch (err) {
+        if (err.code === 'auth/email-already-in-use') return showErr('A Firebase Auth account with this email already exists.');
+        if (err.code === 'auth/wrong-password') return showErr('Your password is incorrect — could not re-authenticate.');
+        showErr(err.message || 'Failed to create user.');
+      }
+    });
   },
 
   _openEditModal(userId) {
@@ -267,24 +262,24 @@ Views.Users = {
     if (u.role  !== role)  changes.push(`Role: "${CONFIG.ROLES[u.role] || u.role}" → "${CONFIG.ROLES[role] || role}"`);
     if (password) changes.push('Password: changed');
 
-    try {
-      await Storage.updateUser(userId, { name, email, role });
-      await Storage.logAction({
-        actor: sa.name, actorId: sa.id,
-        action: 'EDIT_USER',
-        target: `${name} (${email})`,
-        targetId: userId,
-        details: changes.length ? changes.join(' | ') : 'No changes'
-      });
-
-      if (userId === sa.id) appState.currentUser = { ...sa, name, email, role };
-
-      Modals.close();
-      Toast.success(`User "${name}" updated successfully.`);
-      this.mount();
-    } catch (err) {
-      showErr(err.message || 'Failed to update user.');
-    }
+    await Utils.withButtonLock(async () => {
+      try {
+        await Storage.updateUser(userId, { name, email, role });
+        await Storage.logAction({
+          actor: sa.name, actorId: sa.id,
+          action: 'EDIT_USER',
+          target: `${name} (${email})`,
+          targetId: userId,
+          details: changes.length ? changes.join(' | ') : 'No changes'
+        });
+        if (userId === sa.id) appState.currentUser = { ...sa, name, email, role };
+        Modals.close();
+        Toast.success(`User "${name}" updated successfully.`);
+        this.mount();
+      } catch (err) {
+        showErr(err.message || 'Failed to update user.');
+      }
+    });
   },
 
   _openDeleteModal(userId) {
@@ -323,20 +318,22 @@ Views.Users = {
     const u  = appState.users.find(x => x.id === userId);
     if (!u) return showErr('User not found.');
 
-    try {
-      await Storage.logAction({
-        actor: sa.name, actorId: sa.id,
-        action: 'DELETE_USER',
-        target: `${u.name} (${u.email})`,
-        targetId: u.id,
-        details: `Reason: ${reason}`
-      });
-      await Storage.deleteUser(userId);
-      Modals.close();
-      Toast.success(`User "${u.name}" deleted.`);
-      this.mount();
-    } catch (err) {
-      showErr(err.message || 'Failed to delete user.');
-    }
+    await Utils.withButtonLock(async () => {
+      try {
+        await Storage.logAction({
+          actor: sa.name, actorId: sa.id,
+          action: 'DELETE_USER',
+          target: `${u.name} (${u.email})`,
+          targetId: u.id,
+          details: `Reason: ${reason}`
+        });
+        await Storage.deleteUser(userId);
+        Modals.close();
+        Toast.success(`User "${u.name}" deleted.`);
+        this.mount();
+      } catch (err) {
+        showErr(err.message || 'Failed to delete user.');
+      }
+    });
   }
 };

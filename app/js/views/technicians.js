@@ -463,21 +463,22 @@ Views.Technicians = {
       return;
     }
 
-    try {
-      const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
-      const uid  = cred.user.uid;
-      await Storage.createUser({ id: uid, name, email, role });
-      // Re-sign in as the current admin
-      const sa = appState.currentUser;
-      if (sa && sa.email) {
-        const saPass = document.getElementById('fTechSaPass')?.value;
-        if (saPass) await fbAuth.signInWithEmailAndPassword(sa.email, saPass);
+    await Utils.withButtonLock(async () => {
+      try {
+        const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
+        const uid  = cred.user.uid;
+        await Storage.createUser({ id: uid, name, email, role });
+        const sa = appState.currentUser;
+        if (sa && sa.email) {
+          const saPass = document.getElementById('fTechSaPass')?.value;
+          if (saPass) await fbAuth.signInWithEmailAndPassword(sa.email, saPass);
+        }
+        Modals.close();
+        Toast.success(`User "${name}" added`);
+      } catch (err) {
+        Toast.error(err.message || 'Failed to create user');
       }
-      Modals.close();
-      Toast.success(`User "${name}" added`);
-    } catch (err) {
-      Toast.error(err.message || 'Failed to create user');
-    }
+    });
   },
 
   _openEditModal(userId) {
@@ -504,13 +505,15 @@ Views.Technicians = {
       return;
     }
 
-    try {
-      await Storage.updateUser(userId, { name, email, role });
-      Modals.close();
-      Toast.success('User updated');
-    } catch (err) {
-      Toast.error(err.message || 'Failed to update user');
-    }
+    await Utils.withButtonLock(async () => {
+      try {
+        await Storage.updateUser(userId, { name, email, role });
+        Modals.close();
+        Toast.success('User updated');
+      } catch (err) {
+        Toast.error(err.message || 'Failed to update user');
+      }
+    });
   }
 };
 

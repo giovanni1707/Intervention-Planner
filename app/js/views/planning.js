@@ -585,27 +585,29 @@ Views.Planning = {
     const dateVal = document.getElementById('fSchedDate')?.value;
     if (!dateVal) { Toast.error('Please select a date'); return; }
 
-    const timeVal = document.getElementById('fSchedTime')?.value || '08:00';
-    const scheduledDate = new Date(`${dateVal}T${timeVal}`).toISOString();
-    const techIds = Array.from(document.querySelectorAll('.fSchedTechCheck:checked')).map(cb => cb.value);
-    const techId  = techIds[0] || null;
+    await Utils.withButtonLock(async () => {
+      const timeVal = document.getElementById('fSchedTime')?.value || '08:00';
+      const scheduledDate = new Date(`${dateVal}T${timeVal}`).toISOString();
+      const techIds = Array.from(document.querySelectorAll('.fSchedTechCheck:checked')).map(cb => cb.value);
+      const techId  = techIds[0] || null;
 
-    const user      = appState.currentUser;
-    const techNames = techIds.map(id => appState.users.find(u => u.id === id)?.name).filter(Boolean).join(', ');
+      const user      = appState.currentUser;
+      const techNames = techIds.map(id => appState.users.find(u => u.id === id)?.name).filter(Boolean).join(', ');
 
-    await Storage.updateIntervention(interventionId, {
-      scheduledDate,
-      technicianIds: techIds,
-      technicianId:  techId,
-      status: techIds.length > 0 ? 'assigned' : 'planned'
-    }, {
-      action: 'Scheduled',
-      user: user?.name || 'Admin',
-      details: `Date: ${Utils.formatDateTime(scheduledDate)}${techNames ? `, Assigned to ${techNames}` : ''}`
+      await Storage.updateIntervention(interventionId, {
+        scheduledDate,
+        technicianIds: techIds,
+        technicianId:  techId,
+        status: techIds.length > 0 ? 'assigned' : 'planned'
+      }, {
+        action: 'Scheduled',
+        user: user?.name || 'Admin',
+        details: `Date: ${Utils.formatDateTime(scheduledDate)}${techNames ? `, Assigned to ${techNames}` : ''}`
+      });
+
+      Modals.close();
+      Toast.success('Intervention scheduled successfully');
+      this.mount();
     });
-
-    Modals.close();
-    Toast.success('Intervention scheduled successfully');
-    this.mount();
   }
 };

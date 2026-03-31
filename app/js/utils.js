@@ -306,6 +306,29 @@ const Utils = {
   percent(part, total) {
     if (!total) return 0;
     return Math.round((part / total) * 100);
+  },
+
+  // ── BUTTON LOCK (prevent duplicate submissions) ───────────
+  // Disables the modal action button (primary or danger) for the
+  // duration of an async operation, then re-enables it regardless
+  // of success or failure. Accepts an optional explicit selector.
+  async withButtonLock(asyncFn, btnSelector) {
+    const sel = btnSelector || '#modalFooter .btn-primary, #modalFooter .btn-danger';
+    const btn = document.querySelector(sel);
+    if (btn) {
+      btn.disabled = true;
+      btn._origText = btn.innerHTML;
+      btn.innerHTML = `<svg class="btn-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14" style="animation:spin .7s linear infinite;vertical-align:-2px;margin-right:4px"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>${btn._origText}`;
+    }
+    try {
+      await asyncFn();
+    } finally {
+      if (btn && btn._origText !== undefined) {
+        btn.disabled = false;
+        btn.innerHTML = btn._origText;
+        delete btn._origText;
+      }
+    }
   }
 };
 

@@ -1253,55 +1253,56 @@ Views.Interventions = {
       if (!pmcStart) { Toast.error('Contract Start Date is required for PMC'); return; }
     }
 
-    const newMachine = await Storage.createMachine({
-      name: machineName, model, serialNumber: serial, clientId,
-      type:     document.getElementById('fNewMachineType')?.value || '',
-      location: locationAddress,
-      district: document.getElementById('fNewMachineDistrict')?.value || '',
-    });
-    const machineId = newMachine.id;
-
-    // Auto-create maintenance contract for PMC type
-    let pmcContractId = null;
-    let pmcStartDate  = null;
-    if (type === 'pmc') {
-      const pmcStart  = document.getElementById('fPmcStart')?.value;
-      const pmcVisits = parseInt(document.getElementById('fPmcVisits')?.value, 10) || 2;
-      const endDateObj = new Date(pmcStart);
-      endDateObj.setFullYear(endDateObj.getFullYear() + 1);
-      const pmcEnd   = endDateObj.toISOString().split('T')[0];
-      const schedule = Views.MaintenanceContracts._generateSchedule(pmcStart, pmcEnd, pmcVisits);
-      const contract = await Storage.createMaintenanceContract({
-        clientId, machineId,
-        serialNumber: serial,
-        startDate:    pmcStart,
-        endDate:      pmcEnd,
-        visitsPerYear: pmcVisits,
-        schedule,
-        completedVisits: [],
-        notes: '',
-        createdBy: user?.name || 'Admin'
+    await Utils.withButtonLock(async () => {
+      const newMachine = await Storage.createMachine({
+        name: machineName, model, serialNumber: serial, clientId,
+        type:     document.getElementById('fNewMachineType')?.value || '',
+        location: locationAddress,
+        district: document.getElementById('fNewMachineDistrict')?.value || '',
       });
-      pmcContractId = contract.id;
-      pmcStartDate  = pmcStart;
-    }
+      const machineId = newMachine.id;
 
-    await Storage.createIntervention({
-      clientId, machineId, type,
-      priority:        document.getElementById('fIntPriority')?.value || 'medium',
-      status:          'new',
-      technicianId:    null,
-      location:        document.getElementById('fIntLocation')?.value || 'client',
-      locationAddress: locationAddress,
-      scheduledDate:   pmcStartDate ? new Date(`${pmcStartDate}T08:00`).toISOString() : null,
-      description,
-      createdBy:       user?.name || 'Admin',
-      ...(pmcContractId ? { maintenanceContractId: pmcContractId, maintenanceVisitIndex: 0 } : {})
+      let pmcContractId = null;
+      let pmcStartDate  = null;
+      if (type === 'pmc') {
+        const pmcStart  = document.getElementById('fPmcStart')?.value;
+        const pmcVisits = parseInt(document.getElementById('fPmcVisits')?.value, 10) || 2;
+        const endDateObj = new Date(pmcStart);
+        endDateObj.setFullYear(endDateObj.getFullYear() + 1);
+        const pmcEnd   = endDateObj.toISOString().split('T')[0];
+        const schedule = Views.MaintenanceContracts._generateSchedule(pmcStart, pmcEnd, pmcVisits);
+        const contract = await Storage.createMaintenanceContract({
+          clientId, machineId,
+          serialNumber: serial,
+          startDate:    pmcStart,
+          endDate:      pmcEnd,
+          visitsPerYear: pmcVisits,
+          schedule,
+          completedVisits: [],
+          notes: '',
+          createdBy: user?.name || 'Admin'
+        });
+        pmcContractId = contract.id;
+        pmcStartDate  = pmcStart;
+      }
+
+      await Storage.createIntervention({
+        clientId, machineId, type,
+        priority:        document.getElementById('fIntPriority')?.value || 'medium',
+        status:          'new',
+        technicianId:    null,
+        location:        document.getElementById('fIntLocation')?.value || 'client',
+        locationAddress: locationAddress,
+        scheduledDate:   pmcStartDate ? new Date(`${pmcStartDate}T08:00`).toISOString() : null,
+        description,
+        createdBy:       user?.name || 'Admin',
+        ...(pmcContractId ? { maintenanceContractId: pmcContractId, maintenanceVisitIndex: 0 } : {})
+      });
+
+      this._createDraft = null;
+      Modals.close();
+      Toast.success('Machine added successfully');
     });
-
-    this._createDraft = null;
-    Modals.close();
-    Toast.success('Machine added successfully');
   },
 
   _openEditModal(interventionId) {
@@ -1594,37 +1595,37 @@ Views.Interventions = {
       statusNote
     };
 
-    await Storage.updateIntervention(interventionId, {
-      clientId, machineId,
-      type:         userIsAdmin ? document.getElementById('fIntType')?.value     : original.type,
-      priority:     userIsAdmin ? document.getElementById('fIntPriority')?.value : original.priority,
-      status:       newStatus,
-      technicianIds: userIsAdmin
-        ? Array.from(document.querySelectorAll('.fIntTechCheck:checked')).map(cb => cb.value)
-        : Utils.getTechIds(original),
-      technicianId: userIsAdmin
-        ? (Array.from(document.querySelectorAll('.fIntTechCheck:checked')).map(cb => cb.value)[0] || null)
-        : original.technicianId,
-      location:        userIsAdmin ? (document.getElementById('fIntLocation')?.value || 'client') : original.location,
-      locationAddress: document.getElementById('fIntLocationAddress')?.value.trim() ?? original.locationAddress ?? '',
-      scheduledDate,
-      ...(pmcProgress !== null ? { pmcProgress } : {})
-    }, auditEntry);
+    await Utils.withButtonLock(async () => {
+      await Storage.updateIntervention(interventionId, {
+        clientId, machineId,
+        type:         userIsAdmin ? document.getElementById('fIntType')?.value     : original.type,
+        priority:     userIsAdmin ? document.getElementById('fIntPriority')?.value : original.priority,
+        status:       newStatus,
+        technicianIds: userIsAdmin
+          ? Array.from(document.querySelectorAll('.fIntTechCheck:checked')).map(cb => cb.value)
+          : Utils.getTechIds(original),
+        technicianId: userIsAdmin
+          ? (Array.from(document.querySelectorAll('.fIntTechCheck:checked')).map(cb => cb.value)[0] || null)
+          : original.technicianId,
+        location:        userIsAdmin ? (document.getElementById('fIntLocation')?.value || 'client') : original.location,
+        locationAddress: document.getElementById('fIntLocationAddress')?.value.trim() ?? original.locationAddress ?? '',
+        scheduledDate,
+        ...(pmcProgress !== null ? { pmcProgress } : {})
+      }, auditEntry);
 
-    // Flush queued notes
-    if (this._queuedNotes.length > 0) {
-      for (const note of this._queuedNotes) await Storage.addInterventionNote(interventionId, note);
-      this._queuedNotes = [];
-    }
+      if (this._queuedNotes.length > 0) {
+        for (const note of this._queuedNotes) await Storage.addInterventionNote(interventionId, note);
+        this._queuedNotes = [];
+      }
 
-    // Flush queued parts
-    if (this._queuedParts.length > 0) {
-      for (const p of this._queuedParts) await Storage.addInterventionPart(interventionId, p);
-      this._queuedParts = [];
-    }
+      if (this._queuedParts.length > 0) {
+        for (const p of this._queuedParts) await Storage.addInterventionPart(interventionId, p);
+        this._queuedParts = [];
+      }
 
-    Modals.close();
-    if (!isPmcCompletion) Toast.success('Intervention updated');
+      Modals.close();
+      if (!isPmcCompletion) Toast.success('Intervention updated');
+    });
   },
 
   _deleteIntervention(interventionId) {
@@ -1703,25 +1704,26 @@ Views.Interventions = {
       Toast.error('Admin email or password is incorrect.'); return;
     }
 
-    const intervention = appState.interventions.find(i => i.id === interventionId);
-    const machine = appState.machines.find(m => m.id === intervention?.machineId);
-    const client  = appState.clients.find(c => c.id === intervention?.clientId);
-    await Storage.archiveDeletedJob({
-      id:           interventionId,
-      jobNumber:    machine?.jobNumber || '—',
-      clientName:   client?.name || '—',
-      machineModel: machine?.model || '—',
-      type:         intervention?.type || '—',
-      status:       intervention?.status || '—',
-      createdAt:    intervention?.createdAt || null,
-      deletedAt:    new Date().toISOString(),
-      deletedBy:    adminProfile.name,
-      reason
+    await Utils.withButtonLock(async () => {
+      const intervention = appState.interventions.find(i => i.id === interventionId);
+      const machine = appState.machines.find(m => m.id === intervention?.machineId);
+      const client  = appState.clients.find(c => c.id === intervention?.clientId);
+      await Storage.archiveDeletedJob({
+        id:           interventionId,
+        jobNumber:    machine?.jobNumber || '—',
+        clientName:   client?.name || '—',
+        machineModel: machine?.model || '—',
+        type:         intervention?.type || '—',
+        status:       intervention?.status || '—',
+        createdAt:    intervention?.createdAt || null,
+        deletedAt:    new Date().toISOString(),
+        deletedBy:    adminProfile.name,
+        reason
+      });
+      await Storage.deleteIntervention(interventionId);
+      Modals.close();
+      Toast.success('Job deleted and archived in Deleted Jobs log.');
     });
-
-    await Storage.deleteIntervention(interventionId);
-    Modals.close();
-    Toast.success('Job deleted and archived in Deleted Jobs log.');
   },
 
   // ── DETAIL MODAL ──────────────────────────────────────────
@@ -2338,20 +2340,20 @@ Views.Interventions = {
       return;
     }
 
-    await Storage.addInterventionNote(interventionId, {
-      text,
-      author: user?.name || 'Admin'
+    await Utils.withButtonLock(async () => {
+      await Storage.addInterventionNote(interventionId, {
+        text,
+        author: user?.name || 'Admin'
+      });
+      await Storage.updateIntervention(interventionId, {}, {
+        action: 'Note Added',
+        user: user?.name || 'Admin',
+        details: Utils.truncate(text, 60)
+      });
+      Modals.close();
+      Toast.success('Note added');
+      setTimeout(() => this.openDetailModal(interventionId), 100);
     });
-
-    await Storage.updateIntervention(interventionId, {}, {
-      action: 'Note Added',
-      user: user?.name || 'Admin',
-      details: Utils.truncate(text, 60)
-    });
-
-    Modals.close();
-    Toast.success('Note added');
-    setTimeout(() => this.openDetailModal(interventionId), 100);
   },
 
   _editDraft: null,

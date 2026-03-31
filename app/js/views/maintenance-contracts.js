@@ -966,21 +966,22 @@ Views.MaintenanceContracts = {
 
     const schedule = this._generateSchedule(startDate, endDate, visitsPerYear);
 
-    const newContract = await Storage.createMaintenanceContract({
-      clientId, machineId,
-      serialNumber: serial,
-      startDate, endDate,
-      visitsPerYear,
-      schedule,
-      completedVisits: [],
-      auditLog: [{ action: 'Contract created', by: appState.currentUser?.name || 'Admin', at: new Date().toISOString() }],
-      notes,
-      createdBy: appState.currentUser?.name || 'Admin'
+    await Utils.withButtonLock(async () => {
+      await Storage.createMaintenanceContract({
+        clientId, machineId,
+        serialNumber: serial,
+        startDate, endDate,
+        visitsPerYear,
+        schedule,
+        completedVisits: [],
+        auditLog: [{ action: 'Contract created', by: appState.currentUser?.name || 'Admin', at: new Date().toISOString() }],
+        notes,
+        createdBy: appState.currentUser?.name || 'Admin'
+      });
+      Modals.close();
+      Toast.success('Maintenance contract created.');
+      this.mount();
     });
-
-    Modals.close();
-    Toast.success('Maintenance contract created.');
-    this.mount();
   },
 
   /* ── RENEW MODAL ─────────────────────────────────────────── */
@@ -1049,20 +1050,22 @@ Views.MaintenanceContracts = {
     if (new Date(endDate) <= new Date(startDate)) return showErr('End date must be after start date.');
 
     const schedule = this._generateSchedule(startDate, endDate, visitsPerYear);
-    await Storage.createMaintenanceContract({
-      clientId:     contract.clientId,
-      machineId:    contract.machineId,
-      serialNumber: contract.serialNumber,
-      startDate, endDate, visitsPerYear, schedule,
-      completedVisits: [],
-      auditLog: [{ action: `Contract renewed (previous: ${Utils.formatDate(contract.startDate)} → ${Utils.formatDate(contract.endDate)})`, by: appState.currentUser?.name || 'Admin', at: new Date().toISOString() }],
-      notes,
-      createdBy: appState.currentUser?.name || 'Admin'
-    });
 
-    Modals.close();
-    Toast.success('Contract renewed successfully.');
-    this.mount();
+    await Utils.withButtonLock(async () => {
+      await Storage.createMaintenanceContract({
+        clientId:     contract.clientId,
+        machineId:    contract.machineId,
+        serialNumber: contract.serialNumber,
+        startDate, endDate, visitsPerYear, schedule,
+        completedVisits: [],
+        auditLog: [{ action: `Contract renewed (previous: ${Utils.formatDate(contract.startDate)} → ${Utils.formatDate(contract.endDate)})`, by: appState.currentUser?.name || 'Admin', at: new Date().toISOString() }],
+        notes,
+        createdBy: appState.currentUser?.name || 'Admin'
+      });
+      Modals.close();
+      Toast.success('Contract renewed successfully.');
+      this.mount();
+    });
   },
 
   /* ── EDIT MODAL ──────────────────────────────────────────── */
@@ -1160,20 +1163,21 @@ Views.MaintenanceContracts = {
     const newSchedule = this._generateSchedule(startDate, endDate, visitsPerYear);
     const preserved   = (contract.completedVisits || []).filter(d => newSchedule.includes(d));
 
-    await Storage.updateMaintenanceContract(contractId, {
-      clientId, machineId,
-      serialNumber: serial,
-      startDate, endDate,
-      visitsPerYear,
-      schedule: newSchedule,
-      completedVisits: preserved,
-      notes
+    await Utils.withButtonLock(async () => {
+      await Storage.updateMaintenanceContract(contractId, {
+        clientId, machineId,
+        serialNumber: serial,
+        startDate, endDate,
+        visitsPerYear,
+        schedule: newSchedule,
+        completedVisits: preserved,
+        notes
+      });
+      await this._appendAudit(contractId, 'Contract details edited');
+      Modals.close();
+      Toast.success('Contract updated.');
+      this.mount();
     });
-    await this._appendAudit(contractId, 'Contract details edited');
-
-    Modals.close();
-    Toast.success('Contract updated.');
-    this.mount();
   },
 
   /* ── DELETE ──────────────────────────────────────────────── */
@@ -1252,18 +1256,19 @@ Views.MaintenanceContracts = {
       Toast.error('Admin email or password is incorrect.'); return;
     }
 
-    await Storage.logAction({
-      action:   'Delete Maintenance Contract',
-      user:     admin.name,
-      role:     admin.role,
-      targetId: contractId,
-      reason
+    await Utils.withButtonLock(async () => {
+      await Storage.logAction({
+        action:   'Delete Maintenance Contract',
+        user:     admin.name,
+        role:     admin.role,
+        targetId: contractId,
+        reason
+      });
+      await Storage.deleteMaintenanceContract(contractId);
+      Modals.close();
+      Toast.success('Maintenance contract permanently deleted.');
+      this.mount();
     });
-
-    await Storage.deleteMaintenanceContract(contractId);
-    Modals.close();
-    Toast.success('Maintenance contract permanently deleted.');
-    this.mount();
   },
 
   /* ── DETAIL MODAL ────────────────────────────────────────── */
@@ -2142,52 +2147,53 @@ Views.MaintenanceContracts = {
       }
     });
 
-    await Storage.updateContractParts(contractId, parts);
+    await Utils.withButtonLock(async () => {
+      await Storage.updateContractParts(contractId, parts);
 
-    // Write audit log entries
-    const user       = appState.currentUser;
-    const contract   = appState.maintenanceContracts.find(c => c.id === contractId);
-    const clients    = appState.clients;
-    const machines   = appState.machines;
-    const client     = clients.find(c => c.id === contract?.clientId);
-    const machine    = machines.find(m => m.id === contract?.machineId);
-    const targetLabel = `${client?.name || '?'} / ${machine?.model || '?'} (Contract)`;
+      const user       = appState.currentUser;
+      const contract   = appState.maintenanceContracts.find(c => c.id === contractId);
+      const clients    = appState.clients;
+      const machines   = appState.machines;
+      const client     = clients.find(c => c.id === contract?.clientId);
+      const machine    = machines.find(m => m.id === contract?.machineId);
+      const targetLabel = `${client?.name || '?'} / ${machine?.model || '?'} (Contract)`;
 
-    const pendingLog = this._manageParts_pendingLog || [];
-    const allLogs    = [...pendingLog, ...editLogs];
+      const pendingLog = this._manageParts_pendingLog || [];
+      const allLogs    = [...pendingLog, ...editLogs];
 
-    for (const entry of allLogs) {
-      let details = '';
-      if (entry.action === 'ADD_CONTRACT_PART') {
-        details = `Added: ${entry.after.reference} — ${entry.after.description || 'no description'} | Qty: ${entry.after.quantity} ${entry.after.unit}`;
-      } else if (entry.action === 'EDIT_CONTRACT_PART') {
-        const b = entry.before, a = entry.after;
-        const diffs = [];
-        if (b.reference   !== a.reference)   diffs.push(`Reference: "${b.reference}" → "${a.reference}"`);
-        if (b.description !== a.description) diffs.push(`Description: "${b.description}" → "${a.description}"`);
-        if (String(b.quantity) !== String(a.quantity) || b.unit !== a.unit)
-          diffs.push(`Qty: ${b.quantity} ${b.unit} → ${a.quantity} ${a.unit}`);
-        details = diffs.join(' | ');
-      } else if (entry.action === 'DELETE_CONTRACT_PART') {
-        details = `Deleted: ${entry.before.reference} — ${entry.before.description || 'no description'} | Qty: ${entry.before.quantity} ${entry.before.unit}`;
+      for (const entry of allLogs) {
+        let details = '';
+        if (entry.action === 'ADD_CONTRACT_PART') {
+          details = `Added: ${entry.after.reference} — ${entry.after.description || 'no description'} | Qty: ${entry.after.quantity} ${entry.after.unit}`;
+        } else if (entry.action === 'EDIT_CONTRACT_PART') {
+          const b = entry.before, a = entry.after;
+          const diffs = [];
+          if (b.reference   !== a.reference)   diffs.push(`Reference: "${b.reference}" → "${a.reference}"`);
+          if (b.description !== a.description) diffs.push(`Description: "${b.description}" → "${a.description}"`);
+          if (String(b.quantity) !== String(a.quantity) || b.unit !== a.unit)
+            diffs.push(`Qty: ${b.quantity} ${b.unit} → ${a.quantity} ${a.unit}`);
+          details = diffs.join(' | ');
+        } else if (entry.action === 'DELETE_CONTRACT_PART') {
+          details = `Deleted: ${entry.before.reference} — ${entry.before.description || 'no description'} | Qty: ${entry.before.quantity} ${entry.before.unit}`;
+        }
+
+        if (details) {
+          await Storage.logAction({
+            action:    entry.action,
+            actor:     user?.name || 'Admin',
+            role:      user?.role || 'admin',
+            target:    targetLabel,
+            targetId:  contractId,
+            details
+          });
+        }
       }
 
-      if (details) {
-        await Storage.logAction({
-          action:    entry.action,
-          actor:     user?.name || 'Admin',
-          role:      user?.role || 'admin',
-          target:    targetLabel,
-          targetId:  contractId,
-          details
-        });
-      }
-    }
-
-    this._manageParts_pendingLog = [];
-    Toast.success('Spare parts catalog saved successfully.');
-    Modals.close();
-    setTimeout(() => this.openDetailModal(contractId, 'parts'), 80);
+      this._manageParts_pendingLog = [];
+      Toast.success('Spare parts catalog saved successfully.');
+      Modals.close();
+      setTimeout(() => this.openDetailModal(contractId, 'parts'), 80);
+    });
   },
 
   /* ── PLAN VISIT MODAL ───────────────────────────────────── */
@@ -2283,44 +2289,43 @@ Views.MaintenanceContracts = {
     const scheduledDate = new Date(`${dateVal}T${timeVal}`).toISOString();
     const user = appState.currentUser;
 
-    if (existingId) {
-      // Update existing intervention
-    await Storage.updateIntervention(existingId, {
-        scheduledDate,
-        technicianIds: techIds,
-        technicianId:  techId,
-        status: techIds.length > 0 ? 'assigned' : 'new'
-      }, {
-        action: 'Visit Planned',
-        user: user?.name || 'Admin',
-        details: `${visitLabel} visit scheduled for ${Utils.formatDate(dateVal)}${techId ? ' with technician assigned' : ''}`
-      });
-      Toast.success(`${visitLabel} visit updated.`);
-    } else {
-      // Create new intervention for this visit
-    await Storage.createIntervention({
-        clientId:              contract.clientId,
-        machineId:             contract.machineId,
-        type:                  'pmc',
-        priority:              'medium',
-        status:                techIds.length > 0 ? 'assigned' : 'new',
-        scheduledDate,
-        technicianIds:         techIds,
-        technicianId:          techId,
-        location:              'client',
-        description:           `${visitLabel} Scheduled PMC visit — ${contract.visitsPerYear}×/yr contract` +
-                               (machine ? ` for ${machine.model}` : '') +
-                               (client  ? ` (${client.name})`    : ''),
-        maintenanceContractId: contractId,
-        maintenanceVisitIndex: visitIndex,
-        createdBy:             user?.name || 'Admin'
-      });
-      Toast.success(`${visitLabel} visit intervention created${techId ? ' and technician assigned' : ''}.`);
-    }
-
-    refreshInterventions();
-    Modals.close();
-    setTimeout(() => this.openDetailModal(contractId), 80);
+    await Utils.withButtonLock(async () => {
+      if (existingId) {
+        await Storage.updateIntervention(existingId, {
+          scheduledDate,
+          technicianIds: techIds,
+          technicianId:  techId,
+          status: techIds.length > 0 ? 'assigned' : 'new'
+        }, {
+          action: 'Visit Planned',
+          user: user?.name || 'Admin',
+          details: `${visitLabel} visit scheduled for ${Utils.formatDate(dateVal)}${techId ? ' with technician assigned' : ''}`
+        });
+        Toast.success(`${visitLabel} visit updated.`);
+      } else {
+        await Storage.createIntervention({
+          clientId:              contract.clientId,
+          machineId:             contract.machineId,
+          type:                  'pmc',
+          priority:              'medium',
+          status:                techIds.length > 0 ? 'assigned' : 'new',
+          scheduledDate,
+          technicianIds:         techIds,
+          technicianId:          techId,
+          location:              'client',
+          description:           `${visitLabel} Scheduled PMC visit — ${contract.visitsPerYear}×/yr contract` +
+                                 (machine ? ` for ${machine.model}` : '') +
+                                 (client  ? ` (${client.name})`    : ''),
+          maintenanceContractId: contractId,
+          maintenanceVisitIndex: visitIndex,
+          createdBy:             user?.name || 'Admin'
+        });
+        Toast.success(`${visitLabel} visit intervention created${techId ? ' and technician assigned' : ''}.`);
+      }
+      refreshInterventions();
+      Modals.close();
+      setTimeout(() => this.openDetailModal(contractId), 80);
+    });
   },
 
   /* ── VISIT COMPLETION ────────────────────────────────────── */

@@ -159,17 +159,18 @@ Views.DeletedJobs = {
 
     const sa = appState.currentUser;
 
-    await Storage.purgeDeletedJob(jobNumber);
-    await Storage.logAction({
-      actor: sa.name,
-      actorId: sa.id,
-      action: 'PURGE_JOB',
-      target: `Job #${jobNumber}`,
-      details: `Reason: ${reason}`
+    await Utils.withButtonLock(async () => {
+      await Storage.purgeDeletedJob(jobNumber);
+      await Storage.logAction({
+        actor: sa.name,
+        actorId: sa.id,
+        action: 'PURGE_JOB',
+        target: `Job #${jobNumber}`,
+        details: `Reason: ${reason}`
+      });
+      Modals.close();
+      Toast.success(`Job #${jobNumber} permanently purged from archive.`);
+      await this.mount();
     });
-
-    Modals.close();
-    Toast.success(`Job #${jobNumber} permanently purged from archive.`);
-    await this.mount();
   }
 };

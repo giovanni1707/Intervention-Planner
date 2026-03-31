@@ -289,18 +289,19 @@ Views.Clients = {
     const name = document.getElementById('fClientName')?.value.trim();
     if (!name) { Toast.error('Company name is required'); return; }
 
-    await Storage.createClient({
-      name,
-      industry:      document.getElementById('fClientIndustry')?.value.trim() || '',
-      contactPerson: document.getElementById('fClientContact')?.value.trim() || '',
-      region:        document.getElementById('fClientRegion')?.value.trim() || '',
-      phones:        this._getPhones(),
-      email:         document.getElementById('fClientEmail')?.value.trim() || ''
+    await Utils.withButtonLock(async () => {
+      await Storage.createClient({
+        name,
+        industry:      document.getElementById('fClientIndustry')?.value.trim() || '',
+        contactPerson: document.getElementById('fClientContact')?.value.trim() || '',
+        region:        document.getElementById('fClientRegion')?.value.trim() || '',
+        phones:        this._getPhones(),
+        email:         document.getElementById('fClientEmail')?.value.trim() || ''
+      });
+      Modals.close();
+      Toast.success(`Client "${name}" created successfully`);
+      this.mount();
     });
-
-    Modals.close();
-    Toast.success(`Client "${name}" created successfully`);
-    this.mount();
   },
 
   _openEditModal(clientId) {
@@ -317,18 +318,19 @@ Views.Clients = {
     const name = document.getElementById('fClientName')?.value.trim();
     if (!name) { Toast.error('Company name is required'); return; }
 
-    await Storage.updateClient(clientId, {
-      name,
-      industry:      document.getElementById('fClientIndustry')?.value.trim() || '',
-      contactPerson: document.getElementById('fClientContact')?.value.trim() || '',
-      region:        document.getElementById('fClientRegion')?.value.trim() || '',
-      phones:        this._getPhones(),
-      email:         document.getElementById('fClientEmail')?.value.trim() || ''
+    await Utils.withButtonLock(async () => {
+      await Storage.updateClient(clientId, {
+        name,
+        industry:      document.getElementById('fClientIndustry')?.value.trim() || '',
+        contactPerson: document.getElementById('fClientContact')?.value.trim() || '',
+        region:        document.getElementById('fClientRegion')?.value.trim() || '',
+        phones:        this._getPhones(),
+        email:         document.getElementById('fClientEmail')?.value.trim() || ''
+      });
+      Modals.close();
+      Toast.success('Client updated successfully');
+      this.mount();
     });
-
-    Modals.close();
-    Toast.success('Client updated successfully');
-    this.mount();
   },
 
   openDetailModal(clientId) {
@@ -644,9 +646,11 @@ Views.Clients = {
       Toast.error('Admin email is incorrect or you do not have admin privileges.'); return;
     }
 
-    await Storage.deleteClient(clientId);
-    Modals.close();
-    Toast.success('Client deleted successfully.');
-    this.mount();
+    await Utils.withButtonLock(async () => {
+      await Storage.deleteClient(clientId);
+      Modals.close();
+      Toast.success('Client deleted successfully.');
+      this.mount();
+    });
   }
 };
