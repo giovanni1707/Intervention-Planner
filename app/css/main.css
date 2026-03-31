@@ -962,6 +962,71 @@ input, select, textarea {
   color: #E2E8F0;
 }
 
+/* ── INTERVENTION FILTER CONTEXT BANNER ─────────────────────── */
+.int-filter-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  background: #EFF6FF;
+  border: 1.5px solid #BFDBFE;
+  border-radius: 8px;
+  color: #1E40AF;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.int-filter-banner span {
+  flex: 1;
+}
+.int-filter-banner-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: #DBEAFE;
+  border: 1.5px solid #93C5FD;
+  border-radius: 6px;
+  color: #1D4ED8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.int-filter-banner-clear:hover {
+  background: #BFDBFE;
+  border-color: #60A5FA;
+}
+.dark-mode .int-filter-banner {
+  background: #1E3A5F;
+  border-color: #2563EB;
+  color: #93C5FD;
+}
+.dark-mode .int-filter-banner-clear {
+  background: #1E3A5F;
+  border-color: #3B82F6;
+  color: #93C5FD;
+}
+.dark-mode .int-filter-banner-clear:hover {
+  background: #1D4ED8;
+  border-color: #60A5FA;
+  color: #EFF6FF;
+}
+
+/* Clear button highlight when a context filter is active */
+.int-clear-active {
+  border: 2px solid #F59E0B !important;
+  color: #92400E !important;
+  background: #FFFBEB !important;
+  font-weight: 600 !important;
+}
+.dark-mode .int-clear-active {
+  border-color: #F59E0B !important;
+  color: #FDE68A !important;
+  background: #292524 !important;
+}
+
 /* MC job filter text input */
 .mc-job-filter-input {
   padding: 5px 10px 5px 28px !important;

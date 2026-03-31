@@ -67,7 +67,7 @@ Views.Notifications = {
         detail:   `Scheduled for ${Utils.formatDateTime(i.scheduledDate)} — now ${overdueLabel}. Status: ${CONFIG.STATUSES[i.status]?.label || i.status}. Technician: ${Utils.getTechnicianNames(i)}.`,
         ts:       scheduledTs,
         actionLabel: 'View Intervention',
-        actionFn:    `Views.Notifications._goIntervention('${i.id}')`,
+        actionFn:    `Views.Notifications._goIntervention('${i.id}', 'Overdue Intervention: ${label.replace(/'/g, "\\'")}')`,
         jobNumber:   machine?.jobNumber || null
       });
     });
@@ -95,7 +95,7 @@ Views.Notifications = {
         detail:   `Scheduled in ${timeLeft} (${Utils.formatDateTime(i.scheduledDate)}). Status: ${CONFIG.STATUSES[i.status]?.label || i.status}. Technician: ${Utils.getTechnicianNames(i)}.`,
         ts:       scheduledTs,
         actionLabel: 'View Intervention',
-        actionFn:    `Views.Notifications._goIntervention('${i.id}')`,
+        actionFn:    `Views.Notifications._goIntervention('${i.id}', 'Upcoming Intervention: ${label.replace(/'/g, "\\'")}')`,
         jobNumber:   machine?.jobNumber || null
       });
     });
@@ -124,7 +124,7 @@ Views.Notifications = {
         detail:   `${priorityLabel} priority intervention open for ${daysOpen} day${daysOpen !== 1 ? 's' : ''} without resolution. Created: ${Utils.formatDateTime(i.createdAt)}. Status: ${CONFIG.STATUSES[i.status]?.label || i.status}.`,
         ts:       createdTs,
         actionLabel: 'View Intervention',
-        actionFn:    `Views.Notifications._goIntervention('${i.id}')`,
+        actionFn:    `Views.Notifications._goIntervention('${i.id}', 'SLA Breach: ${label.replace(/'/g, "\\'")}')`,
         jobNumber:   machine?.jobNumber || null
       });
     });
@@ -151,7 +151,7 @@ Views.Notifications = {
         detail:   `New intervention request with no scheduled date. Priority: ${priorityLabel}. Created: ${Utils.formatDateTime(i.createdAt)}.`,
         ts:       createdTs,
         actionLabel: 'Schedule Now',
-        actionFn:    `Views.Notifications._goIntervention('${i.id}')`,
+        actionFn:    `Views.Notifications._goIntervention('${i.id}', 'Unplanned Request: ${label.replace(/'/g, "\\'")}')`,
         jobNumber:   machine?.jobNumber || null
       });
     });
@@ -406,12 +406,13 @@ Views.Notifications = {
 
   // ── NAVIGATION ACTIONS ─────────────────────────────────────
 
-  _goIntervention(id) {
+  _goIntervention(id, label) {
     // Filter table to show only this specific job, then open the detail modal
     const intervention = appState.interventions.find(i => i.id === id);
     const machine = intervention ? appState.machines.find(m => m.id === intervention.machineId) : null;
     resetFilters();
     if (machine?.jobNumber) appState.filters.jobNumber = machine.jobNumber;
+    if (label) appState.filters._filterLabel = label;
     Router.go('interventions');
     setTimeout(() => Views.Interventions.openDetailModal(id), 300);
   },

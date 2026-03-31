@@ -175,11 +175,12 @@ Views.Dashboard = {
 
   // Navigate to interventions with pre-applied filters.
   // 'preset' is an optional special case handled by the interventions view.
-  _goFiltered(filters, preset) {
+  // 'label' is an optional human-readable string shown as a context banner in the table.
+  _goFiltered(filters, preset, label) {
     resetFilters();
     Object.assign(appState.filters, filters);
-    // Store preset so interventions view can apply post-render filtering
     if (preset) appState.filters._preset = preset;
+    if (label)  appState.filters._filterLabel = label;
     Router.go('interventions');
   },
 
@@ -302,7 +303,7 @@ Views.Dashboard = {
         <div class="alert alert-danger" style="margin-bottom:12px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           <span><strong>${urgentOpen.length} urgent intervention${urgentOpen.length > 1 ? 's' : ''}</strong> require immediate attention.</span>
-          <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="Views.Dashboard._goFiltered({priority:'urgent'})">View →</button>
+          <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="Views.Dashboard._goFiltered({priority:'urgent'}, null, 'You are viewing ${urgentOpen.length} urgent intervention${urgentOpen.length > 1 ? 's' : ''} that require immediate attention.')">View →</button>
         </div>`;
     }
     if (overdue.length > 0) {
@@ -310,7 +311,7 @@ Views.Dashboard = {
         <div class="alert alert-danger" style="margin-bottom:12px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           <span><strong>${overdue.length} intervention${overdue.length > 1 ? 's are' : ' is'} overdue</strong> — past scheduled date.</span>
-          <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="Views.Dashboard._goFiltered({}, 'overdue')">View →</button>
+          <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="Views.Dashboard._goFiltered({}, 'overdue', 'You are viewing ${overdue.length} overdue intervention${overdue.length > 1 ? 's' : ''} that are past their scheduled date.')">View →</button>
         </div>`;
     }
     if (unplanned.length > 0) {

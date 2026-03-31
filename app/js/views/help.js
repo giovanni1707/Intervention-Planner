@@ -100,8 +100,14 @@ Views.Help = {
         <h3>Today's Schedule</h3>
         <p>This panel lists all interventions with a scheduled date of today. Click <em>View</em> on any row to open the job detail modal.</p>
 
-        <h3>Urgent Alerts</h3>
-        <p>A red banner appears when there are urgent or overdue jobs that need immediate attention. Click it to go directly to the Notifications section.</p>
+        <h3>Alert &amp; Notification Banners</h3>
+        <p>Coloured banners appear above the KPI cards when action is required. Each banner has a <strong>View</strong> button that takes you directly to the filtered Interventions table:</p>
+        <ul>
+          <li><strong>Urgent jobs</strong> (red banner) — clicking <em>View</em> filters the Interventions table to show only <em>urgent-priority</em> open jobs.</li>
+          <li><strong>Overdue jobs</strong> (orange banner) — clicking <em>View</em> shows all open jobs whose scheduled date has already passed.</li>
+          <li><strong>Unplanned requests</strong> (blue banner) — clicking <em>Plan Now</em> navigates to the <em>Planning</em> section so you can schedule those jobs.</li>
+        </ul>
+        <p>Notification banners (expiring contracts, SLA breaches, etc.) also include a <em>View</em> button that opens the relevant filtered job list.</p>
 
         <h3>Quick Actions</h3>
         <ul>
@@ -513,11 +519,61 @@ Views.Help = {
         <h3>Sidebar badge</h3>
         <p>The red badge next to <em>Notifications</em> in the sidebar shows the total unread count. It updates automatically.</p>
 
+        <h3>Navigating to a job</h3>
+        <p>Click the <strong>View</strong> button on any notification to jump straight to the Interventions table pre-filtered to that specific job. The job detail modal opens automatically.</p>
+
         <h3>Dismissing notifications</h3>
-        <p>Click the <strong>×</strong> on any notification to dismiss it. Dismissed notifications do not reappear unless the underlying issue changes (e.g. a job becomes even more overdue).</p>
+        <p>Click the <strong>×</strong> on any notification to dismiss it individually, or use <strong>Dismiss All</strong> to clear the current category at once. Dismissed notifications do not reappear unless the underlying issue changes.</p>
+
+        <h3>Muting notifications</h3>
+        <p>Click the <strong>Mute</strong> button (bell-off icon) in the page header to silence all on-screen notifications. While muted:</p>
+        <ul>
+          <li>No notification banners are shown on the Dashboard.</li>
+          <li>The sidebar badge is hidden.</li>
+          <li>The notification list appears empty.</li>
+        </ul>
+        <p>Click <strong>Unmute</strong> to restore notifications. The mute preference is saved per browser and persists across sessions.</p>
 
         <h3>Tabs</h3>
         <p>Use the category tabs at the top of the page to filter by notification type.</p>
+      `
+    },
+
+    /* ────────────── ALERTS (SCHEDULER BELL) ───────────────── */
+    {
+      id:       'alerts-overview',
+      category: 'Alerts',
+      icon:     '<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/><line x1="1" y1="1" x2="23" y2="23"/>',
+      title:    'Alerts Panel',
+      roles:    ['admin', 'superadmin'],
+      summary:  'Real-time alert bell for overdue, urgent, and upcoming jobs.',
+      body: `
+        <h3>What is the Alerts Panel?</h3>
+        <p>The <strong>bell icon</strong> in the top-right corner of the sidebar opens the Alerts panel — a live feed of time-sensitive job alerts that require immediate attention.</p>
+
+        <h3>What triggers an alert?</h3>
+        <ul>
+          <li><strong>Overdue jobs</strong> — open interventions past their scheduled date.</li>
+          <li><strong>Urgent/High SLA breach</strong> — urgent or high-priority jobs open for more than 3 days.</li>
+          <li><strong>Jobs due today</strong> — interventions scheduled for the current day.</li>
+          <li><strong>Jobs due soon</strong> — jobs scheduled within the next 6 hours.</li>
+          <li><strong>Unplanned jobs</strong> — open interventions with no scheduled date.</li>
+        </ul>
+
+        <h3>Alert badge</h3>
+        <p>A red number badge on the bell icon shows the total active alert count. It updates automatically every few minutes.</p>
+
+        <h3>Navigating to a job</h3>
+        <p>Click <strong>View</strong> on any alert to go straight to the Interventions table filtered to that job. The job detail modal opens automatically.</p>
+
+        <h3>Muting alerts</h3>
+        <p>Click the <strong>mute button</strong> (bell-strikethrough icon) inside the alerts panel header to silence all alerts. While muted:</p>
+        <ul>
+          <li>The alert badge is hidden.</li>
+          <li>The alerts panel shows an empty state.</li>
+          <li>No alerts fire in the background.</li>
+        </ul>
+        <p>Click the button again to unmute. The mute preference is saved per browser and persists across sessions.</p>
       `
     },
 
@@ -547,6 +603,20 @@ Views.Help = {
 
         <h3>Deleting a message</h3>
         <p>Hover over any message to reveal the <em>trash icon</em>. For your own messages, deleting removes it for everyone. For others' messages, it hides the message only from your view.</p>
+
+        <h3>Sending file attachments</h3>
+        <p>Click the <strong>paperclip icon</strong> next to the message input (or drag and drop a file onto the input area) to attach a file to your message.</p>
+        <ul>
+          <li><strong>Supported types</strong> — images (JPG, PNG, GIF, WebP), documents (PDF, Word, Excel, PowerPoint), text files, and more.</li>
+          <li><strong>Size limit</strong> — 5 MB per file.</li>
+          <li>A preview bar appears above the input showing the staged file. Click the <strong>×</strong> to cancel the attachment before sending.</li>
+        </ul>
+        <p>In the conversation:</p>
+        <ul>
+          <li><strong>Images</strong> are displayed inline as thumbnails. Click any image to open it full-size.</li>
+          <li><strong>Documents</strong> appear as a file card with a download link so the recipient can save the file.</li>
+        </ul>
+        <p class="help-note">⚠ Only one file can be attached per message. To share multiple files, send them as separate messages.</p>
 
         <h3>Keyboard shortcut</h3>
         <p>Press <kbd>Enter</kbd> to send a message. Press <kbd>Shift</kbd> + <kbd>Enter</kbd> to add a new line.</p>

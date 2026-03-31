@@ -167,7 +167,7 @@ Views.Interventions = {
             <option value="expired"  ${appState.filters.pmcStatus === 'expired'  ? 'selected' : ''}>Expired</option>
             <option value="none"     ${appState.filters.pmcStatus === 'none'     ? 'selected' : ''}>No PMC</option>
           </select>
-          <button class="btn btn-ghost btn-sm" onclick="Views.Interventions._resetFilters()">Clear</button>
+          <button class="btn btn-ghost btn-sm" id="intClearBtn" onclick="Views.Interventions._resetFilters()">Clear</button>
         </div>
         <span id="intCount"></span>
       </div>
@@ -254,11 +254,50 @@ Views.Interventions = {
     Toast.show(`Exported ${filtered.length} intervention${filtered.length !== 1 ? 's' : ''} to CSV`, 'success');
   },
 
+  _renderFilterContextBanner() {
+    const label = appState.filters._filterLabel;
+    const clearBtn = document.getElementById('intClearBtn');
+
+    // Highlight Clear button when a context filter is active
+    if (clearBtn) {
+      if (label) {
+        clearBtn.classList.add('int-clear-active');
+      } else {
+        clearBtn.classList.remove('int-clear-active');
+      }
+    }
+
+    // Render or remove the context banner
+    let banner = document.getElementById('intFilterBanner');
+    if (!label) {
+      if (banner) banner.remove();
+      return;
+    }
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'intFilterBanner';
+      banner.className = 'int-filter-banner';
+      // Insert before #interventionContent
+      const content = document.getElementById('interventionContent');
+      if (content) content.parentNode.insertBefore(banner, content);
+    }
+    banner.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      <span>${Utils.escapeHtml(label)}</span>
+      <button class="int-filter-banner-clear" onclick="Views.Interventions._resetFilters()" title="Clear filter and return to full list">
+        Clear filter
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+  },
+
   _renderTable(interventions) {
     const container = document.getElementById('interventionContent');
     const countEl   = document.getElementById('intCount');
     const subtitle  = document.getElementById('interventionSubtitle');
     if (!container) return;
+
+    this._renderFilterContextBanner();
 
     if (countEl) countEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--primary-50,#EFF6FF);color:var(--primary-700,#1D4ED8);border:1px solid var(--primary-200,#BFDBFE);border-radius:999px;padding:2px 10px;font-size:0.78rem;font-weight:600">${interventions.length} <span style="font-weight:400;opacity:.75">result${interventions.length !== 1 ? 's' : ''}</span></span>`;
     if (subtitle) subtitle.textContent = `${interventions.length} intervention${interventions.length !== 1 ? 's' : ''} found`;
@@ -447,6 +486,7 @@ Views.Interventions = {
     const container = document.getElementById('interventionContent');
     const countEl   = document.getElementById('intCount');
     if (!container) return;
+    this._renderFilterContextBanner();
     if (countEl) countEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--primary-50,#EFF6FF);color:var(--primary-700,#1D4ED8);border:1px solid var(--primary-200,#BFDBFE);border-radius:999px;padding:2px 10px;font-size:0.78rem;font-weight:600">${interventions.length} <span style="font-weight:400;opacity:.75">result${interventions.length !== 1 ? 's' : ''}</span></span>`;
 
     const grouped = Utils.groupBy(interventions, 'status');

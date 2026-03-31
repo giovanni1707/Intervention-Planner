@@ -111,18 +111,19 @@ async function refreshUsers() {
 // ── FILTER HELPERS ─────────────────────────────────────────
 function resetFilters() {
   appState.filters = {
-    status:      'all',
-    priority:    'all',
-    type:        'all',
-    technicianId:'all',
-    clientId:    'all',
-    dateFrom:    '',
-    dateTo:      '',
-    search:      '',
-    jobNumber:   '',
-    serialNumber:'',
-    district:    'all',
-    location:    'all',
-    pmcStatus:   'all'
+    status:       'all',
+    priority:     'all',
+    type:         'all',
+    technicianId: 'all',
+    clientId:     'all',
+    dateFrom:     '',
+    dateTo:       '',
+    search:       '',
+    jobNumber:    '',
+    serialNumber: '',
+    district:     'all',
+    location:     'all',
+    pmcStatus:    'all',
+    _filterLabel: null   // human-readable context set when navigating from a banner
   };
 }

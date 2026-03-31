@@ -265,7 +265,7 @@ const Scheduler = {
                   <div class="scheduler-alert-msg">${a.longMsg}</div>
                   <div class="scheduler-alert-actions">
                     <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:0.75rem"
-                      onclick="Scheduler._viewIntervention('${a.intId}')">View</button>
+                      onclick="Scheduler._viewIntervention('${a.intId}', '${(a.type === 'overdue' ? 'Overdue Alert' : 'Upcoming Alert')}: ${a.label.replace(/'/g, "\\'")}')">View</button>
                     <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:0.75rem;color:var(--gray-400)"
                       onclick="Scheduler._dismiss('${a.id}')">Dismiss</button>
                   </div>
@@ -283,17 +283,16 @@ const Scheduler = {
     `;
   },
 
-  _viewIntervention(interventionId) {
+  _viewIntervention(interventionId, label) {
     this._panelOpen = false;
     document.getElementById('schedulerPanel')?.classList.add('hidden');
 
     // Pre-filter the interventions table to show only this job
     const intervention = appState.interventions.find(i => i.id === interventionId);
     const machine = intervention ? appState.machines.find(m => m.id === intervention.machineId) : null;
-    if (machine?.jobNumber) {
-      resetFilters();
-      appState.filters.jobNumber = machine.jobNumber;
-    }
+    resetFilters();
+    if (machine?.jobNumber) appState.filters.jobNumber = machine.jobNumber;
+    if (label) appState.filters._filterLabel = label;
 
     if (appState.currentRoute !== 'interventions') {
       Router.go('interventions');
