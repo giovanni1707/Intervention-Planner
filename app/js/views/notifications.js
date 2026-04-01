@@ -129,6 +129,32 @@ Views.Notifications = {
       });
     });
 
+    // ── Long-paused jobs (paused > 3 days) ──────────────────────
+    const PAUSE_ALERT_MS = 3 * 24 * 3600000;
+    appState.interventions.forEach(i => {
+      if (i.status !== 'paused' || !i.pause?.pausedAt) return;
+      const pausedMs = now - new Date(i.pause.pausedAt).getTime();
+      if (pausedMs < PAUSE_ALERT_MS) return;
+
+      const machine = appState.machines.find(m => m.id === i.machineId);
+      const client  = appState.clients.find(c => c.id === i.clientId);
+      const label   = `${client?.name || 'Unknown Client'} — ${machine?.model || 'Unknown Machine'}`;
+      const daysPaused = Math.floor(pausedMs / 86400000);
+
+      notifications.push({
+        id:       `paused-${i.id}`,
+        category: 'interventions',
+        severity: 'warning',
+        title:    'Job Paused — Requires Attention',
+        subject:  label,
+        detail:   `This job has been paused for ${daysPaused} day${daysPaused !== 1 ? 's' : ''} and requires attention. Paused by ${i.pause.pausedBy || '—'} on ${Utils.formatDateTime(i.pause.pausedAt)}. Reason: ${i.pause.reason || '—'}`,
+        ts:       new Date(i.pause.pausedAt).getTime(),
+        actionLabel: 'View Intervention',
+        actionFn:    `Views.Notifications._goIntervention('${i.id}', 'Paused Job: ${label.replace(/'/g, "\\'")}')`,
+        jobNumber:   machine?.jobNumber || null
+      });
+    });
+
     // ── 4. Unplanned requests (no scheduled date) ────────────
     appState.interventions.forEach(i => {
       if (!['new', 'tentative'].includes(i.status)) return;
@@ -227,6 +253,31 @@ Views.Notifications = {
       });
     }
 
+    // ── Inventory outdated (no import or last import > 3 days ago) ──
+    const meta = appState.storeInventoryMeta;
+    const INVENTORY_STALE_MS = 3 * 24 * 3600000;
+    const isInventoryStale = !meta || !meta.lastImportedAt ||
+      (now - new Date(meta.lastImportedAt).getTime()) > INVENTORY_STALE_MS;
+
+    if (isInventoryStale) {
+      const lastTs = meta?.lastImportedAt ? new Date(meta.lastImportedAt).getTime() : null;
+      const detail = lastTs
+        ? `Last import was on ${Utils.formatDateTime(meta.lastImportedAt)}. Please import a new CSV to keep stock information up to date.`
+        : 'No inventory data has been imported yet. Please import a CSV to load current stock levels.';
+
+      notifications.push({
+        id:          'inventory-outdated',
+        category:    'inventory',
+        severity:    'warning',
+        title:       'Inventory Data Outdated',
+        subject:     'Store Inventory requires an update',
+        detail,
+        ts:          lastTs || now,
+        actionLabel: 'Go to Store Inventory',
+        actionFn:    `Router.go('store-inventory')`
+      });
+    }
+
     // Sort: critical first, then by timestamp descending
     const SEV_ORDER = { critical: 0, high: 1, warning: 2, info: 3 };
     notifications.sort((a, b) => {
@@ -251,6 +302,7 @@ Views.Notifications = {
       sla:           active.filter(n => n.category === 'sla').length,
       contracts:     active.filter(n => n.category === 'contracts').length,
       pmc:           active.filter(n => n.category === 'pmc').length,
+      inventory:     active.filter(n => n.category === 'inventory').length,
     };
 
     const filtered = tab === 'all' ? active : active.filter(n => n.category === tab);
@@ -262,7 +314,8 @@ Views.Notifications = {
           { key: 'interventions', label: 'Interventions' },
           { key: 'sla',           label: 'SLA Breaches' },
           { key: 'contracts',     label: 'Contracts' },
-          { key: 'pmc',           label: 'PMC Visits' }
+          { key: 'pmc',           label: 'PMC Visits' },
+          { key: 'inventory',     label: 'Inventory' }
         ].map(t => `
           <button class="nc-tab${tab === t.key ? ' active' : ''}"
             onclick="Views.Notifications._switchTab('${t.key}')">
@@ -351,7 +404,8 @@ Views.Notifications = {
       interventions: 'Intervention',
       sla:           'SLA',
       contracts:     'Contract',
-      pmc:           'PMC'
+      pmc:           'PMC',
+      inventory:     'Inventory'
     };
     const catLabel = CAT_LABELS[n.category] || n.category;
     const jobBadge = n.jobNumber

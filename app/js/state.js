@@ -13,6 +13,8 @@ const appState = ReactiveUtils.state({
   users:                [],
   contracts:            [],
   maintenanceContracts: [],
+  storeInventory:       [],
+  storeInventoryMeta:   null,
 
   // Filter state for Interventions view
   filters: {
@@ -65,6 +67,20 @@ function attachListeners() {
       console.error(`[onSnapshot] ${col}:`, err);
     });
   });
+
+  // Store inventory items listener
+  if (_unsubs['storeInventory']) _unsubs['storeInventory']();
+  _unsubs['storeInventory'] = db.collection(COL.STORE_INVENTORY).onSnapshot(snap => {
+    appState.storeInventory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (typeof Router !== 'undefined' && Router._current) Router._rerender();
+  }, err => console.error('[onSnapshot] storeInventory:', err));
+
+  // Store inventory metadata listener (single doc)
+  if (_unsubs['storeInventoryMeta']) _unsubs['storeInventoryMeta']();
+  _unsubs['storeInventoryMeta'] = db.collection(COL.STORE_INVENTORY_META).doc('meta').onSnapshot(snap => {
+    appState.storeInventoryMeta = snap.exists ? { id: snap.id, ...snap.data() } : null;
+    if (typeof Router !== 'undefined' && Router._current) Router._rerender();
+  }, err => console.error('[onSnapshot] storeInventoryMeta:', err));
 }
 
 /** Detach all listeners (call on logout) */
@@ -75,13 +91,15 @@ function detachListeners() {
 
 // ── INITIAL LOAD (one-time fetch for startup speed) ────────
 async function loadStateFromStorage() {
-  const [clients, machines, interventions, users, contracts, maintenanceContracts] = await Promise.all([
+  const [clients, machines, interventions, users, contracts, maintenanceContracts, storeInventory, storeInventoryMeta] = await Promise.all([
     Storage.getClients(),
     Storage.getMachines(),
     Storage.getInterventions(),
     Storage.getUsers(),
     Storage.getContracts(),
-    Storage.getMaintenanceContracts()
+    Storage.getMaintenanceContracts(),
+    Storage.getStoreInventory(),
+    Storage.getStoreInventoryMeta()
   ]);
   appState.clients              = clients;
   appState.machines             = machines;
@@ -89,6 +107,8 @@ async function loadStateFromStorage() {
   appState.users                = users;
   appState.contracts            = contracts;
   appState.maintenanceContracts = maintenanceContracts;
+  appState.storeInventory       = storeInventory;
+  appState.storeInventoryMeta   = storeInventoryMeta;
 }
 
 // ── MANUAL REFRESH HELPERS (still used by some views) ──────

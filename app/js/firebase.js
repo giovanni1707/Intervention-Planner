@@ -40,5 +40,7 @@ const COL = {
   MAINTENANCE_CONTRACTS:'maintenanceContracts',
   DELETED_JOBS:         'deletedJobs',
   ACTION_LOG:           'actionLog',
+  STORE_INVENTORY:      'storeInventory',
+  STORE_INVENTORY_META: 'storeInventoryMeta',
   SEEDED:               'meta'          // single doc { seeded: 'v4' }
 };

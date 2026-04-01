@@ -774,6 +774,8 @@ input, select, textarea {
 .badge-waiting { background: #FFF1F2; color: #BE123C; }
 .badge-completed { background: #ECFDF5; color: #065F46; }
 .badge-cancelled { background: var(--gray-100); color: var(--gray-500); }
+.badge-paused        { background: #FFF7ED; color: #9A3412; border: 1px solid #FDBA74; }
+.dark-mode .badge-paused { background: #431407; color: #FDBA74; border-color: #9A3412; }
 .badge-gray { background: var(--gray-100); color: var(--gray-600); }
 
 /* Priority badges */
@@ -2510,6 +2512,96 @@ input, select, textarea {
 .purge-countdown {
   font-variant-numeric: tabular-nums;
 }
+
+/* ── PAUSED INTERVENTION ROW ────────────────────────────────── */
+.paused-row td { opacity: 0.85; }
+.paused-row { background: #FFFBEB !important; }
+.dark-mode .paused-row { background: #1C1A0A !important; }
+
+/* ── STORE INVENTORY ────────────────────────────────────────── */
+
+/* Last-updated banner */
+.si-last-updated {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.857rem;
+  color: var(--gray-600);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  margin-bottom: 20px;
+}
+.si-last-updated svg { flex-shrink: 0; color: var(--gray-400); }
+.si-last-updated-warn {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+  color: #92400E;
+}
+.si-last-updated-warn svg { color: #F59E0B; }
+.dark-mode .si-last-updated { background: var(--gray-800); border-color: var(--gray-700); color: var(--gray-300); }
+.dark-mode .si-last-updated-warn { background: #1C1A0A; border-color: #78350F; color: #FDE68A; }
+
+.si-outdated-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FCD34D;
+  margin-left: 4px;
+}
+.dark-mode .si-outdated-badge { background: #451A03; color: #FCD34D; border-color: #78350F; }
+
+/* CSV format box in import modal */
+.si-csv-format {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.dark-mode .si-csv-format { background: var(--gray-800); border-color: var(--gray-700); }
+.si-csv-format-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.si-csv-code {
+  display: block;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--gray-700);
+  white-space: pre;
+  overflow-x: auto;
+}
+.dark-mode .si-csv-code { color: var(--gray-200); }
+
+/* Quantity badges */
+.si-qty-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.si-qty-ok   { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+.si-qty-low  { background: #FFF7ED; color: #9A3412; border: 1px solid #FDBA74; }
+.si-qty-zero { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+.dark-mode .si-qty-ok   { background: #022C22; color: #6EE7B7; border-color: #065F46; }
+.dark-mode .si-qty-low  { background: #431407; color: #FDBA74; border-color: #9A3412; }
+.dark-mode .si-qty-zero { background: #450A0A; color: #FCA5A5; border-color: #991B1B; }
 
 /* ── PRINT STYLES ───────────────────────────────────────────── */
 @media print {

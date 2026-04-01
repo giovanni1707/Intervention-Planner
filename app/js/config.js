@@ -23,6 +23,7 @@ const CONFIG = {
     ongoing:       { label: 'On Going',          color: 'badge-ongoing' },
     pending:       { label: 'Pending',           color: 'badge-pending' },
     waiting_parts: { label: 'Waiting for Parts', color: 'badge-waiting' },
+    paused:        { label: 'Paused',             color: 'badge-paused' },
     completed:     { label: 'Completed',         color: 'badge-completed' },
     cancelled:     { label: 'Cancelled',         color: 'badge-cancelled' }
   },
@@ -64,7 +65,7 @@ const CONFIG = {
   },
 
   // Statuses considered "open" (not finished)
-  OPEN_STATUSES: ['new', 'tentative', 'assigned', 'ongoing', 'pending', 'waiting_parts'],
+  OPEN_STATUSES: ['new', 'tentative', 'assigned', 'ongoing', 'pending', 'waiting_parts', 'paused'],
 
 
   DISTRICTS: [

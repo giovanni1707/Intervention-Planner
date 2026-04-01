@@ -322,6 +322,21 @@ Views.Dashboard = {
           <button class="btn btn-sm btn-warning" style="margin-left:auto" onclick="Router.go('planning')">Plan Now →</button>
         </div>`;
     }
+    const longPaused = interventions.filter(i => {
+      if (i.status !== 'paused' || !i.pause?.pausedAt) return false;
+      const pausedMs = Date.now() - new Date(i.pause.pausedAt).getTime();
+      return pausedMs >= 3 * 24 * 3600000; // 3+ days
+    });
+    if (longPaused.length > 0) {
+      html += `
+        <div class="alert alert-warning" style="margin-bottom:12px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+          </svg>
+          <span><strong>${longPaused.length} job${longPaused.length > 1 ? 's have' : ' has'} been paused for 3+ days</strong> and require${longPaused.length === 1 ? 's' : ''} attention.</span>
+          <button class="btn btn-sm btn-warning" style="margin-left:auto" onclick="Views.Dashboard._goFiltered({status:'paused'}, null, 'You are viewing ${longPaused.length} job${longPaused.length > 1 ? 's' : ''} that have been paused for 3 or more days.')">View →</button>
+        </div>`;
+    }
     banner.innerHTML = html;
   },
 

@@ -268,6 +268,85 @@ const Storage = {
     return updated;
   },
 
+  async pauseIntervention(id, { reason, pausedBy, pausedById }) {
+    const now = new Date().toISOString();
+    const existing = await this._getById(COL.INTERVENTIONS, id);
+    if (!existing) return null;
+    const pauseEntry = { reason, pausedBy, pausedById, pausedAt: now };
+    const updated = {
+      ...existing,
+      status: 'paused',
+      pause:  pauseEntry,
+      pauseHistory: [...(existing.pauseHistory || []), pauseEntry],
+      statusUpdatedAt: now,
+      updatedAt: now,
+      statusHistory: [...(existing.statusHistory || []), {
+        status: 'paused',
+        changedBy: pausedBy,
+        timestamp: now,
+        note: reason
+      }],
+      auditTrail: [...(existing.auditTrail || []), {
+        action: 'Paused',
+        user: pausedBy,
+        timestamp: now,
+        details: `Job paused. Reason: ${reason}`
+      }]
+    };
+    await this._set(COL.INTERVENTIONS, id, updated);
+    return updated;
+  },
+
+  async resumeIntervention(id, { resumedBy, technicianIds, technicianId, scheduledDate, note }) {
+    const now = new Date().toISOString();
+    const existing = await this._getById(COL.INTERVENTIONS, id);
+    if (!existing) return null;
+    // Close out the last pause history entry with resumedAt
+    const pauseHistory = [...(existing.pauseHistory || [])];
+    if (pauseHistory.length > 0) {
+      pauseHistory[pauseHistory.length - 1] = {
+        ...pauseHistory[pauseHistory.length - 1],
+        resumedAt: now,
+        resumedBy
+      };
+    }
+    const updated = {
+      ...existing,
+      status: 'assigned',
+      pause: null,
+      pauseHistory,
+      technicianIds: technicianIds || existing.technicianIds || [],
+      technicianId:  technicianId  || existing.technicianId  || null,
+      scheduledDate: scheduledDate || existing.scheduledDate,
+      statusUpdatedAt: now,
+      updatedAt: now,
+      statusHistory: [...(existing.statusHistory || []), {
+        status: 'assigned',
+        changedBy: resumedBy,
+        timestamp: now,
+        note: note || 'Job resumed'
+      }],
+      auditTrail: [...(existing.auditTrail || []), {
+        action: 'Resumed',
+        user: resumedBy,
+        timestamp: now,
+        details: note ? `Job resumed. Note: ${note}` : 'Job resumed from paused state.'
+      }]
+    };
+    if (scheduledDate) {
+      updated.scheduledHistory = [...(existing.scheduledHistory || []), {
+        scheduledDate,
+        status: 'assigned',
+        technicianIds: technicianIds || existing.technicianIds || [],
+        technicianId:  technicianId  || existing.technicianId  || null,
+        changedBy: resumedBy,
+        timestamp: now
+      }];
+    }
+    await this._set(COL.INTERVENTIONS, id, updated);
+    return updated;
+  },
+
   async deleteIntervention(id) {
     await this._delete(COL.INTERVENTIONS, id);
   },
@@ -436,5 +515,53 @@ const Storage = {
     const updatedAt = new Date().toISOString();
     await this._update(COL.MAINTENANCE_CONTRACTS, contractId, { contractParts, updatedAt });
     return this._getById(COL.MAINTENANCE_CONTRACTS, contractId);
+  },
+
+  // ── STORE INVENTORY ───────────────────────────────────────
+
+  /** Fetch all inventory items */
+  async getStoreInventory() {
+    return this._getAll(COL.STORE_INVENTORY);
+  },
+
+  /** Get the import metadata doc (lastImportedAt, importedBy) */
+  async getStoreInventoryMeta() {
+    return this._getById(COL.STORE_INVENTORY_META, 'meta');
+  },
+
+  /**
+   * Replace all inventory items with a new batch.
+   * Deletes existing docs then writes new ones in a Firestore batch.
+   * Also writes metadata (lastImportedAt, importedBy, itemCount).
+   */
+  async replaceStoreInventory(items, importedBy) {
+    const now = new Date().toISOString();
+
+    // Delete all existing items
+    const existing = await this._getAll(COL.STORE_INVENTORY);
+    const batch1 = db.batch();
+    existing.forEach(doc => {
+      batch1.delete(db.collection(COL.STORE_INVENTORY).doc(doc.id));
+    });
+    await batch1.commit();
+
+    // Write new items in batches of 400 (Firestore limit is 500)
+    const BATCH_SIZE = 400;
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const chunk = items.slice(i, i + BATCH_SIZE);
+      const batch = db.batch();
+      chunk.forEach(item => {
+        const id  = Utils.generateId();
+        const ref = db.collection(COL.STORE_INVENTORY).doc(id);
+        batch.set(ref, { ...item, id, importedAt: now });
+      });
+      await batch.commit();
+    }
+
+    // Write/update metadata
+    const meta = { lastImportedAt: now, importedBy, itemCount: items.length };
+    await db.collection(COL.STORE_INVENTORY_META).doc('meta').set(meta);
+
+    return meta;
   }
 };

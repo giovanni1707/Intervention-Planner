@@ -395,7 +395,7 @@ Views.Interventions = {
       const isOverdue = CONFIG.OPEN_STATUSES.includes(i.status) && i.scheduledDate && Utils.isPast(i.scheduledDate);
       const pmcStatus = _getPmcStatus(machine);
       return `
-        <tr ${isOverdue ? 'style="background:var(--red-light)"' : ''} data-id="${i.id}" data-pmc="${pmcStatus}">
+        <tr class="${i.status === 'paused' ? 'paused-row' : ''}" ${isOverdue && i.status !== 'paused' ? 'style="background:var(--red-light)"' : ''} data-id="${i.id}" data-pmc="${pmcStatus}">
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.jobNumber || '—')}</td>
           <td style="font-family:monospace;font-size:0.786rem;color:var(--gray-500)">${Utils.escapeHtml(machine?.serialNumber || '—')}</td>
           <td class="td-primary">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
@@ -432,8 +432,10 @@ Views.Interventions = {
                 const isTech = cu?.role === 'technician';
                 const techIds = Utils.getTechIds(i);
                 const assignedToOther = isTech && techIds.length > 0 && !techIds.includes(cu.id);
-                if (assignedToOther) {
-                  return `<button class="btn btn-ghost btn-sm btn-icon" title="Assigned to another technician" style="opacity:0.35;cursor:not-allowed" disabled>
+                const isPausedForTech = isTech && i.status === 'paused';
+                if (assignedToOther || isPausedForTech) {
+                  const title = isPausedForTech ? 'Job is paused — contact an Administrator' : 'Assigned to another technician';
+                  return `<button class="btn btn-ghost btn-sm btn-icon" title="${title}" style="opacity:0.35;cursor:not-allowed" disabled>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   </button>`;
                 }
@@ -547,13 +549,13 @@ Views.Interventions = {
     ).join('');
 
     // Role-based status access:
-    // Admin & Head Administrator: can only set Assigned, Tentative, Cancelled
-    // Technician: can set all statuses except 'new', 'assigned', 'tentative', 'cancelled'
+    // Admin & Head Administrator: can only set Assigned, Tentative, Cancelled, Paused
+    // Technician: can set all statuses except 'new', 'assigned', 'tentative', 'cancelled', 'paused'
     const isCurrentlyNew = !intervention.status || intervention.status === 'new';
     const isSuperAdmin = appState.currentUser?.role === 'superadmin';
     const isAdmin = appState.currentUser?.role === 'admin' || isSuperAdmin;
-    const ADMIN_STATUSES = ['tentative', 'assigned', 'cancelled'];
-    const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled'];
+    const ADMIN_STATUSES = ['tentative', 'assigned', 'cancelled', 'paused'];
+    const TECH_RESTRICTED_STATUSES = ['tentative', 'assigned', 'cancelled', 'paused'];
 
     // PMC sequential status options for technicians.
     // Each PMC intervention is tied to a specific visit via maintenanceVisitIndex.
@@ -791,6 +793,13 @@ Views.Interventions = {
         <label class="form-label">Status Note <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional — explain this status change)</span></label>
         <textarea id="fIntStatusNote" class="form-textarea" rows="2" placeholder="e.g. Rescheduled due to technician unavailability…"></textarea>
       </div>
+      ${isEdit && isAdmin ? `
+<div id="fPauseReasonGroup" style="display:${intervention.status === 'paused' ? '' : 'none'}">
+  <div class="form-group">
+    <label class="form-label">Pause Reason <span class="required">*</span></label>
+    <textarea id="fPauseReason" class="form-textarea" rows="2" placeholder="Explain why this job is being paused…">${intervention.status === 'paused' ? Utils.escapeHtml(intervention.pause?.reason || '') : ''}</textarea>
+  </div>
+</div>` : ''}
       ${isAdmin ? `
       <div class="form-group">
         <label class="form-label">Assigned Technician(s) <span class="required" id="fIntTechRequired" style="${isCurrentlyNew ? 'display:none' : ''}">*</span></label>
@@ -1144,6 +1153,11 @@ Views.Interventions = {
         const el = document.getElementById(id);
         if (el) el.style.display = display;
       });
+      // Show/hide pause reason field
+      const pauseGroup = document.getElementById('fPauseReasonGroup');
+      if (pauseGroup) {
+        pauseGroup.style.display = statusSel.value === 'paused' ? '' : 'none';
+      }
     };
     statusSel.addEventListener('change', toggle);
     toggle(); // run on open
@@ -1368,7 +1382,20 @@ Views.Interventions = {
       </span>` : ''}
       <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
       <button class="btn btn-primary" onclick="Views.Interventions._submitEdit('${interventionId}')" ${isTechOnNew ? 'disabled title="This intervention must first be scheduled or assigned by an Administrator."' : ''}>Save Changes</button>
-    `, { size: 'lg', onOpen: () => { this._bindClientMachineDropdown(); this._bindEditStatusChange(); this._restoreEditDraft(); this._initLocationAutocomplete(null, interventionId); } });
+    `, { size: 'lg', onOpen: () => {
+      this._bindClientMachineDropdown();
+      this._bindEditStatusChange();
+      this._restoreEditDraft();
+      this._initLocationAutocomplete(null, interventionId);
+      // Autofill location address from machine if not already set on the intervention
+      const locInput = document.getElementById('fIntLocationAddress');
+      if (locInput && !locInput.value.trim()) {
+        const iv      = appState.interventions.find(x => x.id === interventionId);
+        const machine = iv ? appState.machines.find(m => m.id === iv.machineId) : null;
+        if (machine?.locationAddress) locInput.value = machine.locationAddress;
+        else if (machine?.location && machine.location !== 'client' && machine.location !== 'workshop') locInput.value = machine.location;
+      }
+    } });
   },
 
   _openQueueReviewModal(interventionId) {
@@ -1464,6 +1491,11 @@ Views.Interventions = {
     const userIsSuperAdmin = currentUser?.role === 'superadmin';
     const userIsAdmin = currentUser?.role === 'admin' || userIsSuperAdmin;
 
+    if (original.status === 'paused' && !userIsAdmin) {
+      Toast.error('This intervention is paused. Only an Administrator can make changes.');
+      return;
+    }
+
     // Block technicians from submitting edits on jobs not assigned to them
     if (!userIsAdmin) {
       const techIds = Utils.getTechIds(original);
@@ -1534,7 +1566,7 @@ Views.Interventions = {
     // Role-based status guard
     // Admin & Head Administrator: Assigned, Tentative, Cancelled only
     // Technician: cannot set Assigned, Tentative, or Cancelled
-    const ADMIN_ALLOWED_STATUSES = ['tentative', 'assigned', 'cancelled'];
+    const ADMIN_ALLOWED_STATUSES = ['tentative', 'assigned', 'cancelled', 'paused'];
     const currentIsAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
     if (!isPmcCompletion) {
       if (currentIsAdmin && !ADMIN_ALLOWED_STATUSES.includes(newStatus)) {
@@ -1548,7 +1580,7 @@ Views.Interventions = {
     }
 
     // Enforce max 5 updates per non-final status
-    const FINAL_STATUSES = ['completed', 'cancelled', 'new'];
+    const FINAL_STATUSES = ['completed', 'cancelled', 'new', 'paused'];
     if (!FINAL_STATUSES.includes(newStatus)) {
       const existingCount = (original.scheduledHistory || []).filter(s => s.status === newStatus).length;
       if (existingCount >= 5) {
@@ -1559,7 +1591,7 @@ Views.Interventions = {
     }
 
     // When status is anything other than 'new', admin must assign a technician + date + time
-    if (newStatus !== 'new' && userIsAdmin) {
+    if (newStatus !== 'new' && newStatus !== 'paused' && userIsAdmin) {
       const techVal = Array.from(document.querySelectorAll('.fIntTechCheck:checked')).length > 0;
       if (!techVal) {
         Toast.error('A technician must be assigned before saving with this status.');
@@ -1596,6 +1628,18 @@ Views.Interventions = {
     };
 
     await Utils.withButtonLock(async () => {
+      if (newStatus === 'paused') {
+        const pauseReason = document.getElementById('fPauseReason')?.value.trim();
+        if (!pauseReason) { Toast.error('A reason is required to pause this job.'); throw new Error('no_reason'); }
+        await Storage.pauseIntervention(interventionId, {
+          reason: pauseReason,
+          pausedBy:   currentUser?.name || 'Admin',
+          pausedById: currentUser?.id   || ''
+        });
+        Modals.close();
+        Toast.success('Job paused successfully.');
+        return;
+      }
       await Storage.updateIntervention(interventionId, {
         clientId, machineId,
         type:         userIsAdmin ? document.getElementById('fIntType')?.value     : original.type,
@@ -1625,6 +1669,79 @@ Views.Interventions = {
 
       Modals.close();
       if (!isPmcCompletion) Toast.success('Intervention updated');
+    });
+  },
+
+  _openResumeModal(interventionId) {
+    const i = appState.interventions.find(iv => iv.id === interventionId);
+    if (!i) return;
+    const machine = appState.machines.find(m => m.id === i.machineId);
+    const currentTechIds = Utils.getTechIds(i);
+
+    const techCheckboxes = appState.users.filter(u => u.role === 'technician').map(u => `
+      <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);cursor:pointer;font-size:0.857rem">
+        <input type="checkbox" class="fResumeTechCheck" value="${u.id}" ${currentTechIds.includes(u.id) ? 'checked' : ''}
+               style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary)">
+        ${Utils.escapeHtml(u.name)}
+      </label>`).join('');
+
+    const body = `
+      <div style="padding:10px 14px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;margin-bottom:16px;font-size:0.857rem;color:#065F46">
+        Resuming this job will set its status back to <strong>Assigned</strong>.
+      </div>
+      <div class="form-group">
+        <label class="form-label">Assign Technician(s) <span class="required">*</span></label>
+        <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;padding:2px">
+          ${techCheckboxes || '<span style="color:var(--gray-400);font-size:0.857rem">No technicians registered</span>'}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Scheduled Date <span class="required">*</span></label>
+          <input type="date" id="fResumeDate" class="form-input" value="${i.scheduledDate ? i.scheduledDate.slice(0,10) : ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Scheduled Time <span class="required">*</span></label>
+          <input type="time" id="fResumeTime" class="form-input" value="${i.scheduledDate ? new Date(i.scheduledDate).toTimeString().slice(0,5) : '08:00'}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Resolution Note <span class="required">*</span></label>
+        <textarea id="fResumeNote" class="form-textarea" rows="2" placeholder="Explain what was resolved and why the job is resuming…"></textarea>
+      </div>
+    `;
+
+    const footer = `
+      <button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
+      <button class="btn btn-primary" onclick="Views.Interventions._confirmResume('${interventionId}')">Resume Job</button>
+    `;
+
+    Modals.open(`Resume Job — ${machine?.jobNumber || i.id.slice(-6)}`, body, footer);
+  },
+
+  async _confirmResume(interventionId) {
+    const techIds = Array.from(document.querySelectorAll('.fResumeTechCheck:checked')).map(cb => cb.value);
+    const dateVal = document.getElementById('fResumeDate')?.value;
+    const timeVal = document.getElementById('fResumeTime')?.value || '08:00';
+    const note    = document.getElementById('fResumeNote')?.value.trim();
+
+    if (!techIds.length) { Toast.error('At least one technician must be assigned.'); return; }
+    if (!dateVal)        { Toast.error('Scheduled Date is required.'); return; }
+    if (!note)           { Toast.error('Resolution note is required.'); return; }
+
+    const scheduledDate = new Date(`${dateVal}T${timeVal}`).toISOString();
+    const user = appState.currentUser;
+
+    await Utils.withButtonLock(async () => {
+      await Storage.resumeIntervention(interventionId, {
+        resumedBy:    user?.name || 'Admin',
+        technicianIds: techIds,
+        technicianId:  techIds[0] || null,
+        scheduledDate,
+        note
+      });
+      Modals.close();
+      Toast.success('Job resumed and set to Assigned.');
     });
   },
 
@@ -1960,6 +2077,16 @@ Views.Interventions = {
       <div class="detail-section">
         <div class="detail-section-label">Intervention Details</div>
         ${pmcBannerHTML}
+        ${i.status === 'paused' && i.pause ? `
+<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#FFF7ED;border:1px solid #FDBA74;border-radius:8px;margin-bottom:12px;font-size:0.857rem;color:#9A3412">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;margin-top:1px">
+    <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+  </svg>
+  <div>
+    <strong>Job Paused</strong> by ${Utils.escapeHtml(i.pause.pausedBy || '—')} on ${Utils.formatDateTime(i.pause.pausedAt)}
+    <div style="margin-top:3px;color:#C2410C">Reason: ${Utils.escapeHtml(i.pause.reason || '—')}</div>
+  </div>
+</div>` : ''}
         <div class="detail-grid">
           <div class="detail-field"><div class="detail-field-label">Job Number</div><div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.jobNumber || '—')}</div></div>
           <div class="detail-field"><div class="detail-field-label">Serial Number</div><div class="detail-field-value" style="font-family:monospace">${Utils.escapeHtml(machine?.serialNumber || '—')}</div></div>
@@ -1982,6 +2109,19 @@ Views.Interventions = {
           <div class="detail-field-label">Issue Description</div>
           <div class="detail-field-value" style="white-space:pre-wrap;line-height:1.6">${Utils.escapeHtml(i.description)}</div>
         </div>` : ''}
+        ${i.pauseHistory && i.pauseHistory.length > 0 ? `
+<div style="margin-top:14px">
+  <div class="detail-section-label" style="margin-bottom:8px">Pause History</div>
+  ${i.pauseHistory.map((p, idx) => `
+    <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+      <div style="flex:1">
+        <div style="font-size:0.857rem;font-weight:600;color:var(--gray-700)">Paused by ${Utils.escapeHtml(p.pausedBy || '—')}</div>
+        <div style="font-size:0.786rem;color:var(--gray-500);margin-top:2px">${Utils.formatDateTime(p.pausedAt)}${p.resumedAt ? ` → Resumed ${Utils.formatDateTime(p.resumedAt)} by ${Utils.escapeHtml(p.resumedBy || '—')}` : ' <span style="color:#C2410C;font-weight:600">(Currently paused)</span>'}</div>
+        <div style="font-size:0.857rem;color:var(--gray-600);margin-top:4px">${Utils.escapeHtml(p.reason || '—')}</div>
+      </div>
+    </div>
+  `).join('')}
+</div>` : ''}
       </div>
 
       <div class="detail-section">
@@ -1996,6 +2136,11 @@ Views.Interventions = {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
         Print Work Order
       </button>
+      ${i.status === 'paused' && Auth.isAdmin() ? `
+      <button class="btn btn-primary btn-sm" onclick="Modals.close();setTimeout(()=>Views.Interventions._openResumeModal('${i.id}'),80)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Resume Job
+      </button>` : ''}
     `;
 
     Modals.open(`Intervention #${i.id.slice(-6)}`, body, footer, { size: 'lg' });

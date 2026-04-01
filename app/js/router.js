@@ -22,6 +22,7 @@ const ROUTES = {
   'my-jobs':                 () => Views.MyJobs.mount(),
   'my-account':              () => Views.MyAccount.mount(),
   'parts-inventory':         () => Views.PartsInventory.mount(),
+  'store-inventory':         () => Views.StoreInventory.mount(),
   'client-summary':          () => Views.ClientSummary.mount(),
   'chat':                    () => Views.Chat.mount(),
   'help':                    () => Views.Help.mount()
