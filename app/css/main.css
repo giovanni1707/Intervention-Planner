@@ -2481,6 +2481,36 @@ input, select, textarea {
 /* ── BUTTON LOCK SPINNER ────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── QUEUED PURGE ROW / BADGE ───────────────────────────────── */
+.row-queued-purge {
+  background: #FFFBEB !important;
+  opacity: 0.9;
+}
+.dark-mode .row-queued-purge {
+  background: #1C1A14 !important;
+}
+.badge-queued-purge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FCD34D;
+  white-space: nowrap;
+}
+.dark-mode .badge-queued-purge {
+  background: #292524;
+  color: #FDE68A;
+  border-color: #78350F;
+}
+.purge-countdown {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── PRINT STYLES ───────────────────────────────────────────── */
 @media print {
   .sidebar, .page-actions, .btn, .toolbar, .modal-overlay { display: none !important; }

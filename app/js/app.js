@@ -96,6 +96,7 @@ function showApp() {
   Scheduler.start();
   AutoRefresh.start();
   if (typeof ChatBadge !== 'undefined') ChatBadge.start();
+  if (Auth.isSuperAdmin()) PurgeQueue.start();
 
   if (Auth.isAdmin()) {
     setTimeout(() => Views.MaintenanceContracts._checkNotifications(), 800);

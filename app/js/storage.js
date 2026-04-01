@@ -325,6 +325,46 @@ const Storage = {
     await batch.commit();
   },
 
+  async queueDeletedJobPurge(docId, snapshot) {
+    const update = { purgeQueued: true, purgeQueuedAt: new Date().toISOString() };
+    if (snapshot) update._snapshot = snapshot;
+    await this._update(COL.DELETED_JOBS, docId, update);
+  },
+
+  async restoreIntervention(docId, fallbackSnapshot) {
+    const doc = await this._getById(COL.DELETED_JOBS, docId);
+    if (!doc) throw new Error('Deleted job record not found.');
+    const snapshot = doc._snapshot || fallbackSnapshot;
+    if (!snapshot) throw new Error('No snapshot available — this record cannot be restored.');
+    // Strip internal bookkeeping fields before writing back to interventions
+    const { _snapshot, purgeQueued, purgeQueuedAt, deletedAt, deletedBy, reason, jobNumber, clientName, machineModel, ...clean } = snapshot;
+    await this._set(COL.INTERVENTIONS, clean.id, clean);
+    await this._delete(COL.DELETED_JOBS, docId);
+  },
+
+  async undoQueuedPurge(docId) {
+    await this._update(COL.DELETED_JOBS, docId, {
+      purgeQueued: firebase.firestore.FieldValue.delete(),
+      purgeQueuedAt: firebase.firestore.FieldValue.delete()
+    });
+  },
+
+  async sweepExpiredPurgeQueue() {
+    const snap = await db.collection(COL.DELETED_JOBS)
+      .where('purgeQueued', '==', true).get();
+    if (snap.empty) return 0;
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const expired = snap.docs.filter(d => {
+      const at = d.data().purgeQueuedAt;
+      return at && new Date(at).getTime() <= cutoff;
+    });
+    if (!expired.length) return 0;
+    const batch = db.batch();
+    expired.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    return expired.length;
+  },
+
   // ── ACTION LOG ────────────────────────────────────────────
 
   async getActionLog() {

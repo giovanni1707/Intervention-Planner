@@ -383,6 +383,7 @@ Views.JobTracker = {
       await Storage.archiveDeletedJob({
         id:           interventionId,
         jobNumber:    machine?.jobNumber || '—',
+        serialNumber: machine?.serialNumber || '—',
         clientName:   client?.name || '—',
         machineModel: machine?.model || '—',
         type:         intervention?.type || '—',
@@ -390,7 +391,8 @@ Views.JobTracker = {
         createdAt:    intervention?.createdAt || null,
         deletedAt:    new Date().toISOString(),
         deletedBy:    admin.name,
-        reason
+        reason,
+        _snapshot:    intervention ? { ...intervention } : null
       });
       await Storage.deleteIntervention(interventionId);
       Modals.close();

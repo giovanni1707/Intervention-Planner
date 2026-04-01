@@ -1671,6 +1671,7 @@ Views.Interventions = {
   },
 
   async _confirmDeleteIntervention(interventionId, expectedJobNumber) {
+    // ── Validation (before any async work or button lock) ──────
     const jobNumberInput = document.getElementById('dJobNumber')?.value.trim();
     const email          = document.getElementById('dAdminEmail')?.value.trim();
     const password       = document.getElementById('dAdminPassword')?.value;
@@ -1687,7 +1688,6 @@ Views.Interventions = {
       Toast.error('You must type "delete" exactly to confirm.'); return;
     }
 
-    // Verify the entered email matches an admin/superadmin in the system
     const adminProfile = appState.users.find(u =>
       u.email.toLowerCase() === email.toLowerCase() &&
       (u.role === 'admin' || u.role === 'superadmin')
@@ -1696,29 +1696,37 @@ Views.Interventions = {
       Toast.error('Admin email or password is incorrect.'); return;
     }
 
-    // Re-authenticate against Firebase Auth to verify the password
-    try {
-      const credential = firebase.auth.EmailAuthProvider.credential(email, password);
-      await fbAuth.currentUser.reauthenticateWithCredential(credential);
-    } catch (authErr) {
-      Toast.error('Admin email or password is incorrect.'); return;
-    }
-
+    // ── Button lock covers re-auth + delete — prevents all duplicate clicks ──
     await Utils.withButtonLock(async () => {
+      // Re-authenticate
+      try {
+        const credential = firebase.auth.EmailAuthProvider.credential(email, password);
+        await fbAuth.currentUser.reauthenticateWithCredential(credential);
+      } catch (authErr) {
+        Toast.error('Admin email or password is incorrect.'); throw authErr;
+      }
+
+      // Backend guard: abort if the intervention was already deleted
       const intervention = appState.interventions.find(i => i.id === interventionId);
-      const machine = appState.machines.find(m => m.id === intervention?.machineId);
-      const client  = appState.clients.find(c => c.id === intervention?.clientId);
+      if (!intervention) {
+        Toast.error('This job has already been deleted.'); throw new Error('already_deleted');
+      }
+
+      const machine = appState.machines.find(m => m.id === intervention.machineId);
+      const client  = appState.clients.find(c => c.id === intervention.clientId);
       await Storage.archiveDeletedJob({
         id:           interventionId,
         jobNumber:    machine?.jobNumber || '—',
+        serialNumber: machine?.serialNumber || '—',
         clientName:   client?.name || '—',
         machineModel: machine?.model || '—',
-        type:         intervention?.type || '—',
-        status:       intervention?.status || '—',
-        createdAt:    intervention?.createdAt || null,
+        type:         intervention.type || '—',
+        status:       intervention.status || '—',
+        createdAt:    intervention.createdAt || null,
         deletedAt:    new Date().toISOString(),
         deletedBy:    adminProfile.name,
-        reason
+        reason,
+        _snapshot:    { ...intervention }
       });
       await Storage.deleteIntervention(interventionId);
       Modals.close();
