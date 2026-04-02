@@ -4,11 +4,11 @@
 
 Views.Planning = {
   _currentMonth: null,
-  _tableFilters: { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all' },
+  _tableFilters: { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all', dateFrom: '', dateTo: '' },
 
   mount() {
     if (!this._currentMonth) this._currentMonth = new Date();
-    this._tableFilters = { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all' };
+    this._tableFilters = { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all', dateFrom: '', dateTo: '' };
     const content = document.getElementById('mainContent');
     content.innerHTML = this._template();
     this._renderQueue(appState.interventions);
@@ -101,7 +101,7 @@ Views.Planning = {
         <div class="card-header">
           <span class="card-title" id="monthTableTitle">Monthly Schedule</span>
           <div style="display:flex;align-items:center;gap:6px">
-            <span id="monthTableCount" class="text-sm text-muted"></span>
+            <span id="monthTableCount" class="badge badge-new" style="font-size:0.78rem"></span>
             <div style="display:flex;align-items:center;gap:2px;margin-left:8px">
               <button class="btn btn-ghost btn-sm btn-icon" id="prevMonthTable" title="Previous month">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -135,6 +135,12 @@ Views.Planning = {
             <option value="all">All Districts</option>
             ${CONFIG.DISTRICTS.map(d => `<option value="${d}">${d}</option>`).join('')}
           </select>
+          <div style="display:flex;align-items:center;gap:4px;margin-left:4px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="color:var(--gray-400);flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <input type="date" id="mtDateFrom" class="toolbar-select" style="min-width:130px;padding:5px 8px" title="Date from">
+            <span style="color:var(--gray-400);font-size:0.8rem">–</span>
+            <input type="date" id="mtDateTo" class="toolbar-select" style="min-width:130px;padding:5px 8px" title="Date to">
+          </div>
           <button id="mtFilterClear" class="btn btn-ghost btn-sm" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Clear
@@ -321,16 +327,39 @@ Views.Planning = {
     const year     = month.getFullYear();
     const monthIdx = month.getMonth();
     const label    = month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-    if (titleEl)    titleEl.textContent   = `Schedule — ${label}`;
     if (navLabelEl) navLabelEl.textContent = label;
+
+    const tf = this._tableFilters;
+    const usingDateRange = tf.dateFrom || tf.dateTo;
+
+    // Determine title based on whether a date range is active
+    if (usingDateRange) {
+      const fromLabel = tf.dateFrom ? Utils.formatDate(tf.dateFrom) : '—';
+      const toLabel   = tf.dateTo   ? Utils.formatDate(tf.dateTo)   : '—';
+      if (titleEl) titleEl.textContent = `Schedule — ${fromLabel} – ${toLabel}`;
+    } else {
+      if (titleEl) titleEl.textContent = `Schedule — ${label}`;
+    }
 
     const districtFilter = (document.getElementById('calDistrictFilter')?.value || '').toLowerCase();
     const CALENDAR_STATUSES = ['tentative', 'assigned', 'ongoing', 'pending', 'waiting_parts', 'completed'];
 
+    // Date range boundaries (inclusive, full day)
+    const rangeFrom = tf.dateFrom ? new Date(tf.dateFrom + 'T00:00:00') : null;
+    const rangeTo   = tf.dateTo   ? new Date(tf.dateTo   + 'T23:59:59') : null;
+
     const allItems = interventions.filter(i => {
       if (!i.scheduledDate) return false;
       const d = new Date(i.scheduledDate);
-      if (d.getFullYear() !== year || d.getMonth() !== monthIdx) return false;
+
+      // Date scoping: use date range if set, otherwise restrict to current month
+      if (usingDateRange) {
+        if (rangeFrom && d < rangeFrom) return false;
+        if (rangeTo   && d > rangeTo)   return false;
+      } else {
+        if (d.getFullYear() !== year || d.getMonth() !== monthIdx) return false;
+      }
+
       if (i.type === 'pmc') {
         if (!Utils.getTechIds(i).length) return false;
         if (!['tentative', 'assigned'].includes(i.status)) return false;
@@ -344,7 +373,7 @@ Views.Planning = {
       return true;
     }).sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
 
-    // Populate client dropdown from items in this month
+    // Populate client dropdown from items in scope
     const clientSel = document.getElementById('mtClientFilter');
     if (clientSel) {
       const prevClient = clientSel.value;
@@ -357,7 +386,6 @@ Views.Planning = {
     }
 
     // Apply table filters
-    const tf = this._tableFilters;
     const items = allItems.filter(i => {
       if (tf.client   !== 'all' && i.clientId !== tf.client) return false;
       if (tf.type     !== 'all' && i.type !== tf.type) return false;
@@ -373,13 +401,20 @@ Views.Planning = {
 
     // Show/hide clear button
     const clearBtn = document.getElementById('mtFilterClear');
-    const hasFilter = Object.values(tf).some(v => v !== 'all');
+    const hasFilter = Object.entries(tf).some(([k, v]) => k === 'dateFrom' || k === 'dateTo' ? v !== '' : v !== 'all');
     if (clearBtn) clearBtn.style.display = hasFilter ? '' : 'none';
 
-    if (countEl) countEl.textContent = `${items.length} of ${allItems.length} intervention${allItems.length !== 1 ? 's' : ''}`;
+    const hasActiveFilter = Object.entries(tf).some(([k, v]) => k === 'dateFrom' || k === 'dateTo' ? v !== '' : v !== 'all');
+    if (countEl) countEl.textContent = hasActiveFilter
+      ? `${items.length} / ${allItems.length}`
+      : `${allItems.length} intervention${allItems.length !== 1 ? 's' : ''}`;
+
+    const emptyMsg = allItems.length === 0
+      ? (usingDateRange ? 'No interventions scheduled in this date range' : `No interventions scheduled for ${label}`)
+      : 'No interventions match the current filters';
 
     if (items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="11"><div class="table-empty"><p class="table-empty-text">${allItems.length === 0 ? `No interventions scheduled for ${label}` : 'No interventions match the current filters'}</p></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11"><div class="table-empty"><p class="table-empty-text">${emptyMsg}</p></div></td></tr>`;
       return;
     }
 
@@ -479,11 +514,36 @@ Views.Planning = {
     bindTableFilter('mtTechFilter',     'tech');
     bindTableFilter('mtDistrictFilter', 'district');
 
+    // Date range inputs
+    const dateFromEl = document.getElementById('mtDateFrom');
+    const dateToEl   = document.getElementById('mtDateTo');
+    if (dateFromEl) {
+      dateFromEl.value = this._tableFilters.dateFrom;
+      dateFromEl.addEventListener('change', () => {
+        this._tableFilters.dateFrom = dateFromEl.value;
+        // Auto-set dateTo minimum to dateFrom
+        if (dateToEl && dateFromEl.value && dateToEl.value && dateToEl.value < dateFromEl.value) {
+          dateToEl.value = dateFromEl.value;
+          this._tableFilters.dateTo = dateFromEl.value;
+        }
+        this._renderMonthTable(appState.interventions, this._currentMonth);
+      });
+    }
+    if (dateToEl) {
+      dateToEl.value = this._tableFilters.dateTo;
+      dateToEl.addEventListener('change', () => {
+        this._tableFilters.dateTo = dateToEl.value;
+        this._renderMonthTable(appState.interventions, this._currentMonth);
+      });
+    }
+
     const clearBtn = document.getElementById('mtFilterClear');
     if (clearBtn) clearBtn.addEventListener('click', () => {
-      this._tableFilters = { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all' };
+      this._tableFilters = { client: 'all', type: 'all', priority: 'all', status: 'all', tech: 'all', district: 'all', dateFrom: '', dateTo: '' };
       ['mtClientFilter','mtTypeFilter','mtPriorityFilter','mtStatusFilter','mtTechFilter','mtDistrictFilter']
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = 'all'; });
+      const df = document.getElementById('mtDateFrom'); if (df) df.value = '';
+      const dt = document.getElementById('mtDateTo');   if (dt) dt.value = '';
       this._renderMonthTable(appState.interventions, this._currentMonth);
     });
 

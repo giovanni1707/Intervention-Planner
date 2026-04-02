@@ -137,7 +137,8 @@ Views.Help = {
         </ul>
 
         <h3>Filtering</h3>
-        <p>Use the filter bar to narrow results by: <em>Status, Priority, Type, Technician, Client,</em> and <em>District</em>. All filters work together — only jobs matching all selected criteria are shown.</p>
+        <p>Use the filter bar to narrow results by: <em>Status, Priority, Type, Technician, Client, District,</em> and <em>Year</em>. All filters work together — only jobs matching all selected criteria are shown.</p>
+        <p>The <strong>Year</strong> dropdown is populated automatically from the years present in your data. Selecting a year shows only interventions created in that calendar year. Use it alongside the date-range inputs (<em>From / To</em>) for precise time-based filtering.</p>
 
         <h3>Sorting</h3>
         <p>In table view, click any column header to sort ascending. Click again to sort descending. An arrow indicator shows the active sort.</p>
@@ -249,7 +250,9 @@ Views.Help = {
         </ul>
 
         <h3>Filtering the table</h3>
-        <p>Below the calendar, filter the intervention table by: Client, Type, Priority, Status, Technician, and District.</p>
+        <p>Below the calendar, filter the schedule table by: Client, Type, Priority, Status, Technician, and District.</p>
+        <p>A <strong>Date Range</strong> filter (From / To date inputs) is also available. When a date range is set, the table expands beyond the current month and shows all scheduled interventions within the selected range across any month. The table title updates to reflect the active range. The job count badge switches to <em>filtered / total</em> format when any filter is active.</p>
+        <p>Click <strong>Clear</strong> to reset all table filters, including the date range, back to the current month view.</p>
       `
     },
 
@@ -760,6 +763,59 @@ Views.Help = {
 
         <h3>Reset to Defaults</h3>
         <p>Click <strong>Reset to Defaults</strong> to restore all settings to their original values.</p>
+      `
+    },
+
+    /* ────────────── EQUIPMENT HISTORY ─────────────────────── */
+    {
+      id:       'eq-overview',
+      category: 'Equipment History',
+      icon:     '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+      title:    'Equipment History Report',
+      roles:    ['all'],
+      summary:  'Full lifecycle dossier for any machine — timeline, PMC, issues, and archived records.',
+      body: `
+        <h3>What is Equipment History?</h3>
+        <p>The Equipment History section generates a complete lifecycle report for any machine by its <strong>serial number</strong>. It is a <em>read-only</em> view available to all roles. It aggregates data from interventions, PMC contracts, deleted jobs, and cancelled jobs into a single dossier.</p>
+
+        <h3>Searching for a machine</h3>
+        <p>Enter a serial number in the search field. An autocomplete list suggests serials already registered in the system. Press <em>Generate Report</em> to load the dossier.</p>
+
+        <h3>Equipment Overview</h3>
+        <p>The header card shows the serial number, machine model, assigned client, location, first recorded date, and current machine status (Active, Under PMC, Decommissioned, etc.).</p>
+
+        <h3>Summary Insights</h3>
+        <p>Six KPI cards give an instant count of: Total Events, PMC Visits, Breakdowns, Paused jobs, Cancelled jobs, and Deleted records. Below the cards, smart pattern pills highlight notable findings — for example: <em>"3 breakdowns occurred during active PMC coverage"</em> or <em>"2 gaps detected between contracts"</em>.</p>
+
+        <h3>Filtering the report</h3>
+        <p>Use the filter bar above the timeline to narrow events by:</p>
+        <ul>
+          <li><strong>Year</strong> — show only events from a specific year.</li>
+          <li><strong>Type</strong> — All, PMC, Breakdown, Cancelled, or Deleted.</li>
+        </ul>
+
+        <h3>Timeline</h3>
+        <p>All events are displayed in chronological order on a vertical timeline, grouped by year. Each entry shows the date, intervention type, status, technician, and a short description. Two special badges may appear on timeline entries:</p>
+        <ul>
+          <li><span style="background:#D1FAE5;color:#065F46;padding:1px 7px;border-radius:99px;font-size:0.78em;font-weight:600">Covered by PMC</span> — the intervention fell within an active maintenance contract period.</li>
+          <li><span style="background:#FEF3C7;color:#92400E;padding:1px 7px;border-radius:99px;font-size:0.78em;font-weight:600">Outside Contract</span> — the machine had contracts but this intervention was outside their coverage dates.</li>
+        </ul>
+
+        <h3>PMC Contract History</h3>
+        <p>Lists all maintenance contracts for the machine with start/end dates, tier, visits per year, and completed visit count. The system automatically highlights:</p>
+        <ul>
+          <li><strong>Overlapping contracts</strong> — two contracts whose date ranges overlap (flagged in red).</li>
+          <li><strong>Coverage gaps</strong> — periods between consecutive contracts where no contract was active.</li>
+        </ul>
+
+        <h3>Issues &amp; Breakdown History</h3>
+        <p>Shows all breakdown repairs, technical support calls, and jobs that were paused at any point. Each entry includes the resolution note (if completed) and all pause reasons with the name of who paused the job.</p>
+
+        <h3>Deleted &amp; Cancelled Records</h3>
+        <p>Even if an intervention was deleted from the main system or cancelled, it still appears here for audit purposes. Each archived record shows the reason and the person who performed the action.</p>
+
+        <h3>Print / Export PDF</h3>
+        <p>Click <strong>Print / Export PDF</strong> (available in both the filter bar and the bottom print bar) to open the browser print dialog. The report is formatted for printing — navigation, filters, and buttons are hidden, and a report header is added automatically. Use <em>Save as PDF</em> in the print dialog to export a file.</p>
       `
     },
 

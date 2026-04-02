@@ -25,6 +25,7 @@ const appState = ReactiveUtils.state({
     clientId:    'all',
     dateFrom:    '',
     dateTo:      '',
+    year:        'all',
     search:      '',
     jobNumber:   '',
     district:    'all'
@@ -138,6 +139,7 @@ function resetFilters() {
     clientId:     'all',
     dateFrom:     '',
     dateTo:       '',
+    year:         'all',
     search:       '',
     jobNumber:    '',
     serialNumber: '',

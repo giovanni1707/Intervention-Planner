@@ -26,7 +26,8 @@ const ROUTES = {
   'store-inventory':         () => Views.StoreInventory.mount(),
   'client-summary':          () => Views.ClientSummary.mount(),
   'chat':                    () => Views.Chat.mount(),
-  'help':                    () => Views.Help.mount()
+  'help':                    () => Views.Help.mount(),
+  'equipment-history':       () => Views.EquipmentHistory.mount()
 };
 
 const Router = {

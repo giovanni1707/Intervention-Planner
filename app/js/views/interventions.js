@@ -103,6 +103,17 @@ Views.Interventions = {
         `<option value="${d}" ${appState.filters.district === d ? 'selected' : ''}>${d}</option>`)
     ].join('');
 
+    const years = [...new Set(
+      appState.interventions
+        .map(i => i.createdAt ? new Date(i.createdAt).getFullYear() : null)
+        .filter(Boolean)
+    )].sort((a, b) => b - a);
+    const yearOptions = [
+      '<option value="all">All Years</option>',
+      ...years.map(y =>
+        `<option value="${y}" ${appState.filters.year == y ? 'selected' : ''}>${y}</option>`)
+    ].join('');
+
     const locationValues = [...new Set(
       appState.interventions
         .map(i => appState.machines.find(m => m.id === i.machineId)?.location)
@@ -158,6 +169,7 @@ Views.Interventions = {
           <select id="intClient" class="toolbar-select">${clientOptions}</select>
           <input type="date" id="intDateFrom" class="toolbar-select" value="${appState.filters.dateFrom}" title="From date" style="min-width:120px">
           <input type="date" id="intDateTo" class="toolbar-select" value="${appState.filters.dateTo}" title="To date" style="min-width:120px">
+          <select id="intYear" class="toolbar-select">${yearOptions}</select>
           <select id="intDistrict" class="toolbar-select">${districtOptions}</select>
           <select id="intLocation" class="toolbar-select">${locationOptions}</select>
           <select id="intPmc" class="toolbar-select">
@@ -195,6 +207,7 @@ Views.Interventions = {
     bind('intClient', 'clientId');
     bind('intDateFrom', 'dateFrom');
     bind('intDateTo', 'dateTo');
+    bind('intYear', 'year');
     bind('intDistrict', 'district');
     bind('intLocation', 'location');
     bind('intPmc', 'pmcStatus');

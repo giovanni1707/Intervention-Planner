@@ -157,6 +157,11 @@ const Utils = {
       if (filters.technicianId !== 'all' && !Utils.getTechIds(i).includes(filters.technicianId)) return false;
       if (filters.clientId !== 'all' && i.clientId !== filters.clientId) return false;
 
+      if (filters.year && filters.year !== 'all') {
+        const created = i.createdAt ? new Date(i.createdAt) : null;
+        if (!created || created.getFullYear() !== parseInt(filters.year)) return false;
+      }
+
       if (filters.dateFrom) {
         const from = new Date(filters.dateFrom);
         const created = i.createdAt ? new Date(i.createdAt) : null;
