@@ -14,8 +14,8 @@ Views.StoreInventory = {
   _page:          1,
   _pendingImport: null,
 
-  // qty filter: { op: 'gt'|'lt'|'eq'|'', val: number|null }
-  _qtyFilter:     { op: '', val: null },
+  // qty filter: { op: 'gt'|'lt'|'eq'|'range'|'', val: number|null, val2: number|null }
+  _qtyFilter:     { op: '', val: null, val2: null },
 
   // ── LOW-STOCK THRESHOLD (items ≤ this are "low") ──────────
   LOW_STOCK_THRESHOLD: 5,
@@ -90,14 +90,18 @@ Views.StoreInventory = {
 
           <!-- Quantity filter -->
           <div class="si-qty-filter-group">
-            <select id="siQtyOp" class="form-select" style="width:auto;min-width:110px;font-size:0.82rem;padding:6px 10px">
+            <select id="siQtyOp" class="form-select" style="width:auto;min-width:130px;font-size:0.82rem;padding:6px 10px">
               <option value="">All Quantities</option>
               <option value="gt">Qty &gt;</option>
               <option value="lt">Qty &lt;</option>
               <option value="eq">Qty =</option>
+              <option value="range">Qty between</option>
             </select>
-            <input type="number" id="siQtyVal" class="form-input si-qty-input" min="0" placeholder="e.g. 10"
-              style="display:none;width:90px;font-size:0.82rem;padding:6px 10px">
+            <input type="number" id="siQtyVal" class="form-input si-qty-input" min="0" placeholder="Min"
+              style="display:none;width:80px;font-size:0.82rem;padding:6px 10px">
+            <span id="siQtyRangeSep" style="display:none;font-size:0.82rem;color:var(--gray-500);white-space:nowrap">–</span>
+            <input type="number" id="siQtyVal2" class="form-input si-qty-input" min="0" placeholder="Max"
+              style="display:none;width:80px;font-size:0.82rem;padding:6px 10px">
           </div>
 
           <!-- Quick-filter chips -->
@@ -112,6 +116,13 @@ Views.StoreInventory = {
               All
             </button>
           </div>
+
+          <!-- Clear Filters -->
+          <button class="btn btn-ghost btn-sm" id="siClearBtn" onclick="Views.StoreInventory._clearFilters()"
+            style="display:none;gap:5px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Clear Filters
+          </button>
         </div>
         <span id="siCount"></span>
       </div>
@@ -132,24 +143,50 @@ Views.StoreInventory = {
     if (search) search.addEventListener('input', () => {
       this._search = search.value.trim().toLowerCase();
       this._page   = 1;
+      this._updateClearBtn();
       this._render();
     });
 
-    const qtyOp  = document.getElementById('siQtyOp');
-    const qtyVal = document.getElementById('siQtyVal');
+    const qtyOp   = document.getElementById('siQtyOp');
+    const qtyVal  = document.getElementById('siQtyVal');
+    const qtyVal2 = document.getElementById('siQtyVal2');
+    const qtyRangeSep = document.getElementById('siQtyRangeSep');
+
+    const syncQtyVisibility = () => {
+      const op = qtyOp.value;
+      const isRange = op === 'range';
+      qtyVal.style.display       = op ? '' : 'none';
+      qtyRangeSep.style.display  = isRange ? '' : 'none';
+      qtyVal2.style.display      = isRange ? '' : 'none';
+      if (!isRange) { qtyVal2.value = ''; this._qtyFilter.val2 = null; }
+    };
 
     if (qtyOp) qtyOp.addEventListener('change', () => {
       const op = qtyOp.value;
-      qtyVal.style.display = op ? '' : 'none';
-      if (!op) { qtyVal.value = ''; this._qtyFilter = { op: '', val: null }; }
-      else      { this._qtyFilter.op = op; }
+      if (!op) {
+        qtyVal.value  = '';
+        qtyVal2.value = '';
+        this._qtyFilter = { op: '', val: null, val2: null };
+      } else {
+        this._qtyFilter.op = op;
+      }
+      syncQtyVisibility();
       this._page = 1;
+      this._updateClearBtn();
       this._render();
     });
 
     if (qtyVal) qtyVal.addEventListener('input', () => {
       const v = parseFloat(qtyVal.value);
       this._qtyFilter.val = isNaN(v) ? null : v;
+      this._page = 1;
+      this._updateClearBtn();
+      this._render();
+    });
+
+    if (qtyVal2) qtyVal2.addEventListener('input', () => {
+      const v = parseFloat(qtyVal2.value);
+      this._qtyFilter.val2 = isNaN(v) ? null : v;
       this._page = 1;
       this._render();
     });
@@ -168,13 +205,19 @@ Views.StoreInventory = {
   _quickFilter(chip) {
     this._activeChip = chip;
     this._page = 1;
-    // Update chip active state
     ['siChipAll', 'siChipLow', 'siChipOut'].forEach(id => {
       document.getElementById(id)?.classList.remove('si-chip-active');
     });
     const idMap = { all: 'siChipAll', low: 'siChipLow', out: 'siChipOut' };
     document.getElementById(idMap[chip])?.classList.add('si-chip-active');
+    this._updateClearBtn();
     this._render();
+  },
+
+  _updateClearBtn() {
+    const active = this._search || this._qtyFilter.op || this._activeChip !== 'all';
+    const btn = document.getElementById('siClearBtn');
+    if (btn) btn.style.display = active ? '' : 'none';
   },
 
   // ── IMPORT FLOW ───────────────────────────────────────────
@@ -330,11 +373,16 @@ REF-002,Sealing Bar Element,5,m</code>
     }
 
     // Qty operator filter
-    const { op, val } = this._qtyFilter;
+    const { op, val, val2 } = this._qtyFilter;
     if (op && val !== null) {
-      if (op === 'gt') result = result.filter(p => (p.quantity ?? 0) >  val);
-      if (op === 'lt') result = result.filter(p => (p.quantity ?? 0) <  val);
-      if (op === 'eq') result = result.filter(p => (p.quantity ?? 0) === val);
+      if (op === 'gt')    result = result.filter(p => (p.quantity ?? 0) >   val);
+      if (op === 'lt')    result = result.filter(p => (p.quantity ?? 0) <   val);
+      if (op === 'eq')    result = result.filter(p => (p.quantity ?? 0) === val);
+      if (op === 'range' && val2 !== null) {
+        const lo = Math.min(val, val2);
+        const hi = Math.max(val, val2);
+        result = result.filter(p => { const q = p.quantity ?? 0; return q >= lo && q <= hi; });
+      }
     }
 
     return result;
@@ -373,6 +421,7 @@ REF-002,Sealing Bar Element,5,m</code>
     // Keep the active chip highlighted after re-render
     const idMap = { all: 'siChipAll', low: 'siChipLow', out: 'siChipOut' };
     document.getElementById(idMap[this._activeChip])?.classList.add('si-chip-active');
+    this._updateClearBtn();
   },
 
   // ── KPI CARDS ─────────────────────────────────────────────
@@ -553,7 +602,6 @@ REF-002,Sealing Bar Element,5,m</code>
             <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
           </svg>
           <p class="table-empty-text">${isFiltered ? 'No items match your filters' : (hasData ? 'No items' : 'Inventory is empty — import a CSV to get started')}</p>
-          ${isFiltered ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="Views.StoreInventory._clearFilters()">Clear Filters</button>` : ''}
         </div>`;
       return;
     }
@@ -610,16 +658,24 @@ REF-002,Sealing Bar Element,5,m</code>
   },
 
   _clearFilters() {
-    this._search      = '';
-    this._qtyFilter   = { op: '', val: null };
-    this._activeChip  = 'all';
-    this._page        = 1;
+    this._search     = '';
+    this._qtyFilter  = { op: '', val: null, val2: null };
+    this._activeChip = 'all';
+    this._page       = 1;
+
     const s = document.getElementById('siSearch');
     if (s) s.value = '';
     const op = document.getElementById('siQtyOp');
     if (op) op.value = '';
     const v = document.getElementById('siQtyVal');
     if (v) { v.value = ''; v.style.display = 'none'; }
+    const v2 = document.getElementById('siQtyVal2');
+    if (v2) { v2.value = ''; v2.style.display = 'none'; }
+    const sep = document.getElementById('siQtyRangeSep');
+    if (sep) sep.style.display = 'none';
+    const clearBtn = document.getElementById('siClearBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
     this._render();
   }
 };

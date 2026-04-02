@@ -205,6 +205,12 @@ Views.Help = {
           <span class="badge badge-completed">Completed</span>
         </div>
 
+        <h3>Pausing a job</h3>
+        <p>Set the status to <strong>Paused</strong> to temporarily suspend work on a job without cancelling it. A <em>Pause Reason</em> field is mandatory when pausing. The reason is recorded in the job history. To resume, change the status to any active status — you will be prompted to add a <em>Resume Note</em>.</p>
+
+        <h3>Cancelling a job</h3>
+        <p>Set the status to <strong>Cancelled</strong> to mark a job as no longer proceeding. A <em>Cancellation Reason</em> is mandatory. Once cancelled, the job is archived in the <strong>Cancelled Jobs</strong> section for audit purposes. See the <em>Cancelled Jobs Log</em> article for full details.</p>
+
         <h3>Notes</h3>
         <p>Add internal notes in the <em>Notes</em> tab. Notes are timestamped and attributed to the author.</p>
 
@@ -514,7 +520,11 @@ Views.Help = {
           <li><strong>Expiring contracts</strong> — maintenance contracts expiring within 30 days.</li>
           <li><strong>PMC visits due</strong> — preventive maintenance visits due today or this week.</li>
           <li><strong>Unplanned requests</strong> — interventions with no scheduled date.</li>
+          <li><strong>Outdated inventory</strong> — the Store Inventory has not been updated in more than 3 days. Click <em>View</em> to go to the Store Inventory page. (Head Administrator only)</li>
         </ul>
+
+        <h3>Tabs</h3>
+        <p>Notifications are grouped into category tabs at the top of the page: <em>All, Jobs, Contracts, Inventory,</em> and others. Switch tabs to focus on a specific type of notification.</p>
 
         <h3>Sidebar badge</h3>
         <p>The red badge next to <em>Notifications</em> in the sidebar shows the total unread count. It updates automatically.</p>
@@ -533,9 +543,6 @@ Views.Help = {
           <li>The notification list appears empty.</li>
         </ul>
         <p>Click <strong>Unmute</strong> to restore notifications. The mute preference is saved per browser and persists across sessions.</p>
-
-        <h3>Tabs</h3>
-        <p>Use the category tabs at the top of the page to filter by notification type.</p>
       `
     },
 
@@ -753,6 +760,125 @@ Views.Help = {
 
         <h3>Reset to Defaults</h3>
         <p>Click <strong>Reset to Defaults</strong> to restore all settings to their original values.</p>
+      `
+    },
+
+    /* ────────────── STORE INVENTORY ───────────────────────── */
+    {
+      id:       'si-overview',
+      category: 'Store Inventory',
+      icon:     '<path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>',
+      title:    'Store Inventory Overview',
+      roles:    ['all'],
+      summary:  'Browse spare parts stock, filter by quantity, and view distribution charts.',
+      body: `
+        <h3>What is Store Inventory?</h3>
+        <p>The Store Inventory section displays the current stock of spare parts and consumables held in the service store. All roles can <strong>view</strong> the inventory; only the <strong>Head Administrator</strong> can import or update it.</p>
+
+        <h3>Key Statistics</h3>
+        <p>Four KPI cards at the top of the page summarise the current stock state:</p>
+        <ul>
+          <li><strong>Total References</strong> — number of distinct part references on record.</li>
+          <li><strong>Total Stock Units</strong> — combined quantity across all references.</li>
+          <li><strong>Low Stock</strong> — references with quantity between 1 and 5 (inclusive).</li>
+          <li><strong>Out of Stock</strong> — references with a quantity of zero.</li>
+        </ul>
+
+        <h3>Stock Distribution Chart</h3>
+        <p>A proportional bar chart beneath the KPI row shows the split between <em>OK</em>, <em>Low</em>, and <em>Out of Stock</em> items at a glance. A legend shows exact counts for each segment.</p>
+
+        <h3>Top 5 Highest / Top 5 Lowest</h3>
+        <p>Two horizontal bar charts identify the references with the most and fewest units in stock, helping you prioritise re-ordering decisions.</p>
+
+        <h3>Filtering the table</h3>
+        <p>Three tools let you narrow the parts list:</p>
+        <ul>
+          <li><strong>Search bar</strong> — matches any text in the reference number or description.</li>
+          <li><strong>Quick-filter chips</strong> — <em>All</em>, <em>Low Stock</em>, or <em>Out of Stock</em>.</li>
+          <li><strong>Advanced Quantity Filter</strong> — filter by exact quantity, greater than, less than, or a range (between a minimum and maximum value, both ends inclusive).</li>
+        </ul>
+        <p>When any filter is active a <strong>Clear Filters</strong> button appears at the right of the toolbar. Click it to reset all filters at once.</p>
+
+        <h3>Stock badges</h3>
+        <p>Each row shows a coloured quantity badge:</p>
+        <ul>
+          <li><span style="background:#16a34a;color:#fff;padding:1px 7px;border-radius:99px;font-size:0.78em">OK</span> — quantity is 6 or more.</li>
+          <li><span style="background:#d97706;color:#fff;padding:1px 7px;border-radius:99px;font-size:0.78em">LOW</span> — quantity is 1–5.</li>
+          <li><span style="background:#dc2626;color:#fff;padding:1px 7px;border-radius:99px;font-size:0.78em">OUT</span> — quantity is 0.</li>
+        </ul>
+        <p>Low-stock rows are highlighted in amber and out-of-stock rows are highlighted in red for quick visual scanning.</p>
+
+        <h3>Last Updated banner</h3>
+        <p>A banner below the page title shows when the inventory was last imported and by whom. If the data is more than 3 days old the banner turns amber and displays a warning — a notification also appears in the Notifications section. The Head Administrator should re-import updated stock data regularly.</p>
+      `
+    },
+
+    {
+      id:       'si-import',
+      category: 'Store Inventory',
+      icon:     '<polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>',
+      title:    'Importing Inventory (CSV)',
+      roles:    ['superadmin'],
+      summary:  'Head Administrator only — replace the full inventory via CSV upload.',
+      body: `
+        <h3>Who can import?</h3>
+        <p>Only the <strong>Head Administrator</strong> can upload a new inventory. The import <strong>fully replaces</strong> the existing stock data — it is not a merge or append.</p>
+
+        <h3>CSV format</h3>
+        <p>The file must be a comma-separated (.csv) file with the following columns (order does not matter — they are detected automatically from the header row):</p>
+        <ul>
+          <li><strong>reference</strong> (or <em>ref</em>, <em>part_number</em>, <em>part number</em>) — the part reference code.</li>
+          <li><strong>description</strong> (or <em>desc</em>, <em>name</em>) — a plain-text description of the part.</li>
+          <li><strong>quantity</strong> (or <em>qty</em>, <em>stock</em>) — a whole number representing the quantity in store.</li>
+        </ul>
+        <p class="help-note">⚠ The first row must be the header row. Rows where the reference or description is blank are skipped automatically.</p>
+
+        <h3>How to import</h3>
+        <ol>
+          <li>In the Store Inventory page, click the <strong>Import CSV</strong> button (top-right).</li>
+          <li>A file picker opens — select your .csv file.</li>
+          <li>A preview modal shows a summary of what was detected (number of rows, sample data). Review it before confirming.</li>
+          <li>Click <strong>Confirm Import</strong> to apply. The existing inventory is wiped and replaced with the new data.</li>
+        </ol>
+        <p>After a successful import, the <em>Last Updated</em> banner refreshes immediately and shows your name and the current timestamp.</p>
+
+        <h3>When to re-import</h3>
+        <p>The system tracks the date of the last import. If no import has been done in more than <strong>3 days</strong>, a warning appears in the banner and a notification fires in the Notifications section. Keep the inventory up-to-date so the team has accurate stock information.</p>
+      `
+    },
+
+    /* ────────────── CANCELLED JOBS ────────────────────────── */
+    {
+      id:       'cj-overview',
+      category: 'Cancelled Jobs',
+      icon:     '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+      title:    'Cancelled Jobs Log',
+      roles:    ['admin', 'superadmin'],
+      summary:  'View and manage interventions that were cancelled, with full audit trail.',
+      body: `
+        <h3>What is the Cancelled Jobs log?</h3>
+        <p>When an intervention is set to <strong>Cancelled</strong> status, a copy of the full job record is automatically archived here. The Cancelled Jobs section is an audit trail — it does <em>not</em> remove the job from the main Interventions table.</p>
+
+        <h3>Cancelling an intervention</h3>
+        <ol>
+          <li>Open the <strong>Edit Intervention</strong> modal for the job.</li>
+          <li>Change the <strong>Status</strong> dropdown to <em>Cancelled</em>.</li>
+          <li>A <strong>Cancellation Reason</strong> field appears — this is <strong>mandatory</strong>. Enter a clear reason before saving.</li>
+          <li>Click <em>Save Changes</em>. The job status is updated and the record is logged in Cancelled Jobs.</li>
+        </ol>
+        <p class="help-note">⚠ The cancellation reason cannot be left blank. The form will not submit without it.</p>
+
+        <h3>Viewing a cancelled job</h3>
+        <p>Click <em>View</em> on any row in the Cancelled Jobs table to open a full detail modal. It shows all original job information — client, machine, technicians, status history, notes, and parts — plus the cancellation reason and who cancelled it.</p>
+
+        <h3>Purge Queue (Head Administrator only)</h3>
+        <p>The Head Administrator can permanently delete cancelled job records from the log. This is a two-step process:</p>
+        <ol>
+          <li>Click <strong>Queue for Deletion</strong> on a row. A confirmation dialog requires a reason and password re-authentication.</li>
+          <li>Once queued, the record enters a <strong>24-hour countdown</strong>. During this window, the deletion can be undone by clicking <em>Undo</em>.</li>
+          <li>After 24 hours the record is permanently purged from the system.</li>
+        </ol>
+        <p class="help-note">⚠ Purging is irreversible after the 24-hour window expires. Use this only to clean up erroneous or test records.</p>
       `
     },
 
