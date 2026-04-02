@@ -1,19 +1,24 @@
 /* ============================================================
-   views/store-inventory.js — Store Inventory
+   views/store-inventory.js — Store Inventory  (v3)
    Superadmin: import CSV to replace full inventory.
-   All roles: read-only table with search, sort, pagination.
-   CSV format expected: reference, description, quantity, unit
-   (column order detected from header row)
+   All roles: read-only table with search, qty filters, sort,
+              pagination, stock overview chart, top/least lists.
    ============================================================ */
 
 window.Views = window.Views || {};
 
 Views.StoreInventory = {
-  _search:       '',
-  _sortKey:      'reference',
-  _sortDir:      'asc',
-  _page:         1,
+  _search:        '',
+  _sortKey:       'reference',
+  _sortDir:       'asc',
+  _page:          1,
   _pendingImport: null,
+
+  // qty filter: { op: 'gt'|'lt'|'eq'|'', val: number|null }
+  _qtyFilter:     { op: '', val: null },
+
+  // ── LOW-STOCK THRESHOLD (items ≤ this are "low") ──────────
+  LOW_STOCK_THRESHOLD: 5,
 
   // ── MOUNT ─────────────────────────────────────────────────
 
@@ -62,9 +67,7 @@ Views.StoreInventory = {
           <h1 class="page-title">Store Inventory</h1>
           <p class="page-subtitle">Stock levels imported from the warehouse management system</p>
         </div>
-        <div class="page-actions">
-          ${importBtn}
-        </div>
+        <div class="page-actions">${importBtn}</div>
       </div>
 
       ${lastUpdatedBanner}
@@ -72,14 +75,42 @@ Views.StoreInventory = {
       <!-- KPI strip -->
       <div id="siKpi" class="grid-4" style="margin-bottom:20px"></div>
 
+      <!-- Stock Overview Charts -->
+      <div id="siCharts" class="grid-3" style="margin-bottom:20px"></div>
+
       <!-- Toolbar -->
       <div class="toolbar" style="margin-bottom:0">
-        <div class="toolbar-filters">
+        <div class="toolbar-filters" style="flex-wrap:wrap;gap:8px">
           <div class="search-bar">
             <span class="search-bar-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </span>
             <input type="text" id="siSearch" class="search-input" placeholder="Search by reference or description…">
+          </div>
+
+          <!-- Quantity filter -->
+          <div class="si-qty-filter-group">
+            <select id="siQtyOp" class="form-select" style="width:auto;min-width:110px;font-size:0.82rem;padding:6px 10px">
+              <option value="">All Quantities</option>
+              <option value="gt">Qty &gt;</option>
+              <option value="lt">Qty &lt;</option>
+              <option value="eq">Qty =</option>
+            </select>
+            <input type="number" id="siQtyVal" class="form-input si-qty-input" min="0" placeholder="e.g. 10"
+              style="display:none;width:90px;font-size:0.82rem;padding:6px 10px">
+          </div>
+
+          <!-- Quick-filter chips -->
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="si-chip" id="siChipOut" onclick="Views.StoreInventory._quickFilter('out')">
+              <span class="si-chip-dot si-chip-dot-red"></span>Out of Stock
+            </button>
+            <button class="si-chip" id="siChipLow" onclick="Views.StoreInventory._quickFilter('low')">
+              <span class="si-chip-dot si-chip-dot-orange"></span>Low Stock
+            </button>
+            <button class="si-chip" id="siChipAll" onclick="Views.StoreInventory._quickFilter('all')">
+              All
+            </button>
           </div>
         </div>
         <span id="siCount"></span>
@@ -104,11 +135,46 @@ Views.StoreInventory = {
       this._render();
     });
 
+    const qtyOp  = document.getElementById('siQtyOp');
+    const qtyVal = document.getElementById('siQtyVal');
+
+    if (qtyOp) qtyOp.addEventListener('change', () => {
+      const op = qtyOp.value;
+      qtyVal.style.display = op ? '' : 'none';
+      if (!op) { qtyVal.value = ''; this._qtyFilter = { op: '', val: null }; }
+      else      { this._qtyFilter.op = op; }
+      this._page = 1;
+      this._render();
+    });
+
+    if (qtyVal) qtyVal.addEventListener('input', () => {
+      const v = parseFloat(qtyVal.value);
+      this._qtyFilter.val = isNaN(v) ? null : v;
+      this._page = 1;
+      this._render();
+    });
+
     const importBtn = document.getElementById('siImportBtn');
     if (importBtn) importBtn.addEventListener('click', () => this._triggerImport());
 
     const fileInput = document.getElementById('siFileInput');
     if (fileInput) fileInput.addEventListener('change', e => this._onFileSelected(e));
+  },
+
+  // ── QUICK FILTER CHIPS ────────────────────────────────────
+
+  _activeChip: 'all',
+
+  _quickFilter(chip) {
+    this._activeChip = chip;
+    this._page = 1;
+    // Update chip active state
+    ['siChipAll', 'siChipLow', 'siChipOut'].forEach(id => {
+      document.getElementById(id)?.classList.remove('si-chip-active');
+    });
+    const idMap = { all: 'siChipAll', low: 'siChipLow', out: 'siChipOut' };
+    document.getElementById(idMap[chip])?.classList.add('si-chip-active');
+    this._render();
   },
 
   // ── IMPORT FLOW ───────────────────────────────────────────
@@ -131,9 +197,7 @@ REF-002,Sealing Bar Element,5,m</code>
         </div>
       </div>`,
       `<button class="btn btn-ghost" onclick="Modals.close()">Cancel</button>
-       <button class="btn btn-primary" onclick="Views.StoreInventory._pickFile()">
-         Choose CSV File…
-       </button>`
+       <button class="btn btn-primary" onclick="Views.StoreInventory._pickFile()">Choose CSV File…</button>`
     );
   },
 
@@ -148,12 +212,8 @@ REF-002,Sealing Bar Element,5,m</code>
     if (!file) return;
 
     let text;
-    try {
-      text = await file.text();
-    } catch {
-      Toast.error('Could not read file.');
-      return;
-    }
+    try { text = await file.text(); }
+    catch { Toast.error('Could not read file.'); return; }
 
     const { items, errors } = this._parseCSV(text);
 
@@ -162,9 +222,7 @@ REF-002,Sealing Bar Element,5,m</code>
       return;
     }
 
-    // Confirm before replacing
     const user = Auth.getCurrentUser();
-    // Store pending import on the view instance so the confirm handler can access it
     this._pendingImport = { items, importedBy: user?.name || 'Superadmin', count: items.length };
 
     Modals.open(
@@ -207,8 +265,7 @@ REF-002,Sealing Bar Element,5,m</code>
       return { items: [], errors: ['Could not detect required columns (reference, quantity). Check header row.'] };
     }
 
-    const items  = [];
-    const errors = [];
+    const items = [], errors = [];
 
     for (let i = 1; i < lines.length; i++) {
       const cols = this._splitCSVRow(lines[i]);
@@ -219,7 +276,6 @@ REF-002,Sealing Bar Element,5,m</code>
         errors.push(`Row ${i + 1}: missing reference or invalid quantity`);
         continue;
       }
-
       items.push({
         reference:   ref,
         description: colDesc >= 0 ? (cols[colDesc] || '').trim() : '',
@@ -227,11 +283,9 @@ REF-002,Sealing Bar Element,5,m</code>
         unit:        colUnit >= 0 ? (cols[colUnit] || '').trim() || 'pcs' : 'pcs'
       });
     }
-
     return { items, errors };
   },
 
-  /** Split one CSV row respecting quoted fields */
   _splitCSVRow(line) {
     const result = [];
     let cur = '', inQ = false;
@@ -242,9 +296,7 @@ REF-002,Sealing Bar Element,5,m</code>
         else inQ = !inQ;
       } else if (ch === ',' && !inQ) {
         result.push(cur); cur = '';
-      } else {
-        cur += ch;
-      }
+      } else { cur += ch; }
     }
     result.push(cur);
     return result;
@@ -252,29 +304,40 @@ REF-002,Sealing Bar Element,5,m</code>
 
   // ── HELPERS ───────────────────────────────────────────────
 
-  /** Returns true if no import has happened or last import was > 3 days ago */
   _isOutdated(meta) {
     if (!meta || !meta.lastImportedAt) return true;
-    const THREE_DAYS_MS = 3 * 24 * 3600000;
-    return (Date.now() - new Date(meta.lastImportedAt).getTime()) > THREE_DAYS_MS;
+    return (Date.now() - new Date(meta.lastImportedAt).getTime()) > 3 * 24 * 3600000;
   },
 
-  // ── RENDER ────────────────────────────────────────────────
-
-  _render() {
-    const items    = appState.storeInventory || [];
-    const filtered = this._filtered(items);
-    const sorted   = this._sorted(filtered);
-    this._renderKpi(items);
-    this._renderTable(sorted);
-  },
+  // ── FILTER PIPELINE ───────────────────────────────────────
 
   _filtered(items) {
-    if (!this._search) return items;
-    return items.filter(p =>
-      (p.reference   || '').toLowerCase().includes(this._search) ||
-      (p.description || '').toLowerCase().includes(this._search)
-    );
+    let result = items;
+
+    // Text search
+    if (this._search) {
+      result = result.filter(p =>
+        (p.reference   || '').toLowerCase().includes(this._search) ||
+        (p.description || '').toLowerCase().includes(this._search)
+      );
+    }
+
+    // Quick chip filter
+    if (this._activeChip === 'out') {
+      result = result.filter(p => (p.quantity ?? 0) === 0);
+    } else if (this._activeChip === 'low') {
+      result = result.filter(p => (p.quantity ?? 0) > 0 && (p.quantity ?? 0) <= this.LOW_STOCK_THRESHOLD);
+    }
+
+    // Qty operator filter
+    const { op, val } = this._qtyFilter;
+    if (op && val !== null) {
+      if (op === 'gt') result = result.filter(p => (p.quantity ?? 0) >  val);
+      if (op === 'lt') result = result.filter(p => (p.quantity ?? 0) <  val);
+      if (op === 'eq') result = result.filter(p => (p.quantity ?? 0) === val);
+    }
+
+    return result;
   },
 
   _sorted(items) {
@@ -298,19 +361,36 @@ REF-002,Sealing Bar Element,5,m</code>
     this._render();
   },
 
+  // ── RENDER ORCHESTRATOR ───────────────────────────────────
+
+  _render() {
+    const allItems = appState.storeInventory || [];
+    const filtered = this._filtered(allItems);
+    const sorted   = this._sorted(filtered);
+    this._renderKpi(allItems);
+    this._renderCharts(allItems);
+    this._renderTable(sorted);
+    // Keep the active chip highlighted after re-render
+    const idMap = { all: 'siChipAll', low: 'siChipLow', out: 'siChipOut' };
+    document.getElementById(idMap[this._activeChip])?.classList.add('si-chip-active');
+  },
+
+  // ── KPI CARDS ─────────────────────────────────────────────
+
   _renderKpi(items) {
     const kpi = document.getElementById('siKpi');
     if (!kpi) return;
 
-    const totalItems   = items.length;
-    const totalQty     = items.reduce((s, p) => s + (p.quantity || 0), 0);
-    const lowStock     = items.filter(p => (p.quantity || 0) > 0 && (p.quantity || 0) <= 5).length;
-    const outOfStock   = items.filter(p => (p.quantity || 0) === 0).length;
+    const T   = this.LOW_STOCK_THRESHOLD;
+    const total    = items.length;
+    const totalQty = items.reduce((s, p) => s + (p.quantity || 0), 0);
+    const low      = items.filter(p => (p.quantity || 0) > 0 && (p.quantity || 0) <= T).length;
+    const out      = items.filter(p => (p.quantity || 0) === 0).length;
 
     kpi.innerHTML = `
       <div class="kpi-card kpi-blue">
         <div class="kpi-label">Total References</div>
-        <div class="kpi-value">${totalItems}</div>
+        <div class="kpi-value">${total}</div>
         <div class="kpi-meta">distinct items in store</div>
         <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div>
       </div>
@@ -322,18 +402,131 @@ REF-002,Sealing Bar Element,5,m</code>
       </div>
       <div class="kpi-card kpi-orange">
         <div class="kpi-label">Low Stock</div>
-        <div class="kpi-value">${lowStock}</div>
-        <div class="kpi-meta">items with ≤ 5 units remaining</div>
+        <div class="kpi-value">${low}</div>
+        <div class="kpi-meta">items with 1–${T} units</div>
         <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
       </div>
       <div class="kpi-card kpi-red">
         <div class="kpi-label">Out of Stock</div>
-        <div class="kpi-value">${outOfStock}</div>
+        <div class="kpi-value">${out}</div>
         <div class="kpi-meta">items with 0 units</div>
         <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
       </div>
     `;
   },
+
+  // ── CHARTS ────────────────────────────────────────────────
+
+  _renderCharts(items) {
+    const wrap = document.getElementById('siCharts');
+    if (!wrap) return;
+
+    if (items.length === 0) {
+      wrap.innerHTML = '';
+      return;
+    }
+
+    const T = this.LOW_STOCK_THRESHOLD;
+    const out      = items.filter(p => (p.quantity || 0) === 0);
+    const low      = items.filter(p => (p.quantity || 0) > 0 && (p.quantity || 0) <= T);
+    const sufficient = items.filter(p => (p.quantity || 0) > T);
+
+    // ── Panel 1: Stock distribution bar ──────────────────────
+    const total = items.length || 1;
+    const pctOut = (out.length / total * 100).toFixed(1);
+    const pctLow = (low.length / total * 100).toFixed(1);
+    const pctOk  = (sufficient.length / total * 100).toFixed(1);
+
+    const distChart = `
+      <div class="si-chart-card">
+        <div class="si-chart-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Stock Distribution
+        </div>
+        <div class="si-dist-bar">
+          ${sufficient.length ? `<div class="si-dist-seg si-dist-ok"   style="flex:${sufficient.length}" title="Sufficient: ${sufficient.length}"></div>` : ''}
+          ${low.length        ? `<div class="si-dist-seg si-dist-low"  style="flex:${low.length}"        title="Low Stock: ${low.length}"></div>` : ''}
+          ${out.length        ? `<div class="si-dist-seg si-dist-out"  style="flex:${out.length}"        title="Out of Stock: ${out.length}"></div>` : ''}
+        </div>
+        <div class="si-dist-legend">
+          <span class="si-legend-item">
+            <span class="si-legend-dot" style="background:#10B981"></span>
+            Sufficient <strong>${sufficient.length}</strong> <span class="si-legend-pct">(${pctOk}%)</span>
+          </span>
+          <span class="si-legend-item">
+            <span class="si-legend-dot" style="background:#F59E0B"></span>
+            Low Stock <strong>${low.length}</strong> <span class="si-legend-pct">(${pctLow}%)</span>
+          </span>
+          <span class="si-legend-item">
+            <span class="si-legend-dot" style="background:#EF4444"></span>
+            Out of Stock <strong>${out.length}</strong> <span class="si-legend-pct">(${pctOk === '100.0' ? '0.0' : pctOut}%)</span>
+          </span>
+        </div>
+      </div>`;
+
+    // ── Panel 2: Top 5 highest stock ─────────────────────────
+    const top5 = [...items].sort((a, b) => (b.quantity || 0) - (a.quantity || 0)).slice(0, 5);
+    const maxTop = top5[0]?.quantity || 1;
+
+    const topChart = `
+      <div class="si-chart-card">
+        <div class="si-chart-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          Top 5 Highest Stock
+        </div>
+        <div class="si-bar-list">
+          ${top5.map(p => {
+            const pct = Math.round((p.quantity || 0) / maxTop * 100);
+            return `
+              <div class="si-bar-row">
+                <div class="si-bar-label" title="${Utils.escapeHtml(p.reference)}">${Utils.escapeHtml((p.reference || '').length > 18 ? p.reference.slice(0, 18) + '…' : p.reference)}</div>
+                <div class="si-bar-track">
+                  <div class="si-bar-fill si-bar-fill-green" style="width:${pct}%"></div>
+                </div>
+                <div class="si-bar-val">${Utils.formatNumber(p.quantity || 0)}</div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+
+    // ── Panel 3: Top 5 lowest stock (excluding zero) ──────────
+    const low5 = [...items]
+      .filter(p => (p.quantity || 0) > 0)
+      .sort((a, b) => (a.quantity || 0) - (b.quantity || 0))
+      .slice(0, 5);
+    const maxLow = low5.length ? (low5[low5.length - 1]?.quantity || 1) : 1;
+
+    const lowChart = `
+      <div class="si-chart-card">
+        <div class="si-chart-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>
+          Top 5 Lowest Stock
+          <span style="font-size:0.7rem;font-weight:400;color:var(--gray-400)">(excl. zero)</span>
+        </div>
+        ${low5.length === 0
+          ? '<p style="font-size:0.82rem;color:var(--gray-400);padding:12px 0">No items with stock > 0</p>'
+          : `<div class="si-bar-list">
+              ${low5.map(p => {
+                const qty = p.quantity || 0;
+                const pct = Math.round(qty / maxLow * 100);
+                const isLow = qty <= T;
+                return `
+                  <div class="si-bar-row">
+                    <div class="si-bar-label" title="${Utils.escapeHtml(p.reference)}">${Utils.escapeHtml((p.reference || '').length > 18 ? p.reference.slice(0, 18) + '…' : p.reference)}</div>
+                    <div class="si-bar-track">
+                      <div class="si-bar-fill ${isLow ? 'si-bar-fill-orange' : 'si-bar-fill-green'}" style="width:${Math.max(pct, 4)}%"></div>
+                    </div>
+                    <div class="si-bar-val ${isLow ? 'si-bar-val-warn' : ''}">${Utils.formatNumber(qty)}</div>
+                  </div>`;
+              }).join('')}
+            </div>`
+        }
+      </div>`;
+
+    wrap.innerHTML = distChart + topChart + lowChart;
+  },
+
+  // ── TABLE ─────────────────────────────────────────────────
 
   _sortIcon(key) {
     if (this._sortKey !== key) return `<span class="sort-icon"><svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 0L7 5H0z" fill="currentColor"/></svg><svg width="7" height="5" viewBox="0 0 7 5"><path d="M3.5 5L0 0h7z" fill="currentColor"/></svg></span>`;
@@ -347,17 +540,20 @@ REF-002,Sealing Bar Element,5,m</code>
 
     const pageSize = Pagination.getPageSize();
     const paged    = Pagination.paginate(items, this._page, pageSize);
+    const T        = this.LOW_STOCK_THRESHOLD;
 
     if (countEl) countEl.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--primary-50,#EFF6FF);color:var(--primary-700,#1D4ED8);border:1px solid var(--primary-200,#BFDBFE);border-radius:999px;padding:2px 10px;font-size:0.78rem;font-weight:600">${items.length} <span style="font-weight:400;opacity:.75">item${items.length !== 1 ? 's' : ''}</span></span>`;
 
     if (items.length === 0) {
       const hasData = (appState.storeInventory || []).length > 0;
+      const isFiltered = this._search || this._qtyFilter.op || this._activeChip !== 'all';
       wrap.innerHTML = `
         <div class="table-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
             <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
           </svg>
-          <p class="table-empty-text">${this._search ? 'No items match your search' : (hasData ? 'No items' : 'Inventory is empty — import a CSV to get started')}</p>
+          <p class="table-empty-text">${isFiltered ? 'No items match your filters' : (hasData ? 'No items' : 'Inventory is empty — import a CSV to get started')}</p>
+          ${isFiltered ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="Views.StoreInventory._clearFilters()">Clear Filters</button>` : ''}
         </div>`;
       return;
     }
@@ -365,14 +561,25 @@ REF-002,Sealing Bar Element,5,m</code>
     const thClass = key => `sortable${this._sortKey === key ? ' sort-' + this._sortDir : ''}`;
 
     const rows = paged.map(p => {
-      const qty = p.quantity ?? 0;
-      const qtyClass = qty === 0 ? 'si-qty-zero' : qty <= 5 ? 'si-qty-low' : 'si-qty-ok';
+      const qty      = p.quantity ?? 0;
+      const isOut    = qty === 0;
+      const isLow    = qty > 0 && qty <= T;
+      const qtyClass = isOut ? 'si-qty-zero' : isLow ? 'si-qty-low' : 'si-qty-ok';
+      const rowClass = isOut ? 'si-row-out' : isLow ? 'si-row-low' : '';
+
+      const stockBadge = isOut
+        ? `<span class="si-stock-badge si-stock-badge-out">Out of Stock</span>`
+        : isLow
+          ? `<span class="si-stock-badge si-stock-badge-low">Low Stock</span>`
+          : '';
+
       return `
-        <tr>
+        <tr class="${rowClass}">
           <td class="td-primary" style="font-family:monospace">${Utils.escapeHtml(p.reference || '—')}</td>
           <td>${Utils.escapeHtml(Utils.truncate ? Utils.truncate(p.description || '', 70) : (p.description || '—'))}</td>
-          <td style="text-align:right">
+          <td style="text-align:right;white-space:nowrap">
             <span class="si-qty-badge ${qtyClass}">${Utils.formatNumber(qty)}</span>
+            ${stockBadge}
           </td>
           <td style="text-align:center"><span class="part-unit-tag">${Utils.escapeHtml(p.unit || 'pcs')}</span></td>
         </tr>`;
@@ -382,9 +589,9 @@ REF-002,Sealing Bar Element,5,m</code>
       <table class="data-table">
         <thead>
           <tr>
-            <th class="${thClass('reference')}" onclick="Views.StoreInventory._setSort('reference')">Reference ${this._sortIcon('reference')}</th>
-            <th class="${thClass('description')}" onclick="Views.StoreInventory._setSort('description')">Description ${this._sortIcon('description')}</th>
-            <th class="${thClass('quantity')}" onclick="Views.StoreInventory._setSort('quantity')" style="text-align:right">Quantity ${this._sortIcon('quantity')}</th>
+            <th class="${thClass('reference')}"    onclick="Views.StoreInventory._setSort('reference')">Reference ${this._sortIcon('reference')}</th>
+            <th class="${thClass('description')}"  onclick="Views.StoreInventory._setSort('description')">Description ${this._sortIcon('description')}</th>
+            <th class="${thClass('quantity')}"     onclick="Views.StoreInventory._setSort('quantity')" style="text-align:right">Quantity ${this._sortIcon('quantity')}</th>
             <th style="text-align:center">Unit</th>
           </tr>
         </thead>
@@ -400,5 +607,19 @@ REF-002,Sealing Bar Element,5,m</code>
     const filtered = this._filtered(items);
     const sorted   = this._sorted(filtered);
     this._renderTable(sorted);
+  },
+
+  _clearFilters() {
+    this._search      = '';
+    this._qtyFilter   = { op: '', val: null };
+    this._activeChip  = 'all';
+    this._page        = 1;
+    const s = document.getElementById('siSearch');
+    if (s) s.value = '';
+    const op = document.getElementById('siQtyOp');
+    if (op) op.value = '';
+    const v = document.getElementById('siQtyVal');
+    if (v) { v.value = ''; v.style.display = 'none'; }
+    this._render();
   }
 };
