@@ -444,6 +444,48 @@ const Storage = {
     return expired.length;
   },
 
+  // ── CANCELLED JOBS ────────────────────────────────────────
+
+  async getCancelledJobs() {
+    const snap = await db.collection(COL.CANCELLED_JOBS)
+      .orderBy('cancelledAt', 'desc').get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  async archiveCancelledJob(record) {
+    const id = Utils.generateId();
+    await this._set(COL.CANCELLED_JOBS, id, { ...record, id });
+  },
+
+  async queueCancelledJobPurge(docId, snapshot) {
+    const update = { purgeQueued: true, purgeQueuedAt: new Date().toISOString() };
+    if (snapshot) update._snapshot = snapshot;
+    await this._update(COL.CANCELLED_JOBS, docId, update);
+  },
+
+  async undoQueuedCancelPurge(docId) {
+    await this._update(COL.CANCELLED_JOBS, docId, {
+      purgeQueued:   firebase.firestore.FieldValue.delete(),
+      purgeQueuedAt: firebase.firestore.FieldValue.delete()
+    });
+  },
+
+  async sweepExpiredCancelPurgeQueue() {
+    const snap = await db.collection(COL.CANCELLED_JOBS)
+      .where('purgeQueued', '==', true).get();
+    if (snap.empty) return 0;
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const expired = snap.docs.filter(d => {
+      const at = d.data().purgeQueuedAt;
+      return at && new Date(at).getTime() <= cutoff;
+    });
+    if (!expired.length) return 0;
+    const batch = db.batch();
+    expired.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    return expired.length;
+  },
+
   // ── ACTION LOG ────────────────────────────────────────────
 
   async getActionLog() {

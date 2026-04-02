@@ -42,5 +42,6 @@ const COL = {
   ACTION_LOG:           'actionLog',
   STORE_INVENTORY:      'storeInventory',
   STORE_INVENTORY_META: 'storeInventoryMeta',
+  CANCELLED_JOBS:       'cancelledJobs',
   SEEDED:               'meta'          // single doc { seeded: 'v4' }
 };

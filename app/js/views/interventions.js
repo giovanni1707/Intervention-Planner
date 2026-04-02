@@ -799,6 +799,12 @@ Views.Interventions = {
     <label class="form-label">Pause Reason <span class="required">*</span></label>
     <textarea id="fPauseReason" class="form-textarea" rows="2" placeholder="Explain why this job is being paused…">${intervention.status === 'paused' ? Utils.escapeHtml(intervention.pause?.reason || '') : ''}</textarea>
   </div>
+</div>
+<div id="fCancelReasonGroup" style="display:none">
+  <div class="form-group">
+    <label class="form-label">Cancellation Reason <span class="required">*</span></label>
+    <textarea id="fCancelReason" class="form-textarea" rows="2" placeholder="Explain why this job is being cancelled…"></textarea>
+  </div>
 </div>` : ''}
       ${isAdmin ? `
       <div class="form-group">
@@ -1157,6 +1163,11 @@ Views.Interventions = {
       const pauseGroup = document.getElementById('fPauseReasonGroup');
       if (pauseGroup) {
         pauseGroup.style.display = statusSel.value === 'paused' ? '' : 'none';
+      }
+      // Show/hide cancel reason field
+      const cancelGroup = document.getElementById('fCancelReasonGroup');
+      if (cancelGroup) {
+        cancelGroup.style.display = statusSel.value === 'cancelled' ? '' : 'none';
       }
     };
     statusSel.addEventListener('change', toggle);
@@ -1591,7 +1602,7 @@ Views.Interventions = {
     }
 
     // When status is anything other than 'new', admin must assign a technician + date + time
-    if (newStatus !== 'new' && newStatus !== 'paused' && userIsAdmin) {
+    if (newStatus !== 'new' && newStatus !== 'paused' && newStatus !== 'cancelled' && userIsAdmin) {
       const techVal = Array.from(document.querySelectorAll('.fIntTechCheck:checked')).length > 0;
       if (!techVal) {
         Toast.error('A technician must be assigned before saving with this status.');
@@ -1640,6 +1651,64 @@ Views.Interventions = {
         Toast.success('Job paused successfully.');
         return;
       }
+
+      if (newStatus === 'cancelled') {
+        const cancelReason = document.getElementById('fCancelReason')?.value.trim();
+        if (!cancelReason) { Toast.error('A cancellation reason is required.'); throw new Error('no_cancel_reason'); }
+
+        // Re-read live intervention to build snapshot
+        const intervention = appState.interventions.find(i => i.id === interventionId);
+        if (!intervention) { Toast.error('This job no longer exists.'); throw new Error('not_found'); }
+
+        const machine = appState.machines.find(m => m.id === intervention.machineId);
+        const client  = appState.clients.find(c => c.id === intervention.clientId);
+        const now     = new Date().toISOString();
+
+        // First update the intervention status so history + audit are recorded
+        await Storage.updateIntervention(interventionId, {
+          status: 'cancelled',
+          cancellationReason: cancelReason,
+          cancelledBy: currentUser?.name || 'Admin',
+          cancelledAt: now
+        }, {
+          action: 'Status Changed',
+          user:   currentUser?.name || 'Admin',
+          details: `${intervention.status} → cancelled`,
+          statusNote: cancelReason
+        });
+
+        // Fetch updated doc for snapshot
+        const updatedIntervention = await Storage.getInterventionById(interventionId);
+
+        // Archive to cancelled jobs
+        await Storage.archiveCancelledJob({
+          jobNumber:       machine?.jobNumber    || '—',
+          serialNumber:    machine?.serialNumber || '—',
+          clientName:      client?.name          || '—',
+          machineModel:    machine?.model        || '—',
+          type:            intervention.type,
+          status:          'cancelled',
+          createdAt:       intervention.createdAt,
+          cancelledAt:     now,
+          cancelledBy:     currentUser?.name || 'Admin',
+          cancelledById:   currentUser?.id   || '',
+          reason:          cancelReason,
+          _snapshot:       { ...updatedIntervention }
+        });
+
+        await Storage.logAction({
+          actor:   currentUser?.name || 'Admin',
+          actorId: currentUser?.id   || '',
+          action:  'CANCEL_INTERVENTION',
+          target:  `Job #${machine?.jobNumber || interventionId}`,
+          details: `Reason: ${cancelReason}`
+        });
+
+        Modals.close();
+        Toast.success('Job cancelled and logged to Cancelled Jobs.');
+        return;
+      }
+
       await Storage.updateIntervention(interventionId, {
         clientId, machineId,
         type:         userIsAdmin ? document.getElementById('fIntType')?.value     : original.type,
