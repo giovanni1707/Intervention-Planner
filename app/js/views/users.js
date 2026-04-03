@@ -184,9 +184,16 @@ Views.Users = {
           targetId: newUser.id,
           details: `Role: ${CONFIG.ROLES[role] || role}`
         });
+
+        // Send email verification to the new user
+        try {
+          await cred.user.sendEmailVerification();
+        } catch (_) { /* non-critical — account is still usable */ }
+
+        // Re-authenticate as the superadmin who performed the creation
         await fbAuth.signInWithEmailAndPassword(sa.email, document.getElementById('uConfirmPassword')?.value || '');
         Modals.close();
-        Toast.success(`User "${name}" created successfully.`);
+        Toast.success(`User "${name}" created. A verification email has been sent to ${email}.`);
         this.mount();
       } catch (err) {
         if (err.code === 'auth/email-already-in-use') return showErr('A Firebase Auth account with this email already exists.');
@@ -205,25 +212,26 @@ Views.Users = {
     ).join('');
 
     const body = `
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--blue);margin-bottom:16px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        A notification email listing all changes will be sent to the user upon saving.
+      </div>
       <div class="form-group">
         <label class="form-label">Full Name <span style="color:var(--red)">*</span></label>
         <input type="text" id="ueName" class="form-input" value="${Utils.escapeHtml(u.name)}" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Email Address <span style="color:var(--red)">*</span></label>
-        <input type="email" id="ueEmail" class="form-input" value="${Utils.escapeHtml(u.email)}" required>
+        <label class="form-label">Email Address</label>
+        <input type="email" class="form-input" value="${Utils.escapeHtml(u.email)}" disabled style="opacity:0.7;cursor:not-allowed">
+        <div style="font-size:0.78rem;color:var(--gray-500);margin-top:4px">Email address cannot be changed. Contact Firebase to update.</div>
       </div>
       <div class="form-group">
         <label class="form-label">New Password <span style="font-size:0.8rem;color:var(--gray-600)">(leave blank to keep current)</span></label>
-        <input type="password" id="uePassword" class="form-input" placeholder="••••••••">
+        <input type="password" id="uePassword" class="form-input" placeholder="Min. 6 characters">
       </div>
       <div class="form-group">
         <label class="form-label">Role <span style="color:var(--red)">*</span></label>
         <select id="ueRole" class="form-select">${roleOptions}</select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Your Password (to confirm) <span style="color:var(--red)">*</span></label>
-        <input type="password" id="ueConfirmPassword" class="form-input" placeholder="Your current password" required>
       </div>
       <div id="ueError" class="error-msg hidden"></div>
     `;
@@ -238,18 +246,13 @@ Views.Users = {
 
   async _submitEdit(userId) {
     const name     = document.getElementById('ueName')?.value.trim();
-    const email    = document.getElementById('ueEmail')?.value.trim().toLowerCase();
     const password = document.getElementById('uePassword')?.value;
     const role     = document.getElementById('ueRole')?.value;
     const errEl    = document.getElementById('ueError');
 
     const showErr = msg => { errEl.textContent = msg; errEl.classList.remove('hidden'); };
 
-    if (!name || !email || !role) return showErr('All required fields must be filled.');
-
-    const existing = appState.users.find(u => u.email.toLowerCase() === email && u.id !== userId);
-    if (existing) return showErr('Another user already has this email.');
-
+    if (!name || !role) return showErr('All required fields must be filled.');
     if (password && password.length < 6) return showErr('New password must be at least 6 characters.');
 
     const sa = appState.currentUser;
@@ -257,24 +260,29 @@ Views.Users = {
     if (!u) return showErr('User not found.');
 
     const changes = [];
-    if (u.name  !== name)  changes.push(`Name: "${u.name}" → "${name}"`);
-    if (u.email !== email) changes.push(`Email: "${u.email}" → "${email}"`);
-    if (u.role  !== role)  changes.push(`Role: "${CONFIG.ROLES[u.role] || u.role}" → "${CONFIG.ROLES[role] || role}"`);
-    if (password) changes.push('Password: changed');
+    if (u.name !== name) changes.push(`Full Name: "${u.name}" → "${name}"`);
+    if (u.role !== role) changes.push(`Role: "${CONFIG.ROLES[u.role] || u.role}" → "${CONFIG.ROLES[role] || role}"`);
+    if (password)        changes.push('Password: updated by administrator');
 
     await Utils.withButtonLock(async () => {
       try {
-        await Storage.updateUser(userId, { name, email, role });
+        await Storage.updateUser(userId, { name, role });
         await Storage.logAction({
           actor: sa.name, actorId: sa.id,
           action: 'EDIT_USER',
-          target: `${name} (${email})`,
+          target: `${name} (${u.email})`,
           targetId: userId,
           details: changes.length ? changes.join(' | ') : 'No changes'
         });
-        if (userId === sa.id) appState.currentUser = { ...sa, name, email, role };
+
+        // Send notification email to the user about what changed
+        if (changes.length > 0) {
+          try { await fbAuth.sendPasswordResetEmail(u.email); } catch (_) { /* non-critical */ }
+        }
+
+        if (userId === sa.id) appState.currentUser = { ...sa, name, role };
         Modals.close();
-        Toast.success(`User "${name}" updated successfully.`);
+        Toast.success(`User "${name}" updated.${changes.length ? ' A notification email has been sent.' : ''}`);
         this.mount();
       } catch (err) {
         showErr(err.message || 'Failed to update user.');

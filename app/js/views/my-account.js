@@ -69,7 +69,7 @@ Views.MyAccount = {
         <!-- RIGHT: Edit forms -->
         <div class="acc-main">
 
-          <!-- Profile edit -->
+          <!-- Profile information (read-only) -->
           <div class="card" style="margin-bottom:20px">
             <div class="card-header">
               <span class="card-title">
@@ -78,26 +78,19 @@ Views.MyAccount = {
               </span>
             </div>
             <div class="card-body">
-              <div id="accProfileMsg"></div>
+              <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--blue);margin-bottom:16px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                Profile details can only be changed by the <strong>&nbsp;Head Administrator</strong>.
+              </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-label">Full Name <span class="req">*</span></label>
-                  <input type="text" id="accName" class="form-input" value="${Utils.escapeHtml(user.name)}" placeholder="Your full name" maxlength="80">
+                  <label class="form-label">Full Name</label>
+                  <input type="text" class="form-input" value="${Utils.escapeHtml(user.name)}" disabled style="opacity:0.7;cursor:not-allowed">
                 </div>
                 <div class="form-group">
                   <label class="form-label">Email Address</label>
-                  <input type="email" class="form-input" value="${Utils.escapeHtml(user.email)}" disabled style="opacity:0.6;cursor:not-allowed" title="Email cannot be changed here">
+                  <input type="email" class="form-input" value="${Utils.escapeHtml(user.email)}" disabled style="opacity:0.7;cursor:not-allowed">
                 </div>
-              </div>
-              <div class="form-group" style="max-width:320px">
-                <label class="form-label">Phone <span style="font-weight:400;color:var(--gray-400);font-size:0.786rem">(optional)</span></label>
-                <input type="tel" id="accPhone" class="form-input" value="${Utils.escapeHtml(user.phone || '')}" placeholder="+230 XXXX XXXX">
-              </div>
-              <div style="margin-top:4px">
-                <button class="btn btn-primary" id="accSaveProfile">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  Save Changes
-                </button>
               </div>
             </div>
           </div>
@@ -190,9 +183,6 @@ Views.MyAccount = {
       const file = e.target.files[0];
       if (file) this._handlePhotoUpload(file);
     });
-
-    // Save profile
-    document.getElementById('accSaveProfile')?.addEventListener('click', () => this._saveProfile());
 
     // Save password
     document.getElementById('accSavePw')?.addEventListener('click', () => this._changePassword());
@@ -294,44 +284,6 @@ Views.MyAccount = {
     reader.readAsDataURL(file);
   },
 
-  async _saveProfile() {
-    const btn     = document.getElementById('accSaveProfile');
-    const msgEl   = document.getElementById('accProfileMsg');
-    const nameVal = document.getElementById('accName')?.value.trim();
-    const phoneVal = document.getElementById('accPhone')?.value.trim();
-
-    if (!nameVal) {
-      this._showMsg(msgEl, 'Full name is required.', 'danger');
-      return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = 'Saving…';
-    try {
-      const user = appState.currentUser;
-      await Storage.updateUser(user.id, { name: nameVal, phone: phoneVal || '' });
-      // Update local state
-      appState.currentUser = { ...user, name: nameVal, phone: phoneVal || '' };
-      // Update avatar and name displays
-      const avatarEl = document.getElementById('accAvatarDisplay');
-      const nameEl   = document.getElementById('accNameDisplay');
-      if (avatarEl) {
-        avatarEl.style.background = appState.currentUser.photoURL ? 'transparent' : roleColor;
-        avatarEl.innerHTML = Utils.userAvatarHtml(appState.currentUser);
-      }
-      if (nameEl) nameEl.textContent = nameVal;
-      // Re-render sidebar to update avatar
-      Sidebar.render();
-      this._showMsg(msgEl, 'Profile updated successfully.', 'success');
-    } catch (err) {
-      console.error('[MyAccount] save profile error:', err);
-      this._showMsg(msgEl, 'Failed to save profile. Please try again.', 'danger');
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Changes`;
-    }
-  },
-
   _togglePw(inputId, eyeId) {
     const input = document.getElementById(inputId);
     const eye   = document.getElementById(eyeId);
@@ -401,6 +353,9 @@ Views.MyAccount = {
       await fbUser.reauthenticateWithCredential(credential);
       await fbUser.updatePassword(newPw);
 
+      // Send a notification email so the user is alerted of the change
+      try { await fbAuth.sendPasswordResetEmail(fbUser.email); } catch (_) { /* non-critical */ }
+
       await Storage.logAction({
         action:   'CHANGE_PASSWORD',
         actor:    user.name,
@@ -409,8 +364,8 @@ Views.MyAccount = {
         details:  'User changed their own password'
       });
 
-      this._showMsg(msgEl, 'Password updated successfully. You will be signed out shortly…', 'success');
-      setTimeout(() => { Auth.logout(); window.location.reload(); }, 2000);
+      this._showMsg(msgEl, 'Password updated successfully. A confirmation email has been sent. You will be signed out shortly…', 'success');
+      setTimeout(() => { Auth.logout(); window.location.reload(); }, 2500);
     } catch (err) {
       console.error('[MyAccount] password change error:', err);
       let msg = 'Failed to update password.';

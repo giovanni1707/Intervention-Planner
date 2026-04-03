@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>GPS Service Management — GIOVANNI PACKAGING SOLUTION</title>
-  <link rel="stylesheet" href="app/css/main.css?v=10">
+  <link rel="stylesheet" href="app/css/main.css?v=11">
 </head>
 <body>
 
@@ -25,13 +25,17 @@
         </div>
       </div>
       <div class="login-divider"></div>
+      <!-- Sign-in panel -->
       <form id="loginForm" class="login-form" autocomplete="off">
         <div class="form-group">
           <label class="form-label" for="loginEmail">Email Address</label>
           <input type="email" id="loginEmail" class="form-input" placeholder="your@email.com" required autocomplete="off">
         </div>
         <div class="form-group">
-          <label class="form-label" for="loginPassword">Password</label>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <label class="form-label" for="loginPassword" style="margin-bottom:0">Password</label>
+            <button type="button" id="forgotPwLink" class="login-forgot-link">Forgot password?</button>
+          </div>
           <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required autocomplete="new-password">
         </div>
         <div id="loginError" class="error-msg hidden"></div>
@@ -39,6 +43,24 @@
           <span id="loginBtnText">Sign In</span>
         </button>
       </form>
+
+      <!-- Forgot-password panel (hidden by default) -->
+      <div id="forgotPwPanel" class="login-forgot-panel hidden">
+        <button type="button" id="forgotPwBack" class="login-forgot-back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to Sign In
+        </button>
+        <h3 class="login-forgot-title">Reset your password</h3>
+        <p class="login-forgot-sub">Enter your email address and we'll send you a link to reset your password.</p>
+        <div class="form-group">
+          <label class="form-label" for="forgotPwEmail">Email Address</label>
+          <input type="email" id="forgotPwEmail" class="form-input" placeholder="your@email.com" autocomplete="off">
+        </div>
+        <div id="forgotPwMsg"></div>
+        <button type="button" class="btn btn-primary btn-full" id="forgotPwBtn">
+          <span id="forgotPwBtnText">Send Reset Link</span>
+        </button>
+      </div>
       <div class="login-demo">
         <span>Head Administrator:</span>
         <code>superadmin@bavarian.mu</code> / <code>super123</code><br>
@@ -152,7 +174,7 @@
   <script src="app/js/views/job-tracker.js?v=5"></script>
   <script src="app/js/views/deleted-jobs.js?v=6"></script>
   <script src="app/js/views/cancelled-jobs.js?v=1"></script>
-  <script src="app/js/views/users.js?v=3"></script>
+  <script src="app/js/views/users.js?v=5"></script>
   <script src="app/js/views/action-log.js?v=2"></script>
   <script src="app/js/views/maintenance-contracts.js?v=13"></script>
   <script src="app/js/views/maintenance-forecast.js?v=2"></script>
@@ -160,7 +182,7 @@
   <script src="app/js/views/settings.js?v=4"></script>
   <script src="app/js/views/notifications.js?v=7"></script>
   <script src="app/js/views/my-jobs.js?v=2"></script>
-  <script src="app/js/views/my-account.js?v=3"></script>
+  <script src="app/js/views/my-account.js?v=5"></script>
   <script src="app/js/views/parts-inventory.js?v=2"></script>
   <script src="app/js/views/store-inventory.js?v=5"></script>
   <script src="app/js/views/client-summary.js?v=2"></script>
@@ -169,7 +191,7 @@
   <script src="app/js/views/equipment-history.js?v=1"></script>
 
   <script src="app/js/router.js?v=8"></script>
-  <script src="app/js/app.js?v=4"></script>
+  <script src="app/js/app.js?v=5"></script>
 
 </body>
 </html>

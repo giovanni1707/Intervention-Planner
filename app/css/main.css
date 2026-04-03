@@ -189,6 +189,56 @@ input, select, textarea {
 
 .login-form { display: flex; flex-direction: column; gap: 16px; }
 
+/* ── Forgot password link (inside form) ─────────────────── */
+.login-forgot-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.786rem;
+  color: var(--accent, #6366F1);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.15s;
+}
+.login-forgot-link:hover { opacity: 0.75; }
+
+/* ── Forgot password panel ───────────────────────────────── */
+.login-forgot-panel { display: flex; flex-direction: column; gap: 12px; }
+.login-forgot-back {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; padding: 0;
+  font-size: 0.786rem; color: var(--gray-500); cursor: pointer;
+  transition: color 0.15s;
+}
+.login-forgot-back:hover { color: var(--gray-700); }
+.login-forgot-title {
+  font-size: 1.1rem; font-weight: 700;
+  margin: 4px 0 0; color: var(--gray-900);
+}
+.login-forgot-sub {
+  font-size: 0.82rem; color: var(--gray-500);
+  margin: 0; line-height: 1.5;
+}
+.login-forgot-msg {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.login-forgot-msg-success {
+  background: #ECFDF5; color: #065F46;
+  border: 1px solid #6EE7B7;
+}
+.login-forgot-msg-error {
+  background: #FEF2F2; color: #991B1B;
+  border: 1px solid #FECACA;
+}
+.dark-mode .login-forgot-title { color: var(--gray-900); }
+.dark-mode .login-forgot-msg-success { background: #064E3B; color: #6EE7B7; border-color: #065F46; }
+.dark-mode .login-forgot-msg-error   { background: #2D0A0A; color: #FCA5A5; border-color: #7F1D1D; }
+
 .login-demo {
   margin-top: 20px;
   padding: 12px 16px;

@@ -54,6 +54,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (loginForm) {
     loginForm.addEventListener('submit', handleLogin);
   }
+
+  // ── 5. BIND FORGOT PASSWORD ──────────────────────────────
+  document.getElementById('forgotPwLink')?.addEventListener('click', () => {
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('forgotPwPanel').classList.remove('hidden');
+    document.getElementById('forgotPwEmail').value = document.getElementById('loginEmail')?.value || '';
+    document.getElementById('forgotPwMsg').innerHTML = '';
+    document.getElementById('forgotPwEmail').focus();
+  });
+
+  document.getElementById('forgotPwBack')?.addEventListener('click', () => {
+    document.getElementById('forgotPwPanel').classList.add('hidden');
+    document.getElementById('loginForm').classList.remove('hidden');
+  });
+
+  document.getElementById('forgotPwBtn')?.addEventListener('click', handleForgotPassword);
+  document.getElementById('forgotPwEmail')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleForgotPassword();
+  });
 });
 
 // ── LOAD PROFILE WITH RETRY (handles Firestore offline at startup) ──
@@ -118,13 +137,65 @@ function showLogin() {
 
   // Clear form fields so no previous user's credentials remain
   const loginForm = document.getElementById('loginForm');
-  if (loginForm) loginForm.reset();
+  if (loginForm) {
+    loginForm.reset();
+    loginForm.classList.remove('hidden');
+  }
+  const forgotPanel = document.getElementById('forgotPwPanel');
+  if (forgotPanel) forgotPanel.classList.add('hidden');
 
   // Reset login button if it was disabled
   const loginBtn = document.getElementById('loginBtn');
   const btnText  = document.getElementById('loginBtnText');
   if (loginBtn) loginBtn.disabled = false;
   if (btnText)  btnText.textContent = 'Sign In';
+}
+
+// ── FORGOT PASSWORD HANDLER ─────────────────────────────────
+async function handleForgotPassword() {
+  const email  = document.getElementById('forgotPwEmail')?.value.trim().toLowerCase();
+  const btn    = document.getElementById('forgotPwBtn');
+  const btnTxt = document.getElementById('forgotPwBtnText');
+  const msgEl  = document.getElementById('forgotPwMsg');
+
+  msgEl.innerHTML = '';
+
+  if (!email) {
+    msgEl.innerHTML = `<div class="login-forgot-msg login-forgot-msg-error">Please enter your email address.</div>`;
+    return;
+  }
+
+  btn.disabled = true;
+  btnTxt.textContent = 'Sending…';
+
+  try {
+    await fbAuth.sendPasswordResetEmail(email);
+    msgEl.innerHTML = `
+      <div class="login-forgot-msg login-forgot-msg-success">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+        Reset link sent! Check your inbox at <strong>${email}</strong>. The link expires in 1 hour.
+      </div>`;
+    btn.disabled = false;
+    btnTxt.textContent = 'Resend Link';
+  } catch (err) {
+    let msg = 'Failed to send reset email. Please try again.';
+    // Firebase returns auth/user-not-found for unregistered emails.
+    // We show a generic success to avoid user enumeration.
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
+      msgEl.innerHTML = `
+        <div class="login-forgot-msg login-forgot-msg-success">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+          If an account exists for <strong>${email}</strong>, a reset link has been sent.
+        </div>`;
+      btn.disabled = false;
+      btnTxt.textContent = 'Resend Link';
+      return;
+    }
+    if (err.code === 'auth/too-many-requests') msg = 'Too many requests. Please wait a moment before trying again.';
+    msgEl.innerHTML = `<div class="login-forgot-msg login-forgot-msg-error">${msg}</div>`;
+    btn.disabled = false;
+    btnTxt.textContent = 'Send Reset Link';
+  }
 }
 
 // ── LOGIN HANDLER ───────────────────────────────────────────
