@@ -221,11 +221,11 @@ input, select, textarea {
   margin: 0; line-height: 1.5;
 }
 .login-forgot-msg {
-  display: flex; align-items: flex-start; gap: 8px;
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   font-size: 0.82rem;
-  line-height: 1.5;
+  line-height: 1.6;
+  word-break: break-word;
 }
 .login-forgot-msg-success {
   background: #ECFDF5; color: #065F46;

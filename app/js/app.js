@@ -29,6 +29,17 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const profile = await _loadProfileWithRetry(firebaseUser.uid);
         if (profile) {
+          // Block unverified accounts (superadmin exempt — created outside normal flow)
+          if (!firebaseUser.emailVerified && profile.role !== 'superadmin') {
+            await fbAuth.signOut();
+            showLogin();
+            const errEl = document.getElementById('loginError');
+            if (errEl) {
+              errEl.textContent = 'Please verify your email address before signing in. Check your inbox for the verification link.';
+              errEl.classList.remove('hidden');
+            }
+            return;
+          }
           appState.currentUser = { ...profile };
           await _bootApp();
         } else {
@@ -172,8 +183,7 @@ async function handleForgotPassword() {
     await fbAuth.sendPasswordResetEmail(email);
     msgEl.innerHTML = `
       <div class="login-forgot-msg login-forgot-msg-success">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
-        Reset link sent! Check your inbox at <strong>${email}</strong>. The link expires in 1 hour.
+        ✓ Reset link sent! Check your inbox at <strong>${email}</strong>. The link expires in 1 hour.
       </div>`;
     btn.disabled = false;
     btnTxt.textContent = 'Resend Link';
@@ -184,8 +194,7 @@ async function handleForgotPassword() {
     if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
       msgEl.innerHTML = `
         <div class="login-forgot-msg login-forgot-msg-success">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
-          If an account exists for <strong>${email}</strong>, a reset link has been sent.
+          ✓ If an account exists for <strong>${email}</strong>, a reset link has been sent.
         </div>`;
       btn.disabled = false;
       btnTxt.textContent = 'Resend Link';
