@@ -4246,6 +4246,7 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
 .dash-act-view { flex-shrink: 0; opacity: 0; transition: opacity 0.15s; color: var(--gray-500); }
 .dash-act-item:hover .dash-act-view { opacity: 1; color: var(--blue); background: transparent !important; }
 .dash-act-item:hover .dash-act-view:hover { background: var(--gray-200) !important; }
+.dark-mode .dash-act-view { opacity: 1; color: #475569; }
 .dark-mode .dash-act-item:hover .dash-act-view { color: var(--blue); }
 .dark-mode .dash-act-item:hover .dash-act-view:hover { background: var(--gray-700) !important; }
 
@@ -4279,11 +4280,128 @@ body.dark-mode .fc-progress-none    { background: var(--gray-200);        color:
    MY JOBS VIEW
 ═══════════════════════════════════════════════════════════ */
 
+/* ── Tech Jobs — Technician Picker ───────────────────────── */
+.tj-tech-picker {
+  margin-bottom: 16px;
+}
+.tj-picker-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.tj-tech-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  position: relative;
+}
+.tj-tech-pill:hover { border-color: var(--blue); color: var(--blue); }
+.tj-tech-pill.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+.tj-all-pill { padding: 5px 14px; gap: 6px; }
+.tj-all-pill.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.tj-tech-avatar {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--gray-300);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.tj-tech-pill.active .tj-tech-avatar { background: rgba(255,255,255,0.3); }
+.tj-tech-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tj-tech-badge {
+  background: var(--orange);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  min-width: 18px; height: 18px;
+  border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+}
+.tj-tech-pill.active .tj-tech-badge { background: rgba(255,255,255,0.3); }
+
+/* Admin KPI context label */
+.tj-kpi-context {
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  margin-bottom: 10px;
+}
+.tj-kpi-context strong { color: var(--gray-800); }
+.mj-kpi-row-inner {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Assigned technician chips on each card */
+.tj-assigned-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px;
+  color: var(--gray-400);
+  font-size: 0.75rem;
+}
+.tj-assigned-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: default;
+}
+.tj-chip-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--gray-800);
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}
+.tj-assigned-chip:hover .tj-chip-tooltip { display: block; }
+
+/* Dark mode */
+body.dark-mode .tj-tech-pill { border-color: var(--gray-700); background: var(--gray-100); color: var(--gray-300); }
+body.dark-mode .tj-tech-pill:hover { border-color: var(--blue); color: #93C5FD; }
+body.dark-mode .tj-tech-pill.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+body.dark-mode .tj-tech-badge { background: #EA580C; }
+body.dark-mode .tj-kpi-context { color: var(--gray-400); }
+body.dark-mode .tj-kpi-context strong { color: var(--gray-200); }
+body.dark-mode .tj-chip-tooltip { background: var(--gray-900); }
+
+/* ── My Jobs KPI row ─────────────────────────────────────── */
 .mj-kpi-row {
   display: flex;
   gap: 12px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+  flex-direction: column;
 }
 .mj-kpi-card {
   flex: 1;
@@ -5065,12 +5183,13 @@ body.dark-mode .help-note { background: rgba(245,158,11,0.1); }
   color: var(--gray-900);
   line-height: 1;
 }
-.dark-mode .acc-stat-val { color: var(--gray-100); }
+.dark-mode .acc-stat-val { color: #F1F5F9; }
 .acc-stat-label {
   font-size: 0.7rem;
   color: var(--gray-500);
   margin-top: 3px;
 }
+.dark-mode .acc-stat-label { color: #94A3B8; }
 
 /* ============================================================
    Client Summary (.cs-*)
@@ -5546,6 +5665,28 @@ body.dark-mode .chat-messages { background: #151E2D; }
 body.dark-mode .chat-date-sep { color: #475569; }
 body.dark-mode .chat-date-sep::before,
 body.dark-mode .chat-date-sep::after { background: #334155; }
+
+/* ── System notice (profile updates, admin actions) ──────── */
+.chat-system-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px auto;
+  max-width: 480px;
+  padding: 10px 14px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: #1D4ED8;
+  line-height: 1.6;
+  text-align: left;
+}
+body.dark-mode .chat-system-notice {
+  background: #1E293B;
+  border-color: #334155;
+  color: #93C5FD;
+}
 
 /* ── Message delete button ────────────────────────────────── */
 .chat-msg-wrap {

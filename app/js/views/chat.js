@@ -504,6 +504,17 @@ Views.Chat = {
         return out;
       }
 
+      // ── System notice (e.g. profile update by superadmin) ─────
+      if (msg.isSystemNotice) {
+        const lines = Utils.escapeHtml(msg.text).replace(/\n/g, '<br>');
+        out += `
+          <div class="chat-system-notice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div>${lines}</div>
+          </div>`;
+        return out;
+      }
+
       const deleteBtn = `
         <button class="chat-msg-delete-btn" title="Delete message"
                 onclick="Views.Chat._confirmDeleteMsg('${msg.id}')">

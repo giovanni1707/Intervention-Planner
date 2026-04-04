@@ -213,8 +213,8 @@ Views.Users = {
 
     const body = `
       <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--blue-light);border:1px solid var(--blue);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--blue);margin-bottom:16px">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        A notification email listing all changes will be sent to the user upon saving.
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        The user will receive an in-app chat notification listing all changes.
       </div>
       <div class="form-group">
         <label class="form-label">Full Name <span style="color:var(--red)">*</span></label>
@@ -223,15 +223,15 @@ Views.Users = {
       <div class="form-group">
         <label class="form-label">Email Address</label>
         <input type="email" class="form-input" value="${Utils.escapeHtml(u.email)}" disabled style="opacity:0.7;cursor:not-allowed">
-        <div style="font-size:0.78rem;color:var(--gray-500);margin-top:4px">Email address cannot be changed. Contact Firebase to update.</div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">New Password <span style="font-size:0.8rem;color:var(--gray-600)">(leave blank to keep current)</span></label>
-        <input type="password" id="uePassword" class="form-input" placeholder="Min. 6 characters">
+        <div style="font-size:0.78rem;color:var(--gray-500);margin-top:4px">Email address cannot be changed.</div>
       </div>
       <div class="form-group">
         <label class="form-label">Role <span style="color:var(--red)">*</span></label>
         <select id="ueRole" class="form-select">${roleOptions}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Details / Reason for changes <span style="color:var(--red)">*</span></label>
+        <textarea id="ueDetails" class="form-input" rows="3" placeholder="Describe the reason for this update…" style="resize:vertical"></textarea>
       </div>
       <div id="ueError" class="error-msg hidden"></div>
     `;
@@ -245,44 +245,71 @@ Views.Users = {
   },
 
   async _submitEdit(userId) {
-    const name     = document.getElementById('ueName')?.value.trim();
-    const password = document.getElementById('uePassword')?.value;
-    const role     = document.getElementById('ueRole')?.value;
-    const errEl    = document.getElementById('ueError');
+    const name    = document.getElementById('ueName')?.value.trim();
+    const role    = document.getElementById('ueRole')?.value;
+    const details = document.getElementById('ueDetails')?.value.trim();
+    const errEl   = document.getElementById('ueError');
 
     const showErr = msg => { errEl.textContent = msg; errEl.classList.remove('hidden'); };
 
-    if (!name || !role) return showErr('All required fields must be filled.');
-    if (password && password.length < 6) return showErr('New password must be at least 6 characters.');
+    if (!name || !role)    return showErr('Full Name and Role are required.');
+    if (!details)          return showErr('Please provide a reason for the changes.');
 
     const sa = appState.currentUser;
     const u  = appState.users.find(x => x.id === userId);
     if (!u) return showErr('User not found.');
 
     const changes = [];
-    if (u.name !== name) changes.push(`Full Name: "${u.name}" → "${name}"`);
-    if (u.role !== role) changes.push(`Role: "${CONFIG.ROLES[u.role] || u.role}" → "${CONFIG.ROLES[role] || role}"`);
-    if (password)        changes.push('Password: updated by administrator');
+    if (u.name !== name) changes.push({ field: 'Full Name', from: u.name,                          to: name });
+    if (u.role !== role) changes.push({ field: 'Role',      from: CONFIG.ROLES[u.role] || u.role,  to: CONFIG.ROLES[role] || role });
 
     await Utils.withButtonLock(async () => {
       try {
         await Storage.updateUser(userId, { name, role });
+
+        const changesSummary = changes.length
+          ? changes.map(c => `${c.field}: "${c.from}" → "${c.to}"`).join(' | ')
+          : 'No field changes';
+
         await Storage.logAction({
           actor: sa.name, actorId: sa.id,
           action: 'EDIT_USER',
           target: `${name} (${u.email})`,
           targetId: userId,
-          details: changes.length ? changes.join(' | ') : 'No changes'
+          details: `${changesSummary} | Reason: ${details}`
         });
 
-        // Send notification email to the user about what changed
+        // Send in-app chat notification to the user (DM from superadmin)
         if (changes.length > 0) {
-          try { await fbAuth.sendPasswordResetEmail(u.email); } catch (_) { /* non-critical */ }
+          try {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            const lines = [
+              `Your profile has been updated by a Head Administrator.`
+            ];
+            changes.forEach(c => lines.push(`• ${c.field} changed to: ${c.to}`));
+            lines.push(`Date: ${dateStr}, ${timeStr}`);
+
+            // DM conversation ID = sorted user IDs joined by '_'
+            const convId = [sa.id, userId].sort().join('_');
+            await db.collection('chatMessages').add({
+              conversationId: convId,
+              senderId:       sa.id,
+              senderName:     sa.name,
+              text:           lines.join('\n'),
+              createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
+              readBy:         [sa.id],
+              isSystemNotice: true
+            });
+          } catch (chatErr) {
+            console.warn('[Users] Failed to send chat notification:', chatErr);
+          }
         }
 
         if (userId === sa.id) appState.currentUser = { ...sa, name, role };
         Modals.close();
-        Toast.success(`User "${name}" updated.${changes.length ? ' A notification email has been sent.' : ''}`);
+        Toast.success(`User "${name}" updated.${changes.length ? ' Chat notification sent.' : ''}`);
         this.mount();
       } catch (err) {
         showErr(err.message || 'Failed to update user.');

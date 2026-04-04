@@ -104,56 +104,16 @@ Views.MyAccount = {
               </span>
             </div>
             <div class="card-body">
+              <p style="font-size:0.857rem;color:var(--gray-600);margin:0 0 16px">
+                For your security, password changes are handled via a confirmation email.
+                Click the button below and we'll send a secure reset link to your registered address.
+                Your current password stays active until you complete the process through the link.
+              </p>
               <div id="accPwMsg"></div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">Current Password <span class="req">*</span></label>
-                  <div style="position:relative">
-                    <input type="password" id="accCurrentPw" class="form-input" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px">
-                    <button type="button" onclick="Views.MyAccount._togglePw('accCurrentPw','accCurrentPwEye')"
-                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--gray-400);padding:0;line-height:1" title="Show/Hide">
-                      <svg id="accCurrentPwEye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">New Password <span class="req">*</span></label>
-                  <div style="position:relative">
-                    <input type="password" id="accNewPw" class="form-input" placeholder="8–10 characters" autocomplete="new-password" style="padding-right:40px" oninput="Views.MyAccount._updateStrength()">
-                    <button type="button" onclick="Views.MyAccount._togglePw('accNewPw','accNewPwEye')"
-                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--gray-400);padding:0;line-height:1" title="Show/Hide">
-                      <svg id="accNewPwEye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                  </div>
-                  <div style="margin-top:6px">
-                    <div style="display:flex;gap:4px;height:4px">
-                      <div id="accPwBar1" style="flex:1;border-radius:2px;background:var(--gray-200);transition:background 0.2s"></div>
-                      <div id="accPwBar2" style="flex:1;border-radius:2px;background:var(--gray-200);transition:background 0.2s"></div>
-                      <div id="accPwBar3" style="flex:1;border-radius:2px;background:var(--gray-200);transition:background 0.2s"></div>
-                      <div id="accPwBar4" style="flex:1;border-radius:2px;background:var(--gray-200);transition:background 0.2s"></div>
-                    </div>
-                    <div id="accPwStrengthLabel" style="font-size:0.75rem;color:var(--gray-400);margin-top:3px"></div>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Confirm New Password <span class="req">*</span></label>
-                  <div style="position:relative">
-                    <input type="password" id="accConfirmPw" class="form-input" placeholder="Re-enter new password" autocomplete="new-password" style="padding-right:40px">
-                    <button type="button" onclick="Views.MyAccount._togglePw('accConfirmPw','accConfirmPwEye')"
-                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--gray-400);padding:0;line-height:1" title="Show/Hide">
-                      <svg id="accConfirmPwEye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <button class="btn btn-primary" id="accSavePw">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                  Update Password
-                </button>
-              </div>
+              <button class="btn btn-primary" id="accSavePw">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                Send Password Reset Link
+              </button>
             </div>
           </div>
 
@@ -184,8 +144,8 @@ Views.MyAccount = {
       if (file) this._handlePhotoUpload(file);
     });
 
-    // Save password
-    document.getElementById('accSavePw')?.addEventListener('click', () => this._changePassword());
+    // Send password reset link
+    document.getElementById('accSavePw')?.addEventListener('click', () => this._sendPasswordReset());
   },
 
   _renderStats(user) {
@@ -284,96 +244,60 @@ Views.MyAccount = {
     reader.readAsDataURL(file);
   },
 
-  _togglePw(inputId, eyeId) {
-    const input = document.getElementById(inputId);
-    const eye   = document.getElementById(eyeId);
-    if (!input) return;
-    const isHidden = input.type === 'password';
-    input.type = isHidden ? 'text' : 'password';
-    if (eye) eye.innerHTML = isHidden
-      ? `<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`
-      : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
-  },
-
-  _updateStrength() {
-    const pw    = document.getElementById('accNewPw')?.value || '';
-    const bars  = [1,2,3,4].map(i => document.getElementById(`accPwBar${i}`));
-    const label = document.getElementById('accPwStrengthLabel');
-    if (!bars[0]) return;
-
-    let score = 0;
-    if (pw.length >= 8)  score++;
-    if (/[A-Za-z]/.test(pw) && /[0-9]/.test(pw)) score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-    if (pw.length >= 10) score++;
-
-    const levels = [
-      { color: 'var(--red)',  text: 'Weak'   },
-      { color: '#F59E0B',     text: 'Fair'   },
-      { color: '#3B82F6',     text: 'Good'   },
-      { color: '#10B981',     text: 'Strong' }
-    ];
-    const level = pw.length === 0 ? null : levels[Math.min(score, 3)];
-    bars.forEach((bar, i) => {
-      bar.style.background = level && i < score ? level.color : 'var(--gray-200)';
-    });
-    if (label) { label.textContent = level ? level.text : ''; label.style.color = level ? level.color : 'var(--gray-400)'; }
-  },
-
-  async _changePassword() {
-    const btn       = document.getElementById('accSavePw');
-    const msgEl     = document.getElementById('accPwMsg');
-    const currentPw = document.getElementById('accCurrentPw')?.value;
-    const newPw     = document.getElementById('accNewPw')?.value;
-    const confirmPw = document.getElementById('accConfirmPw')?.value;
-
-    if (!currentPw || !newPw || !confirmPw) {
-      this._showMsg(msgEl, 'All password fields are required.', 'danger');
-      return;
-    }
-    if (newPw.length < 8 || newPw.length > 10) {
-      this._showMsg(msgEl, 'Password must be between 8 and 10 characters.', 'danger');
-      return;
-    }
-    if (!/[A-Za-z]/.test(newPw) || !/[0-9]/.test(newPw)) {
-      this._showMsg(msgEl, 'Password must contain both letters and numbers.', 'danger');
-      return;
-    }
-    if (newPw !== confirmPw) {
-      this._showMsg(msgEl, 'New passwords do not match.', 'danger');
-      return;
-    }
+  async _sendPasswordReset() {
+    const btn   = document.getElementById('accSavePw');
+    const msgEl = document.getElementById('accPwMsg');
+    const user  = appState.currentUser;
 
     btn.disabled = true;
-    btn.textContent = 'Updating…';
-    try {
-      const user = appState.currentUser;
-      const fbUser = fbAuth.currentUser;
-      const credential = firebase.auth.EmailAuthProvider.credential(fbUser.email, currentPw);
-      await fbUser.reauthenticateWithCredential(credential);
-      await fbUser.updatePassword(newPw);
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Sending…`;
 
-      // Send a notification email so the user is alerted of the change
-      try { await fbAuth.sendPasswordResetEmail(fbUser.email); } catch (_) { /* non-critical */ }
+    try {
+      await fbAuth.sendPasswordResetEmail(user.email);
 
       await Storage.logAction({
-        action:   'CHANGE_PASSWORD',
+        action:   'REQUEST_PASSWORD_RESET',
         actor:    user.name,
         target:   `${user.name} (${user.email})`,
         targetId: user.id,
-        details:  'User changed their own password'
+        details:  'User requested a password reset link from My Account'
       });
 
-      this._showMsg(msgEl, 'Password updated successfully. A confirmation email has been sent. You will be signed out shortly…', 'success');
-      setTimeout(() => { Auth.logout(); window.location.reload(); }, 2500);
-    } catch (err) {
-      console.error('[MyAccount] password change error:', err);
-      let msg = 'Failed to update password.';
-      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Current password is incorrect.';
-      if (err.code === 'auth/weak-password') msg = 'Password is too weak.';
-      this._showMsg(msgEl, msg, 'danger');
+      // Send in-app chat notification to the user's own DM with the superadmin
+      try {
+        const now     = new Date();
+        const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const sa      = appState.users.find(u => u.role === 'superadmin');
+        if (sa) {
+          const convId = [user.id, sa.id].sort().join('_');
+          await db.collection('chatMessages').add({
+            conversationId: convId,
+            senderId:       sa.id,
+            senderName:     sa.name,
+            text:           `A password reset was initiated for your account on ${dateStr} at ${timeStr}.\nIf you did not request this, please contact your administrator immediately.`,
+            createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
+            readBy:         [sa.id],
+            isSystemNotice: true
+          });
+        }
+      } catch (chatErr) {
+        console.warn('[MyAccount] Failed to send chat notification:', chatErr);
+      }
+
+      this._showMsg(msgEl,
+        `A confirmation email has been sent to ${user.email}. Please click the link in the email to set your new password. Your current password remains active until you complete the process.`,
+        'success'
+      );
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Resend Link`;
       btn.disabled = false;
-      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Update Password`;
+    } catch (err) {
+      console.error('[MyAccount] password reset error:', err);
+      let msg = 'Failed to send reset email. Please try again.';
+      if (err.code === 'auth/too-many-requests') msg = 'Too many requests. Please wait a moment before trying again.';
+      this._showMsg(msgEl, msg, 'danger');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Send Password Reset Link`;
+      btn.disabled = false;
     }
   },
 

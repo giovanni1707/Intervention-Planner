@@ -366,49 +366,117 @@ Views.Technicians = {
       .filter(i => Utils.getTechIds(i).includes(techId))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    const rowsHTML = allIntv.length === 0
-      ? `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--gray-400)">No interventions assigned to this technician.</td></tr>`
-      : allIntv.map(i => `
-          <tr>
-            <td>${Utils.getStatusBadge(i.status, i)}</td>
-            <td>${Utils.getPriorityBadge(i.priority)}</td>
-            <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
-            <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getMachineModel(i.machineId))}</td>
-            <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
-            <td style="font-size:0.786rem">${i.location === 'workshop' ? 'Workshop' : 'Client Premises'}</td>
-            <td style="font-size:0.786rem;white-space:nowrap">${Utils.formatDate(i.scheduledDate)}</td>
-            <td>
-              <button class="btn btn-ghost btn-sm btn-icon" title="View Details"
-                onclick="Modals.close(); setTimeout(() => Views.Interventions.openDetailModal('${i.id}'), 100)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-            </td>
-          </tr>
-        `).join('');
+    // Build unique type options from this tech's interventions
+    const typeOptions = [...new Set(allIntv.map(i => i.type).filter(Boolean))]
+      .map(t => `<option value="${t}">${Utils.escapeHtml(Utils.getInterventionTypeLabel(t))}</option>`)
+      .join('');
+
+    const renderRows = () => {
+      const search   = (document.getElementById('timSearch')?.value   || '').toLowerCase();
+      const status   = document.getElementById('timStatus')?.value   || 'all';
+      const priority = document.getElementById('timPriority')?.value || 'all';
+      const type     = document.getElementById('timType')?.value     || 'all';
+
+      const filtered = allIntv.filter(i => {
+        if (status   !== 'all' && i.status   !== status)   return false;
+        if (priority !== 'all' && i.priority !== priority) return false;
+        if (type     !== 'all' && i.type     !== type)     return false;
+        if (search) {
+          const client  = Utils.getClientName(i.clientId).toLowerCase();
+          const machine = Utils.getMachineModel(i.machineId).toLowerCase();
+          const typeStr = Utils.getInterventionTypeLabel(i.type).toLowerCase();
+          if (!client.includes(search) && !machine.includes(search) && !typeStr.includes(search)) return false;
+        }
+        return true;
+      });
+
+      const countEl = document.getElementById('timCount');
+      if (countEl) countEl.textContent = filtered.length !== allIntv.length
+        ? `${filtered.length} / ${allIntv.length} interventions`
+        : `${allIntv.length} intervention${allIntv.length !== 1 ? 's' : ''}`;
+
+      const tbody = document.getElementById('timTbody');
+      if (!tbody) return;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--gray-400)">No interventions match the current filters.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(i => `
+        <tr>
+          <td>${Utils.getStatusBadge(i.status, i)}</td>
+          <td>${Utils.getPriorityBadge(i.priority)}</td>
+          <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getClientName(i.clientId))}</td>
+          <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getMachineModel(i.machineId))}</td>
+          <td style="font-size:0.786rem">${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</td>
+          <td style="font-size:0.786rem">${i.location === 'workshop' ? 'Workshop' : 'Client Premises'}</td>
+          <td style="font-size:0.786rem;white-space:nowrap">${Utils.formatDate(i.scheduledDate)}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm btn-icon" title="View Details"
+              onclick="Modals.close(); setTimeout(() => Views.Interventions.openDetailModal('${i.id}'), 100)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </td>
+        </tr>`).join('');
+    };
 
     const body = `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Priority</th>
-            <th>Client</th>
-            <th>Machine</th>
-            <th>Type</th>
-            <th>Location</th>
-            <th>Scheduled</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>${rowsHTML}</tbody>
-      </table>
+      <!-- Filter bar -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 0 14px;border-bottom:1px solid var(--gray-200);margin-bottom:12px">
+        <div style="position:relative;flex:1;min-width:160px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"
+               style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--gray-400);pointer-events:none">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="timSearch" class="form-input" placeholder="Search client, machine, type…"
+                 style="padding-left:30px;height:32px;font-size:0.8rem" oninput="Views.Technicians._timRender()">
+        </div>
+        <select id="timStatus" class="toolbar-select" style="height:32px;font-size:0.8rem" onchange="Views.Technicians._timRender()">
+          <option value="all">All Statuses</option>
+          ${Object.entries(CONFIG.STATUSES).map(([k,v]) => `<option value="${k}">${Utils.escapeHtml(v.label)}</option>`).join('')}
+        </select>
+        <select id="timPriority" class="toolbar-select" style="height:32px;font-size:0.8rem" onchange="Views.Technicians._timRender()">
+          <option value="all">All Priorities</option>
+          ${Object.entries(CONFIG.PRIORITIES).map(([k,v]) => `<option value="${k}">${Utils.escapeHtml(v.label)}</option>`).join('')}
+        </select>
+        <select id="timType" class="toolbar-select" style="height:32px;font-size:0.8rem" onchange="Views.Technicians._timRender()">
+          <option value="all">All Types</option>
+          ${typeOptions}
+        </select>
+        <button class="btn btn-ghost btn-sm" style="height:32px;font-size:0.8rem;white-space:nowrap"
+                onclick="Views.Technicians._timClear()">Clear</button>
+        <span id="timCount" style="font-size:0.78rem;color:var(--gray-500);white-space:nowrap;margin-left:4px"></span>
+      </div>
+
+      <div class="table-wrapper" style="max-height:55vh;overflow-y:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Status</th><th>Priority</th><th>Client</th><th>Machine</th>
+              <th>Type</th><th>Location</th><th>Scheduled</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="timTbody"></tbody>
+        </table>
+      </div>
     `;
+
+    // Store renderRows so inline handlers can call it
+    Views.Technicians._timRender  = renderRows;
+    Views.Technicians._timClear   = () => {
+      ['timSearch','timStatus','timPriority','timType'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = el.tagName === 'INPUT' ? '' : 'all';
+      });
+      renderRows();
+    };
 
     Modals.open(
       `${Utils.escapeHtml(tech.name)} — ${allIntv.length} Intervention${allIntv.length !== 1 ? 's' : ''}`,
       body,
       `<button class="btn btn-ghost" onclick="Modals.close()">Close</button>`,
-      { size: 'lg' }
+      { size: 'lg', onOpen: renderRows }
     );
   },
 

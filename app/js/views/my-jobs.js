@@ -1,17 +1,17 @@
 /* ============================================================
-   views/my-jobs.js — My Jobs (Technician-facing view)
+   views/my-jobs.js — My Jobs (Technician) / Tech Jobs (Admin)
    ============================================================ */
 
 window.Views = window.Views || {};
 
 Views.MyJobs = {
-  _effectCleanup: null,
-  _statusFilter:  'open',
-  _sortKey:       'scheduledDate',
-  _sortDir:       'asc',
+  _effectCleanup:  null,
+  _statusFilter:   'open',
+  _sortKey:        'scheduledDate',
+  _sortDir:        'asc',
+  _techFilter:     'all',   // 'all' | technicianId
 
   mount() {
-    // Redirect non-technicians
     const user = appState.currentUser;
     if (!user || (user.role !== 'technician' && user.role !== 'admin' && user.role !== 'superadmin')) {
       Router.go('dashboard');
@@ -21,6 +21,7 @@ Views.MyJobs = {
     this._statusFilter = 'open';
     this._sortKey      = 'scheduledDate';
     this._sortDir      = 'asc';
+    this._techFilter   = 'all';
 
     const content = document.getElementById('mainContent');
     content.innerHTML = this._template();
@@ -39,14 +40,29 @@ Views.MyJobs = {
     }
   },
 
-  _myJobs() {
+  _isAdmin() {
+    const r = appState.currentUser?.role;
+    return r === 'admin' || r === 'superadmin';
+  },
+
+  // Returns technicians list (for admin picker)
+  _technicians() {
+    return appState.users.filter(u => u.role === 'technician')
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+
+  // Returns the base job list respecting tech filter
+  _baseJobs() {
     const user = appState.currentUser;
     if (!user) return [];
-    // Admin/superadmin can browse all; technicians see only their own
-    const list = (user.role === 'technician')
-      ? appState.interventions.filter(i => Utils.getTechIds(i).includes(user.id))
-      : appState.interventions;
-    return list;
+    if (!this._isAdmin()) {
+      return appState.interventions.filter(i => Utils.getTechIds(i).includes(user.id));
+    }
+    // Admin: filter by selected technician or all
+    if (this._techFilter === 'all') {
+      return appState.interventions.filter(i => Utils.getTechIds(i).length > 0);
+    }
+    return appState.interventions.filter(i => Utils.getTechIds(i).includes(this._techFilter));
   },
 
   _applyFilter(list) {
@@ -81,12 +97,12 @@ Views.MyJobs = {
   },
 
   _template() {
-    const user    = appState.currentUser;
-    const isTech  = user && user.role === 'technician';
-    const title   = isTech ? 'My Jobs' : 'All Jobs';
-    const subtitle = isTech
-      ? 'Your assigned interventions — sorted by scheduled date'
-      : 'All interventions overview';
+    const user     = appState.currentUser;
+    const isAdmin  = this._isAdmin();
+    const title    = isAdmin ? 'Tech Jobs' : 'My Jobs';
+    const subtitle = isAdmin
+      ? 'View and monitor interventions assigned to technicians'
+      : 'Your assigned interventions — sorted by scheduled date';
 
     return `
       <div class="page-header">
@@ -101,6 +117,8 @@ Views.MyJobs = {
           </button>
         </div>
       </div>
+
+      ${isAdmin ? '<div id="tjTechPicker" class="tj-tech-picker"></div>' : ''}
 
       <!-- KPI mini row -->
       <div id="myJobsKpi" class="mj-kpi-row"></div>
@@ -160,7 +178,8 @@ Views.MyJobs = {
   },
 
   _render() {
-    const all      = this._myJobs();
+    if (this._isAdmin()) this._renderTechPicker();
+    const all      = this._baseJobs();
     const filtered = this._applyFilter(all);
     const sorted   = this._sort(filtered);
     this._renderKpi(all);
@@ -168,21 +187,80 @@ Views.MyJobs = {
     this._updateTabCounts(all);
   },
 
+  _renderTechPicker() {
+    const container = document.getElementById('tjTechPicker');
+    if (!container) return;
+
+    const techs = this._technicians();
+    if (techs.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const allActive = this._techFilter === 'all';
+
+    const pills = techs.map(t => {
+      const active   = this._techFilter === t.id;
+      const initials = Utils.getInitials(t.name);
+      const jobs     = appState.interventions.filter(i =>
+        Utils.getTechIds(i).includes(t.id) && CONFIG.OPEN_STATUSES.includes(i.status)
+      ).length;
+      const roleColor = '#10B981'; // technician green
+      return `
+        <button class="tj-tech-pill${active ? ' active' : ''}"
+                onclick="Views.MyJobs._selectTech('${t.id}')"
+                title="${Utils.escapeHtml(t.name)}">
+          <span class="tj-tech-avatar" style="background:${active ? roleColor : 'var(--gray-300)'}">
+            ${t.photoURL
+              ? `<img src="${t.photoURL}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+              : initials}
+          </span>
+          <span class="tj-tech-name">${Utils.escapeHtml(t.name)}</span>
+          ${jobs > 0 ? `<span class="tj-tech-badge">${jobs}</span>` : ''}
+        </button>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="tj-picker-wrap">
+        <button class="tj-tech-pill tj-all-pill${allActive ? ' active' : ''}"
+                onclick="Views.MyJobs._selectTech('all')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          All Technicians
+        </button>
+        ${pills}
+      </div>`;
+  },
+
+  _selectTech(id) {
+    this._techFilter = id;
+    this._render();
+  },
+
   _renderKpi(all) {
     const kpi = document.getElementById('myJobsKpi');
     if (!kpi) return;
-    const today    = all.filter(i => Utils.isToday(i.scheduledDate));
-    const open     = all.filter(i => CONFIG.OPEN_STATUSES.includes(i.status));
-    const urgent   = all.filter(i => i.priority === 'urgent' && CONFIG.OPEN_STATUSES.includes(i.status));
-    const overdue  = all.filter(i =>
+
+    const today   = all.filter(i => Utils.isToday(i.scheduledDate));
+    const open    = all.filter(i => CONFIG.OPEN_STATUSES.includes(i.status));
+    const urgent  = all.filter(i => i.priority === 'urgent' && CONFIG.OPEN_STATUSES.includes(i.status));
+    const overdue = all.filter(i =>
       CONFIG.OPEN_STATUSES.includes(i.status) && i.scheduledDate &&
       Utils.isPast(i.scheduledDate) && !Utils.isToday(i.scheduledDate)
     );
+
+    // For admin: show which technician's name is selected
+    const techLabel = this._isAdmin() && this._techFilter !== 'all'
+      ? appState.users.find(u => u.id === this._techFilter)?.name || ''
+      : '';
+
     kpi.innerHTML = `
-      <div class="mj-kpi-card mj-kpi-blue"><div class="mj-kpi-val">${today.length}</div><div class="mj-kpi-label">Today</div></div>
-      <div class="mj-kpi-card mj-kpi-orange"><div class="mj-kpi-val">${open.length}</div><div class="mj-kpi-label">Open</div></div>
-      <div class="mj-kpi-card mj-kpi-red"><div class="mj-kpi-val">${urgent.length}</div><div class="mj-kpi-label">Urgent</div></div>
-      <div class="mj-kpi-card mj-kpi-yellow"><div class="mj-kpi-val">${overdue.length}</div><div class="mj-kpi-label">Overdue</div></div>
+      ${techLabel ? `<div class="tj-kpi-context">Showing jobs for <strong>${Utils.escapeHtml(techLabel)}</strong></div>` : ''}
+      <div class="mj-kpi-row-inner">
+        <div class="mj-kpi-card mj-kpi-blue"><div class="mj-kpi-val">${today.length}</div><div class="mj-kpi-label">Today</div></div>
+        <div class="mj-kpi-card mj-kpi-orange"><div class="mj-kpi-val">${open.length}</div><div class="mj-kpi-label">Open</div></div>
+        <div class="mj-kpi-card mj-kpi-red"><div class="mj-kpi-val">${urgent.length}</div><div class="mj-kpi-label">Urgent</div></div>
+        <div class="mj-kpi-card mj-kpi-yellow"><div class="mj-kpi-val">${overdue.length}</div><div class="mj-kpi-label">Overdue</div></div>
+      </div>
     `;
   },
 
@@ -198,7 +276,6 @@ Views.MyJobs = {
       const el = document.getElementById(`mjTab${k.charAt(0).toUpperCase() + k.slice(1)}`);
       if (el) el.textContent = `${k.charAt(0).toUpperCase() + k.slice(1)} (${v})`;
     });
-    // Restore active class after text update
     document.querySelectorAll('.mj-tab[data-filter]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.filter === this._statusFilter);
     });
@@ -207,6 +284,7 @@ Views.MyJobs = {
   _renderList(items) {
     const container = document.getElementById('myJobsList');
     if (!container) return;
+    const isAdmin = this._isAdmin();
 
     if (items.length === 0) {
       container.innerHTML = `
@@ -218,16 +296,33 @@ Views.MyJobs = {
     }
 
     const cards = items.map(i => {
-      const machine  = appState.machines.find(m => m.id === i.machineId) || {};
-      const client   = appState.clients.find(c => c.id === i.clientId)  || {};
-      const isToday  = Utils.isToday(i.scheduledDate);
+      const machine   = appState.machines.find(m => m.id === i.machineId) || {};
+      const client    = appState.clients.find(c => c.id === i.clientId)   || {};
+      const isToday   = Utils.isToday(i.scheduledDate);
       const isOverdue = CONFIG.OPEN_STATUSES.includes(i.status) && i.scheduledDate && Utils.isPast(i.scheduledDate) && !isToday;
-      const isUrgent = i.priority === 'urgent';
+      const isUrgent  = i.priority === 'urgent';
 
       let dateLabel = Utils.formatDate(i.scheduledDate);
       let dateClass = '';
       if (isToday)   { dateLabel = 'Today'; dateClass = 'mj-date-today'; }
       if (isOverdue) { dateClass = 'mj-date-overdue'; }
+
+      // For admin: show assigned technician(s)
+      let techRow = '';
+      if (isAdmin) {
+        const techIds = Utils.getTechIds(i);
+        const techNames = techIds
+          .map(id => appState.users.find(u => u.id === id))
+          .filter(Boolean)
+          .map(u => `<span class="tj-assigned-chip">${Utils.escapeHtml(Utils.getInitials(u.name))}<span class="tj-chip-tooltip">${Utils.escapeHtml(u.name)}</span></span>`)
+          .join('');
+        if (techNames) {
+          techRow = `<div class="tj-assigned-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            ${techNames}
+          </div>`;
+        }
+      }
 
       return `
         <div class="mj-card${isUrgent ? ' mj-card-urgent' : ''}${isOverdue ? ' mj-card-overdue' : ''}${isToday ? ' mj-card-today' : ''}">
@@ -242,6 +337,8 @@ Views.MyJobs = {
               ${Utils.getPriorityBadge(i.priority)}
             </div>
           </div>
+
+          ${techRow}
 
           <div class="mj-card-meta">
             <span>${Utils.escapeHtml(Utils.getInterventionTypeLabel(i.type))}</span>

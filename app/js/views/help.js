@@ -66,8 +66,12 @@ Views.Help = {
       summary:  'How to log in and control your session persistence.',
       body: `
         <h3>Signing in</h3>
-        <p>On the login screen enter your <strong>email address</strong> and <strong>password</strong>, then click <em>Sign In</em>.</p>
-        <p>If your credentials are incorrect you will see an error message below the form. Contact your Head Administrator to reset your password.</p>
+        <p>On the login screen enter your <strong>email address</strong> and <strong>password</strong>, then click <em>Sign In</em>. Use the <strong>eye icon</strong> inside the password field to show or hide what you are typing.</p>
+        <p class="help-note">⚠ New accounts must verify their email address before signing in. Check your inbox for a verification link sent at the time your account was created.</p>
+
+        <h3>Forgot your password?</h3>
+        <p>Click <strong>Forgot password?</strong> (next to the password label on the login form). Enter your registered email address and click <em>Send Reset Link</em>. A secure, time-limited link (valid for 1 hour) will be sent to your inbox. Click the link to set a new password. Your current password remains active until you complete the process through the link.</p>
+        <p class="help-note">⚠ Check your spam or junk folder if you do not receive the email within a few minutes.</p>
 
         <h3>Session persistence</h3>
         <p>Go to <strong>Settings → Session Persistence</strong> to choose how your login behaves:</p>
@@ -297,10 +301,28 @@ Views.Help = {
       summary:  'View the team roster, workload, and individual performance.',
       body: `
         <h3>Team Roster</h3>
-        <p>The Technicians page displays a card for each technician showing their name, current active job count, and a workload summary.</p>
+        <p>The Technicians page displays a card for each technician showing their name, current active job count, completed job count, and a workload bar.</p>
 
         <h3>Workload Chart</h3>
         <p>A bar chart at the top compares the number of active jobs across all technicians — useful for balancing assignments.</p>
+
+        <h3>Technician card actions</h3>
+        <p>Each card has two action buttons in the top-right corner:</p>
+        <ul>
+          <li><strong>Planning Board</strong> (calendar icon) — opens a monthly calendar for that technician showing all their scheduled jobs as priority-coloured dots. Click any day to see that day's jobs. A sidebar lists their next 5 upcoming jobs.</li>
+          <li><strong>View All Interventions</strong> (list icon) — opens a modal listing every intervention ever assigned to that technician.</li>
+        </ul>
+
+        <h3>Interventions modal filters</h3>
+        <p>The interventions modal includes a filter bar at the top with:</p>
+        <ul>
+          <li><strong>Search</strong> — free-text search across client name, machine model, and intervention type.</li>
+          <li><strong>Status</strong> — filter by any intervention status.</li>
+          <li><strong>Priority</strong> — filter by Low, Medium, High, or Urgent.</li>
+          <li><strong>Type</strong> — only shows types present in that technician's history.</li>
+          <li><strong>Clear</strong> — resets all filters at once.</li>
+        </ul>
+        <p>A count badge shows <em>filtered / total</em> when filters are active.</p>
 
         <h3>Assigning technicians</h3>
         <p>Technician assignment happens inside the <strong>Intervention form</strong> or the <strong>Job Detail Modal</strong>. Select one or more technicians from the dropdown when creating or editing a job.</p>
@@ -649,13 +671,22 @@ Views.Help = {
         <p>Click <strong>+ Add User</strong>. Fill in:</p>
         <ul>
           <li><strong>Full Name</strong></li>
-          <li><strong>Email address</strong> — this becomes their login username.</li>
+          <li><strong>Email address</strong> — this becomes their login username. A verification email is sent automatically when the account is created.</li>
           <li><strong>Password</strong> — must be 8–10 characters with letters and numbers.</li>
           <li><strong>Role</strong> — Head Administrator, Admin, or Technician.</li>
         </ul>
+        <p class="help-note">⚠ New users must click the verification link in their email before they can sign in for the first time.</p>
 
         <h3>Editing a user</h3>
-        <p>Click the <em>pencil icon</em> to update a user's name, phone, or role. Email cannot be changed after creation.</p>
+        <p>Click the <em>pencil icon</em> to open the Edit User form. The following rules apply:</p>
+        <ul>
+          <li><strong>Email address</strong> — read-only. Cannot be changed after creation.</li>
+          <li><strong>Password</strong> — cannot be changed by the administrator. The user must use the <em>Forgot Password</em> / <em>Send Reset Link</em> flow themselves.</li>
+          <li><strong>Full Name</strong> and <strong>Role</strong> — editable.</li>
+          <li><strong>Details / Reason</strong> — a mandatory field describing why the change is being made.</li>
+        </ul>
+        <p>When changes are saved, the affected user automatically receives an <strong>in-app chat notification</strong> (sent as a system message in their direct message conversation with the Head Administrator) listing exactly what was changed, the new values, and the date and time of the change.</p>
+        <p>All edits are also recorded in the <strong>Action Log</strong> with the reason included.</p>
 
         <h3>Deleting a user</h3>
         <p>Click the <em>trash icon</em> and confirm. This removes the user from the system. This action cannot be undone.</p>
@@ -686,7 +717,8 @@ Views.Help = {
           <li>Creating, editing, and deleting interventions</li>
           <li>Status changes on interventions</li>
           <li>Creating and editing clients, machines, contracts</li>
-          <li>User password changes</li>
+          <li>User account edits (name, role) — including the reason provided by the Head Administrator</li>
+          <li>Password reset link requests (logged as <em>REQUEST_PASSWORD_RESET</em>)</li>
           <li>Contract parts management</li>
         </ul>
 
@@ -705,29 +737,26 @@ Views.Help = {
       icon:     '<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
       title:    'My Account & Profile',
       roles:    ['all'],
-      summary:  'Update your name, photo, phone, and password.',
+      summary:  'View your profile, update your photo, and request a password reset.',
       body: `
         <h3>Profile information</h3>
-        <p>Click <strong>My Account</strong> in the sidebar to view and edit your profile.</p>
-        <ul>
-          <li><strong>Full Name</strong> — displayed throughout the app and in chat.</li>
-          <li><strong>Phone</strong> — optional, visible to admins.</li>
-          <li><strong>Email</strong> — cannot be changed; contact your Head Administrator.</li>
-        </ul>
+        <p>Click <strong>My Account</strong> in the sidebar to view your profile. The <em>Profile Information</em> card is <strong>read-only</strong> — Full Name and Email are displayed but cannot be edited here.</p>
+        <p class="help-note">ℹ Profile details (name, role) can only be changed by the <strong>Head Administrator</strong> via the Users section.</p>
 
         <h3>Profile picture</h3>
         <p>Click the <em>camera icon</em> on your avatar to upload a profile picture. The image is automatically cropped and resized to a square. Supported formats: JPG, PNG, GIF, WebP (max 5 MB).</p>
         <p>Your photo appears in the sidebar, in the chat conversation list, and in message bubbles.</p>
 
         <h3>Changing your password</h3>
-        <p>In the <em>Change Password</em> card:</p>
+        <p>Password changes are handled via a secure email confirmation flow:</p>
         <ol>
-          <li>Enter your <strong>current password</strong> to verify your identity.</li>
-          <li>Enter a <strong>new password</strong> (8–10 characters, letters and numbers required).</li>
-          <li>Confirm the new password.</li>
-          <li>Click <em>Update Password</em>.</li>
+          <li>In the <em>Change Password</em> card, click <strong>Send Password Reset Link</strong>.</li>
+          <li>A secure reset link (valid for 1 hour) is sent to your registered email address.</li>
+          <li>Click the link in the email to set your new password on the secure Firebase page.</li>
         </ol>
-        <p class="help-note">⚠ After a successful password change you will be automatically signed out and must log in again with the new password.</p>
+        <p>Your <strong>current password remains active</strong> until you complete the process through the link. You do not need to sign out first.</p>
+        <p>When a reset link is requested, an <strong>in-app chat notification</strong> is automatically sent to your direct message conversation with the Head Administrator, confirming the date and time of the request and advising you to contact support if you did not initiate it.</p>
+        <p class="help-note">⚠ Check your spam or junk folder if you do not receive the email. Click <em>Resend Link</em> if needed.</p>
 
         <h3>Recent Activity</h3>
         <p>The bottom of the page shows your 8 most recent interventions. Click <em>View</em> on any row to open the job detail.</p>
@@ -943,12 +972,26 @@ Views.Help = {
       id:       'myjobs-overview',
       category: 'My Jobs',
       icon:     '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>',
-      title:    'My Jobs (Technician View)',
+      title:    'My Jobs / Tech Jobs',
       roles:    ['all'],
-      summary:  'View your assigned jobs, filter by urgency, and open job details.',
+      summary:  'Technicians view their own jobs; admins monitor all technicians with a picker.',
       body: `
-        <h3>Overview</h3>
-        <p><strong>My Jobs</strong> is a read-only view of all interventions assigned to you. Admins see all interventions; technicians see only their own assignments.</p>
+        <h3>Technician view — "My Jobs"</h3>
+        <p>When signed in as a <strong>Technician</strong>, this section is called <em>My Jobs</em> and shows only the interventions assigned to you.</p>
+
+        <h3>Admin / Head Administrator view — "Tech Jobs"</h3>
+        <p>When signed in as an <strong>Admin</strong> or <strong>Head Administrator</strong>, this section is called <em>Tech Jobs</em>. It provides a full view of all technician assignments with additional tools:</p>
+
+        <h3>Technician Picker</h3>
+        <p>A row of pill buttons at the top of the page lists every technician. Each pill shows the technician's avatar, name, and an orange badge with their current open job count.</p>
+        <ul>
+          <li>Click <strong>All Technicians</strong> to see jobs assigned to any technician.</li>
+          <li>Click a specific technician's pill to filter all KPIs, tabs, and cards to that person only.</li>
+          <li>When a technician is selected, a context label above the KPI cards confirms whose jobs are being shown.</li>
+        </ul>
+
+        <h3>Assigned technician chips</h3>
+        <p>Each job card shows small coloured initials circles for every technician assigned to that job. Hover over a chip to see the technician's full name in a tooltip.</p>
 
         <h3>Filter tabs</h3>
         <ul>
@@ -958,15 +1001,16 @@ Views.Help = {
           <li><strong>Completed</strong> — finished or cancelled jobs.</li>
           <li><strong>All</strong> — everything regardless of status.</li>
         </ul>
+        <p>Tab labels include a count in parentheses, updated instantly when the technician picker changes.</p>
 
         <h3>KPI row</h3>
-        <p>The four cards at the top show at a glance: how many jobs are today, open, urgent, and overdue.</p>
+        <p>The four cards show — for the currently selected technician or all technicians: Today, Open, Urgent, and Overdue counts.</p>
 
         <h3>Sorting</h3>
         <p>Use the <em>Sort by</em> dropdown to order by: Scheduled Date, Priority, Client, or Created Date. Toggle ascending/descending with the arrow button.</p>
 
         <h3>Viewing a job</h3>
-        <p>This section is <strong>view-only</strong>. Click <em>View</em> on any card to open the full job detail modal where you can read notes, see history, and review parts.</p>
+        <p>This section is <strong>view-only</strong>. Click <em>View</em> on any card to open the full job detail modal.</p>
       `
     },
 

@@ -20,7 +20,7 @@ const Sidebar = {
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`
     },
     {
-      route: 'my-jobs', label: 'My Jobs', adminOnly: false, technicianOnly: true,
+      route: 'my-jobs', label: 'My Jobs', adminOnly: false, dynamicLabel: true,
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`
     },
     {
@@ -124,17 +124,20 @@ const Sidebar = {
     const visibleItems = this._navItems.filter(item => {
       if (item.superAdminOnly)  return isSuperAdmin;
       if (item.adminOnly)       return isAdminOrAbove;
-      if (item.technicianOnly)  return role === 'technician';
       return true;
     });
 
-    const navHTML = visibleItems.map(item => `
-      <div class="sidebar-nav-item" data-route="${item.route}" title="${item.label}">
-        ${item.icon}
-        <span>${item.label}</span>
-        ${item.hasBadge ? `<span class="nc-sidebar-badge hidden" id="${item.badgeId || 'ncSidebarBadge'}">0</span>` : ''}
-      </div>
-    `).join('');
+    const navHTML = visibleItems.map(item => {
+      const label = (item.dynamicLabel && item.route === 'my-jobs')
+        ? (isAdminOrAbove ? 'Tech Jobs' : 'My Jobs')
+        : item.label;
+      return `
+        <div class="sidebar-nav-item" data-route="${item.route}" title="${label}">
+          ${item.icon}
+          <span>${label}</span>
+          ${item.hasBadge ? `<span class="nc-sidebar-badge hidden" id="${item.badgeId || 'ncSidebarBadge'}">0</span>` : ''}
+        </div>`;
+    }).join('');
 
     sidebar.classList.toggle('collapsed', this._collapsed);
 
